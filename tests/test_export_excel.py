@@ -28,3 +28,15 @@ def test_empty_tables_still_write_headers(tmp_path):
     wb = openpyxl.load_workbook(path)
     assert wb.sheetnames == ORDER
     assert "win_pct" in [c.value for c in wb["Consensus"][1]]
+
+
+def test_locked_report_returns_false_and_cleans_tmp(tmp_path, monkeypatch):
+    import os
+
+    def locked(src, dst):
+        raise PermissionError(13, "file is open in Excel")
+
+    monkeypatch.setattr(os, "replace", locked)
+    path = tmp_path / "r.xlsx"
+    assert write_report({"Consensus": pd.DataFrame([{"n": 1}])}, path) is False
+    assert not list(tmp_path.glob("*.tmp.xlsx"))

@@ -70,3 +70,14 @@ def test_not_complete_not_graded(tmp_path, status):
 def test_empty_db_has_columns(tmp_path):
     df = load_graded_picks(db.connect(tmp_path / "e.db"))
     assert df.empty and {"side_result", "expert_result", "fav_dog"} <= set(df.columns)
+
+
+def test_an_result_used_even_if_game_status_stale(tmp_path):
+    df = load_graded_picks(_seed(tmp_path, status="scheduled", an_result="win")).set_index("pick_id")
+    assert df.loc[11].expert_result == "win"
+    assert df.loc[11].side_result is None
+
+
+def test_an_result_ignored_for_cancelled_game(tmp_path):
+    df = load_graded_picks(_seed(tmp_path, status="cancelled", an_result="win")).set_index("pick_id")
+    assert df.loc[11].expert_result is None

@@ -86,7 +86,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
     <label>Loại kèo<select id="f-market"></select></label>
-    <label>Khoảng thời gian<select id="f-range">
+    <label id="range-wrap">Khoảng thời gian<select id="f-range">
       <option value="7">7 ngày</option><option value="30">30 ngày</option>
       <option value="90">90 ngày</option><option value="0" selected>Tất cả</option>
     </select></label>
@@ -252,11 +252,15 @@ const DATA = /*__DATA__*/null;
     box.replaceChildren();
     for (const s of D.league_status || []) {
       const failed = s.last_error_at && (!s.last_success_at || s.last_error_at > s.last_success_at);
-      box.append(el("span", { class: "chip" + (failed ? " err" : ""),
-        text: `${leagueName(s.league)}: ${failed ? "lỗi " + fmtTime(s.last_error_at) : fmtTime(s.last_success_at)}`,
+      const pending = s.ungraded_past_games ? ` · ${s.ungraded_past_games} trận đã qua chưa có kết quả` : "";
+      box.append(el("span", { class: "chip" + (failed || pending ? " err" : ""),
+        text: `${leagueName(s.league)}: ${failed ? "lỗi " + fmtTime(s.last_error_at) : fmtTime(s.last_success_at)}${pending}`,
         title: failed ? String(s.last_error || "") : "" }));
     }
-    const age = D.generated_at ? Date.now() - new Date(D.generated_at).getTime() : Infinity;
+    // stale = no league has succeeded in the last 24h (a run that fails everywhere still refreshes generated_at)
+    const successes = (D.league_status || []).map((s) => s.last_success_at).filter(Boolean).sort();
+    const newest = successes.length ? successes[successes.length - 1] : null;
+    const age = newest ? Date.now() - new Date(newest).getTime() : Infinity;
     document.getElementById("stale").hidden = !(age > 24 * 3600 * 1000);
   }
 
@@ -275,9 +279,9 @@ const DATA = /*__DATA__*/null;
   }
 
   function inRangeAhead(iso) {
-    if (!state.range) return true;
     const t = new Date(iso).getTime();
-    return t <= Date.now() + state.range * 86400000;
+    if (isNaN(t) || t <= Date.now()) return false; // already started (page may be hours old)
+    return !state.range || t <= Date.now() + state.range * 86400000;
   }
 
   function upcomingTab() {
@@ -466,6 +470,8 @@ const DATA = /*__DATA__*/null;
     buttons.forEach((b) => b.addEventListener("click", () => {
       buttons.forEach((x) => x.setAttribute("aria-selected", String(x === b)));
       document.querySelectorAll("section.panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + b.dataset.tab));
+      // the time-range filter only applies to Upcoming and Trend; hide it elsewhere so all-time numbers are not misread
+      document.getElementById("range-wrap").hidden = !["upcoming", "trend"].includes(b.dataset.tab);
       Object.values(charts).forEach((c) => c && c.resize());
     }));
   }

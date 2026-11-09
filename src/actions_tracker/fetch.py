@@ -42,7 +42,7 @@ class Fetcher:
                 self.sleep(BACKOFF[attempt - 1])
             try:
                 resp = self.session.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
-            except (requests.ConnectionError, requests.Timeout) as e:
+            except requests.RequestException as e:  # connection, timeout, chunked-encoding, ...
                 last = f"{type(e).__name__}: {e}"
                 continue
             if resp.status_code == 200:
@@ -63,8 +63,11 @@ class Fetcher:
             raise FetchError(f"{url}: response is not JSON") from e
 
 
-def fetch_league(fetcher: Fetcher, league: str) -> tuple[str, dict]:
-    """Return (picks page HTML, scoreboard JSON) for one league."""
-    html = fetcher.get_text(PICKS_URL.format(league=league))
-    scoreboard = fetcher.get_json(SCOREBOARD_URL.format(league=league))
-    return html, scoreboard
+def fetch_picks(fetcher: Fetcher, league: str) -> str:
+    return fetcher.get_text(PICKS_URL.format(league=league))
+
+
+def fetch_scoreboard(fetcher: Fetcher, league: str, query: str = "") -> dict:
+    """Default scoreboard (today / this week), or a past one with query like 'date=20261108' or 'week=10'."""
+    url = SCOREBOARD_URL.format(league=league) + (f"&{query}" if query else "")
+    return fetcher.get_json(url)

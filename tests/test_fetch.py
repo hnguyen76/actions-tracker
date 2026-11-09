@@ -52,3 +52,8 @@ def test_polite_delay_between_requests():
     assert slept == []
     f.get_json("b")
     assert slept == [2]
+
+
+def test_chunked_encoding_error_is_retried():
+    s = S([requests.exceptions.ChunkedEncodingError(), R(200, "ok")])
+    assert Fetcher(s, sleep=lambda x: None).get_text("u") == "ok" and s.calls == 2

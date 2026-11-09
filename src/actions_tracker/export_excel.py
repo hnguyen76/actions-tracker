@@ -11,7 +11,8 @@ PERCENT_COLS = {"win_pct", "roi", "ci_low", "ci_high", "share", "fade_win_pct", 
 MAX_WIDTH = 40
 
 
-def write_report(tables: dict[str, pd.DataFrame], path: Path) -> None:
+def write_report(tables: dict[str, pd.DataFrame], path: Path) -> bool:
+    """Write the workbook atomically. Returns False (and leaves the old file) when it is open in Excel."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp.xlsx")
@@ -30,4 +31,9 @@ def write_report(tables: dict[str, pd.DataFrame], path: Path) -> None:
                 if col in PERCENT_COLS:
                     for cell in ws[letter][1:]:
                         cell.number_format = "0.0%"
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except PermissionError:
+        tmp.unlink(missing_ok=True)
+        return False
+    return True
