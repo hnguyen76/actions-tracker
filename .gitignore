@@ -5,3 +5,5 @@ __pycache__/
 .superpowers/
 *.egg-info/
 *.tmp.xlsx
+.odds_api_key
+.env

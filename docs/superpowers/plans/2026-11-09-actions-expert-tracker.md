@@ -707,3 +707,45 @@ Task 10 bổ sung: header dashboard hiện cảnh báo "Dữ liệu cũ hơn 24 
 
 - Spec §1–3 → Task 1, 3; §4 → File Structure; §5 → Task 4 (+ `league_status`); §6 → Task 5; §7A → 6; §7B → 7; §7C + trend → 8; §8 → 9, 10; §9 (nút bấm local + Pages) → 12; §10 → 5 (retry), 11 (exit codes), 12 (cảnh báo đỏ, push lỗi); §11 → test từng task.
 - `upsert_games` nhận row thiếu cột (Task 4) — Task 5 `_seed` dựa vào điều này.
+
+---
+
+# Addendum (2026-11-09): phương án C — The Odds API cho tỉ số và line
+
+**Spec:** §12 của spec. Fixture thật: `tests/fixtures/odds_{nfl,ncaaf,nba}_{scores,odds}.json` (lấy 2026-11-09).
+
+## Global Constraints (bổ sung)
+- Key: `ODDS_API_KEY` env, fallback file `.odds_api_key` ở repo root (gitignored). Không log, không commit key.
+- Base URL `https://api.the-odds-api.com/v4/sports/{sport}/{scores|odds}/`; scores `daysFrom=3&dateFormat=iso`; odds `regions=us&markets=h2h,spreads,totals&oddsFormat=american&dateFormat=iso`.
+- `SPORT_KEYS = {"nfl": "americanfootball_nfl", "ncaaf": "americanfootball_ncaaf", "nba": "basketball_nba"}`; `MIN_CREDITS_FOR_ODDS = 30`.
+- Chiến lược cũ (scores từ AN, backfill AN, public %) bị bỏ; AN `result` lưu nhưng không dùng để chấm.
+
+## Review Focus (bổ sung)
+1. Tên NCAAF khác cách viết (7 đội đã thấy) → vẫn ghép đúng; hai trường Miami không bị ghép nhầm.
+2. Hết credit / key sai (401, 429) → picks vẫn lưu, league ghi lỗi.
+3. Không có key → exit 5, picks vẫn lưu.
+4. Trận ghép được nhưng chưa xong (`completed=false`) → không chấm.
+5. DB cũ có tỉ số/trạng thái từ AN → bị xóa một lần khi nâng schema (spec: chỉ picks từ AN).
+
+### Task 13: Client + parser The Odds API
+- Create `src/actions_tracker/odds_api.py`: `class OddsApiError(Exception)`; `load_key(root: Path) -> str | None`; `class OddsApi(key, session=None, sleep=time.sleep)` với `scores(league) -> list[dict]`, `odds(league) -> list[dict]`, thuộc tính `remaining: int | None` cập nhật từ header `x-requests-remaining`; retry như `Fetcher` cho lỗi mạng/5xx; 401/422/429 → `OddsApiError` ngay.
+- `parse_scores(events) -> list[dict]` khóa `event_id, commence_time, home_name, away_name, completed, home_score, away_score` (score int, None nếu thiếu).
+- `parse_lines(events) -> list[dict]` khóa `event_id, commence_time, home_name, away_name, market ('spread'|'ml'|'total'), side ('home'|'away'|'over'|'under'), line (median point; None cho ml), odds (median price, int)`.
+- Tests `tests/test_odds_api.py`: fixture thật → số event completed khớp đếm thô; mỗi event NFL có đủ 6 side; median đúng trên event viết tay 3 nhà cái (points -3, -3.5, -2.5 → -3.0; prices -110, -105, -120 → -110); 401 → OddsApiError không retry; `remaining` đọc từ header; `load_key` ưu tiên env.
+
+### Task 14: Ghép trận
+- Create `src/actions_tracker/matching.py`: `normalize(name) -> str`; `ALIASES: dict[str, str]` (5 tên NCAAF đã thấy); `match_events(games: list[dict], events: list[dict]) -> dict[int, dict]` theo spec §12.2.
+- Tests `tests/test_matching.py`: NFL/NBA fixture thật ghép 100% các trận AN scoreboard fixture có trong odds fixture; 7 tên NCAAF lệch ghép đúng; "Miami (FL) Hurricanes" không ghép vào trận của "Miami (OH) RedHawks"; giờ lệch > 12h không ghép.
+
+### Task 15: DB + pipeline
+- `db.py`: migrate — thêm cột `home_name, away_name, odds_event_id` vào `games`; bảng `meta(key TEXT PK, value TEXT)`; khi tạo cột lần đầu, `UPDATE games SET status=NULL, home_score=NULL, away_score=NULL` (bỏ dữ liệu AN). `set_meta/get_meta`.
+- `parse.py`: `_game_row` lấy `home_name/away_name` từ `teams[].full_name`; **không** lấy status/score từ AN.
+- `cli.run`: mỗi giải: picks AN (như cũ) → nếu có key: games cần odds = chưa bắt đầu có pick; games cần score = đã bắt đầu ≥ 3h, chưa complete, có pick, trong 3 ngày; gọi `odds` (nếu cần và `remaining` ≥ 30 hoặc chưa biết) và `scores` (nếu cần); ghép; `upsert_games` status `complete`/score; `upsert_lines`. Lưu `meta.odds_api_remaining`. Exit 5 nếu không có key. Bỏ `fetch_scoreboard`, `backfill.py`.
+- Status cho dashboard: `unmatched_games` (pick có trận đã bắt đầu ≥3h mà chưa có tỉ số), `odds_api_remaining`.
+- Tests cập nhật `test_cli.py` với FakeOddsApi.
+
+### Task 16: Bỏ Expert vs Public
+- Xóa `analysis/public.py`, khóa `Expert_vs_Public`, series `contrarian`, cột tickets/money ở Upcoming; Excel bỏ sheet; template bỏ tab + cột; header hiện "Credit The Odds API còn: N".
+
+### Task 17: Nút bấm + chạy thật
+- `update.ps1` thêm thông báo exit 5. Chạy thật, kiểm tra dashboard.
