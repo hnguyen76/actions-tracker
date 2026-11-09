@@ -184,3 +184,44 @@ Quy tắc:
 - **Analysis**: DB nhỏ dựng sẵn với đáp án biết trước cho A, B, C, trend; kiểm tra quy tắc 1 phiếu/expert, MIN_EXPERTS, hòa phiếu, public = 50.
 - **DB**: upsert 2 lần không trùng; closing_lines không bị ghi sau giờ đá.
 - **End-to-end**: từ fixtures → tạo được Excel (đủ sheet) và HTML (JSON parse được).
+
+---
+
+## 12. Sửa đổi 2026-11-09 — phương án C: Action Network chỉ dùng cho picks
+
+Người dùng chọn: **chỉ picks của expert lấy từ Action Network (AN)**; tỉ số và line/odds lấy từ **The Odds API** (API chính thức, có key); **bỏ phân tích Expert vs Public (§7C)** vì không có nguồn % public chính thức. Mục này thay thế các phần tương ứng ở §3, §5, §6, §7, §8.
+
+### 12.1 Nguồn dữ liệu
+| Dữ liệu | Nguồn |
+|---|---|
+| Experts, picks, đội và giờ đá của trận được pick | AN trang picks (`__NEXT_DATA__`) — như §3.1 |
+| Tỉ số cuối, trạng thái xong | The Odds API `GET /v4/sports/{sport}/scores/?daysFrom=3` (2 credit/lần) |
+| Line/odds trước giờ đá (spread, total, moneyline) | The Odds API `GET /v4/sports/{sport}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american` (3 credit/lần) |
+
+- Sport key: `americanfootball_nfl`, `americanfootball_ncaaf`, `basketball_nba` (MLB/NHL/NCAAB thêm sau).
+- AN scoreboard API **không còn dùng**. Kết quả AN chấm cho pick (`result`) vẫn được lưu nhưng **không dùng** để chấm; mọi pick tự chấm bằng tỉ số The Odds API.
+- API key: biến môi trường `ODDS_API_KEY`, nếu không có thì đọc file `.odds_api_key` ở thư mục repo (gitignored). Không bao giờ commit key (repo public).
+
+### 12.2 Ghép trận AN ↔ The Odds API
+- Lưu thêm `home_name`, `away_name` (AN `full_name`) và `odds_event_id` cho mỗi game.
+- So khớp tên đã chuẩn hóa (chữ thường, bỏ dấu câu, `&`→`and`, `st`→`state` ở cuối từ).
+- Khớp khi: cả hai đội trùng tên chuẩn hóa và `commence_time` lệch ≤ 12 giờ; hoặc một đội trùng, đội kia giống ≥ 0,6 (difflib) và giờ lệch ≤ 3 giờ. Nhiều ứng viên → chọn giờ gần nhất.
+- Không khớp → game không có tỉ số/line; dashboard hiện số "trận chưa ghép được nguồn tỉ số" theo giải (thay cho `ungraded_past_games`).
+
+### 12.3 Line đóng cửa
+- Mỗi lần bấm nút, với các trận chưa bắt đầu: line = **median** `point` các nhà cái vùng US cho spread/total; odds = median `price` mỗi side. Ghi vào `closing_lines` chỉ khi trận chưa bắt đầu (§5 giữ nguyên quy tắc đóng băng). `tickets_pct`/`money_pct` để trống.
+- Trận đã bắt đầu trước lần bấm đầu tiên → không có line đóng cửa; fallback median line của expert (§6 giữ nguyên).
+
+### 12.4 Ngân sách credit (gói miễn phí 500/tháng)
+- Odds chỉ gọi cho giải có trận **sắp đá có pick**; scores chỉ gọi cho giải có trận **đã qua chưa có tỉ số có pick** trong 3 ngày.
+- Tối đa ~15 credit/lần bấm (3 giải × (3 + 2)). Bấm 1 lần/ngày ≈ 450/tháng.
+- Đọc header `x-requests-remaining`; lưu và in ra sau mỗi lần bấm, hiện trên dashboard. Khi còn < 30 credit: bỏ gọi odds, chỉ gọi scores.
+- Tỉ số chỉ lấy lại được 3 ngày → phải bấm ít nhất mỗi 3 ngày (vẫn khuyên mỗi ngày vì picks AN chỉ hiện vài ngày).
+
+### 12.5 Những gì bị bỏ
+- §7C Expert vs Public, chỉ số money vs tickets, tab "Expert vs Public", sheet `Expert_vs_Public`, series trend `contrarian`, cột % public ở "Kèo sắp tới".
+- Backfill AN theo ngày/tuần (thay bằng `daysFrom=3`).
+
+### 12.6 Lỗi
+- Không có key → giải vẫn lưu picks, bỏ phần tỉ số/odds, in đỏ "Chưa cấu hình ODDS_API_KEY"; exit 5.
+- HTTP 401/429 hết credit từ The Odds API → ghi lỗi vào `league_status`, picks vẫn lưu.
