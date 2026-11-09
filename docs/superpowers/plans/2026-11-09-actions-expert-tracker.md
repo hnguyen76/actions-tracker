@@ -19,7 +19,7 @@
 - `MIN_EXPERTS = 3`; bucket consensus `[50,60) [60,75) [75,90) [90,100]`; `MIN_SAMPLE = 20` → `low_sample`; public `heavy` ≥ 65; money-vs-tickets ≥ 15 điểm; odds thiếu → −110; hòa vốn −110 = 52,38%.
 - Tuần trend: thứ Hai–Chủ nhật theo `America/New_York`.
 - Không bao giờ xóa dòng DB; parse lỗi cấu trúc → không ghi gì cho giải đó.
-- Repo GitHub `hnguyen76/actions-tracker`, public. Commit message kết thúc bằng `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Repo GitHub `hnguyen76/actions-tracker`, public. Thu thập chạy local (nút Desktop), cloud chỉ deploy Pages. Commit message kết thúc bằng `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - UI tiếng Việt, thuật ngữ kèo tiếng Anh; `<meta name="robots" content="noindex">`.
 - Tên bảng/sheet: `Picks, Consensus, Experts, Expert_Habits, Expert_vs_Public, Trend_Weekly, Upcoming`.
 
@@ -682,27 +682,28 @@ def test_parse_error_exit_2_and_others_continue(tmp_path):
 
 ---
 
-### Task 12: Workflow cron + GitHub Pages
+### Task 12: Nút bấm Desktop + GitHub Pages (thay cho cron cloud)
+
+Lý do thay đổi: probe Task 1 cho thấy GitHub runner bị chặn ở trang picks (spec §9 cập nhật 2026-11-09). Thu thập chạy local qua nút bấm; cloud chỉ deploy Pages.
 
 **Files:**
-- Create: `.github/workflows/collect.yml`; Delete: `.github/workflows/probe.yml`
-- Modify: `README.md` (tạo mới: mô tả ngắn, link dashboard, cách chạy local)
+- Create: `scripts/update.ps1`, `scripts/install_shortcut.ps1`, `.github/workflows/pages.yml`, `README.md`; Delete: `.github/workflows/probe.yml`
 
-**Interfaces:** workflow gọi `python -m actions_tracker run`.
+**Interfaces:** gọi `python -m actions_tracker run` (Task 11, exit 0/1/2).
 
-- [ ] **Step 1: Viết `collect.yml`**
-  - `on: schedule: - cron: "0 */4 * * *"` và `workflow_dispatch`.
-  - `permissions: contents: write, pages: write, id-token: write`; `concurrency: { group: collect, cancel-in-progress: false }`.
-  - Job `collect` (ubuntu-latest): checkout → `actions/setup-python@v5` 3.12 (cache pip) → `pip install -e ".[dev]"` → `pytest -q` → `python -m actions_tracker run` (bước có `id: run`, `continue-on-error: true`) → commit `data/ reports/ site/` nếu `git status --porcelain` khác rỗng, user `github-actions[bot]`, message `data: update <UTC time>` → `actions/upload-pages-artifact@v3` với `path: site` → bước cuối `if: steps.run.outcome == 'failure'` thì `exit 1` (để đỏ + email nhưng vẫn commit/deploy dữ liệu các giải thành công).
-  - Job `deploy` (needs collect, `if: always() && needs.collect.result != 'cancelled'`), environment `github-pages`, `actions/deploy-pages@v4`.
-- [ ] **Step 2: Bật Pages** `gh api -X POST repos/hnguyen76/actions-tracker/pages -f build_type=workflow` (nếu đã bật thì `-X PUT`).
-- [ ] **Step 3: Push và chạy** `git rm .github/workflows/probe.yml && git add . && git commit -m "ci: scheduled collection and pages deploy" && git push && gh workflow run collect.yml`
-- [ ] **Step 4: Xác minh** `gh run watch <id>` → success; `curl -s -o /dev/null -w "%{http_code}" https://hnguyen76.github.io/actions-tracker/` → `200`; mở URL bằng Playwright kiểm tra có dữ liệu và thời gian cập nhật; `git pull` thấy commit `data: update …` của bot.
-- [ ] **Step 5: Commit README** với link dashboard và push.
+- [ ] **Step 1: `scripts/update.ps1`** — `Set-Location` về thư mục repo (cha của `scripts/`); `git pull --ff-only` (lỗi → cảnh báo vàng, tiếp tục); chạy `.venv\Scripts\python.exe -m actions_tracker run`, giữ exit code; nếu `git status --porcelain data reports site` khác rỗng → `git add data reports site` + `git commit -m "data: update <yyyy-MM-dd HH:mm>"` + `git push` (lỗi push → in đỏ "Chưa push được, lần sau sẽ push tiếp"); in tóm tắt: exit 0 → xanh "Cập nhật xong", 1 → đỏ "Tất cả giải đều lỗi", 2 → đỏ "Action Network đổi cấu trúc trang — cần sửa parser"; mở `https://hnguyen76.github.io/actions-tracker/`; `Read-Host "Nhấn Enter để đóng"`. Thông điệp tiếng Việt; file lưu UTF-8 có BOM để PowerShell 5 hiển thị đúng dấu.
+- [ ] **Step 2: `scripts/install_shortcut.ps1`** — tạo `Desktop\Actions - Cap nhat.lnk` bằng `WScript.Shell`: Target `powershell.exe`, Arguments `-NoProfile -ExecutionPolicy Bypass -File "<repo>\scripts\update.ps1"`, WorkingDirectory repo, Icon `shell32.dll,238`. Chạy nó một lần: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install_shortcut.ps1` → Expected: file `.lnk` tồn tại trên Desktop.
+- [ ] **Step 3: `pages.yml`** — `on: push: branches [main], paths ["site/**"]` + `workflow_dispatch`; `permissions: pages: write, id-token: write, contents: read`; `concurrency: pages`; job: checkout → `actions/configure-pages@v5` → `actions/upload-pages-artifact@v3` (`path: site`) → `actions/deploy-pages@v4` (environment `github-pages`).
+- [ ] **Step 4: Bật Pages** `gh api -X POST repos/hnguyen76/actions-tracker/pages -f build_type=workflow` (đã bật → bỏ qua).
+- [ ] **Step 5: README** — mô tả ngắn, link dashboard, "bấm nút Actions - Cap nhat trên Desktop ít nhất mỗi ngày", cách chạy test.
+- [ ] **Step 6: Chạy nút thật** — chạy `scripts/update.ps1` (không cần chờ Enter: chạy với `echo "" |`); Expected: exit 0, có commit `data: update …` được push; `gh run watch` workflow `pages` → success; `curl -s -o /dev/null -w "%{http_code}" https://hnguyen76.github.io/actions-tracker/` → `200`; mở bằng Playwright thấy dữ liệu + thời gian cập nhật.
+- [ ] **Step 7: Commit** `git rm .github/workflows/probe.yml && git add scripts .github README.md && git commit -m "feat: desktop update button and pages deploy"` rồi push.
+
+Task 10 bổ sung: header dashboard hiện cảnh báo "Dữ liệu cũ hơn 24 giờ — hãy bấm nút cập nhật" khi `generated_at` cách thời điểm xem > 24 giờ.
 
 ---
 
 ## Self-Review Notes
 
-- Spec §1–3 → Task 1, 3; §4 cấu trúc → File Structure; §5 → Task 4 (+ `league_status`); §6 → Task 5; §7A → Task 6; §7B → Task 7; §7C + trend → Task 8; §8 → Task 9, 10; §9 → Task 12; §10 → Task 5 (retry), 11 (exit codes), 12 (đỏ + email), Task 1 (rủi ro IP); §11 → test của từng task.
+- Spec §1–3 → Task 1, 3; §4 → File Structure; §5 → Task 4 (+ `league_status`); §6 → Task 5; §7A → 6; §7B → 7; §7C + trend → 8; §8 → 9, 10; §9 (nút bấm local + Pages) → 12; §10 → 5 (retry), 11 (exit codes), 12 (cảnh báo đỏ, push lỗi); §11 → test từng task.
 - `upsert_games` nhận row thiếu cột (Task 4) — Task 5 `_seed` dựa vào điều này.

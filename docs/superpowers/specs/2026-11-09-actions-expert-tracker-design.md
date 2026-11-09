@@ -163,15 +163,18 @@ Quy tắc:
 ## 9. Vận hành
 
 - Repo GitHub: `hnguyen76/actions-tracker`, **public** (để dùng GitHub Pages miễn phí; dữ liệu đều là dữ liệu công khai của Action Network). Đổi sang private nếu có gói GitHub Pro.
-- Workflow `collect.yml`: `schedule: cron '0 */4 * * *'` + `workflow_dispatch`. Các bước: setup Python 3.12 → `pip install` → `pytest` → `python -m actions_tracker run` → commit nếu thay đổi (bot user) → deploy `site/` lên Pages. `concurrency` 1 để không chạy chồng.
-- Local: chạy được cùng lệnh trên Windows (Python 3.14 hiện có).
+- **Thay đổi 2026-11-09 sau probe:** GitHub Actions bị Action Network chặn ở trang picks (202, nội dung rỗng); scoreboard vẫn 200. Vì vậy **thu thập chạy trên máy Windows của người dùng**, kích hoạt bằng **nút bấm tay trên Desktop**; cloud chỉ đăng dashboard.
+- **Nút Desktop "Actions - Cap nhat"** (shortcut → `scripts/update.ps1`): `git pull` → `python -m actions_tracker run` → `git add data reports site` + commit `data: update <thời gian>` + `git push` → in tóm tắt (số picks mới mỗi giải, lỗi nếu có) → mở URL dashboard → chờ phím Enter để đóng cửa sổ. Nếu pipeline lỗi cấu trúc (exit 2) vẫn push dữ liệu các giải thành công và in cảnh báo đỏ.
+- Trang picks chỉ hiện picks vài ngày gần nhất → cần bấm **ít nhất mỗi ngày** để không mất picks. Dashboard hiện cảnh báo khi lần cập nhật cuối > 24 giờ.
+- Workflow `pages.yml`: `on: push` (main, paths `site/**`) + `workflow_dispatch` → deploy `site/` lên GitHub Pages. Không gọi Action Network từ cloud.
+- Local: venv `.venv` với Python 3.14 hiện có; CI không cần Python.
 
 ## 10. Xử lý lỗi
 
 - HTTP: retry 3 lần (2s, 4s, 8s) cho lỗi mạng/5xx/429.
-- Lỗi một giải → log, tiếp tục giải khác; cuối lần chạy nếu **mọi** giải đang bật đều lỗi, hoặc parse thất bại do cấu trúc thay đổi (thiếu `__NEXT_DATA__`/khóa bắt buộc) → exit code ≠ 0 → workflow đỏ → GitHub email.
+- Lỗi một giải → log, tiếp tục giải khác; cuối lần chạy nếu **mọi** giải đang bật đều lỗi, hoặc parse thất bại do cấu trúc thay đổi (thiếu `__NEXT_DATA__`/khóa bắt buộc) → exit code ≠ 0 → cửa sổ nút bấm in cảnh báo đỏ.
 - Giải lỗi vẫn giữ dữ liệu cũ; dashboard hiện thời điểm cập nhật thành công cuối của giải đó.
-- **Rủi ro GitHub IP bị chặn (403/captcha):** kiểm tra ở bước đầu triển khai. Dự phòng: chạy collector bằng Task Scheduler trên máy Windows, commit + push `data/`; workflow cloud chỉ còn analyze + build + deploy.
+- `git push` thất bại (mất mạng, xung đột) → in lỗi, dữ liệu vẫn nằm trong commit local, lần bấm sau push tiếp.
 
 ## 11. Kiểm thử
 
