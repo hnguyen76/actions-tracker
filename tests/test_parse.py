@@ -48,3 +48,24 @@ def test_structure_change_raises():
         parse_picks_page("<html>no data</html>", "nfl")
     with pytest.raises(ParseError):
         parse_picks_page('<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{}}}</script>', "nfl")
+
+
+@pytest.mark.parametrize("league", ["nfl", "ncaaf", "nba"])
+def test_bygame_page_real(league):
+    from actions_tracker.parse import parse_bygame_page
+    html = (F / f"{league}_bygame.html").read_text("utf-8")
+    games = extract_next_data(html)["props"]["pageProps"]["scoreboardResponse"]["response"]["games"]
+    raw = {k["id"]: k for g in games for ex in g["experts"] for k in ex["picks"]}
+    expected = sum(1 for k in raw.values()
+                   if k["type"] in KEEP_TYPES and k["period"] == "game" and not k.get("player_id"))
+    p = parse_bygame_page(html, league)
+    assert len(p.picks) == expected and len({x["id"] for x in p.picks}) == expected
+    assert len(p.experts) == len({ex["id"] for g in games for ex in g["experts"]})
+    assert len(p.games) == len(games)
+    assert all(g["home_name"] and g["status"] is None and g["home_score"] is None for g in p.games)
+
+
+def test_bygame_structure_change_raises():
+    from actions_tracker.parse import parse_bygame_page
+    with pytest.raises(ParseError):
+        parse_bygame_page('<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{}}}</script>', "nfl")

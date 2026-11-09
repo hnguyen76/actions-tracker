@@ -10,6 +10,7 @@ from actions_tracker.odds_api import OddsApiError
 FX = Path(__file__).parent / "fixtures"
 NBA_PICKS = (FX / "nba_picks.html").read_text("utf-8")
 NBA_ODDS = json.loads((FX / "odds_nba_odds.json").read_text("utf-8"))
+NBA_BYGAME = (FX / "nba_bygame.html").read_text("utf-8")
 NOW = "2026-11-09T22:00:00.000Z"
 
 
@@ -84,7 +85,7 @@ def test_offline_end_to_end(tmp_path):
 def test_lines_for_upcoming_and_scores_for_past(tmp_path):
     c = _seed_past_pick(tmp_path)
     api = FakeOddsApi(odds={"nba": NBA_ODDS}, scores={"nba": PAST_SCORE})
-    assert _run(tmp_path, FakeFetcher({"nba/picks": NBA_PICKS}), ["nba"], api) == 0
+    assert _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], api) == 0
     assert tuple(c.execute("select status, home_score, away_score, odds_event_id from games where id=777").fetchone()) \
         == ("complete", 110, 99, "ev777")
     upcoming_with_lines = c.execute("select count(distinct game_id) from closing_lines").fetchone()[0]
@@ -102,26 +103,26 @@ def test_no_calls_when_nothing_needed(tmp_path):
 def test_low_credits_skip_odds_but_keep_scores(tmp_path):
     _seed_past_pick(tmp_path)
     api = FakeOddsApi(odds={"nba": NBA_ODDS}, scores={"nba": PAST_SCORE}, remaining=10)
-    _run(tmp_path, FakeFetcher({"nba/picks": NBA_PICKS}), ["nba"], api)
+    _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], api)
     assert ("odds", "nba") not in api.calls and ("scores", "nba") in api.calls
 
 
 def test_odds_api_error_keeps_picks(tmp_path):
     api = FakeOddsApi(odds={"nba": OddsApiError("HTTP 401")})
-    assert _run(tmp_path, FakeFetcher({"nba/picks": NBA_PICKS}), ["nba"], api) == 1
+    assert _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], api) == 1
     c = sqlite3.connect(tmp_path / "a.db")
     assert c.execute("select count(*) from picks").fetchone()[0] > 0
     assert "401" in c.execute("select last_error from league_status where league='nba'").fetchone()[0]
 
 
 def test_no_key_exit_5_keeps_picks(tmp_path):
-    assert _run(tmp_path, FakeFetcher({"nba/picks": NBA_PICKS}), ["nba"], None) == 5
+    assert _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], None) == 5
     c = sqlite3.connect(tmp_path / "a.db")
     assert c.execute("select count(*) from picks").fetchone()[0] > 0
 
 
 def test_parse_error_exit_2_and_others_continue(tmp_path):
-    f = FakeFetcher({"nfl/picks": "<html>changed</html>", "nba/picks": NBA_PICKS})
+    f = FakeFetcher({"nba/picks/game": NBA_BYGAME, "nfl/picks": "<html>changed</html>", "nba/picks": NBA_PICKS})
     assert _run(tmp_path, f, ["nfl", "nba"], FakeOddsApi(odds={"nba": NBA_ODDS})) == 2
     c = sqlite3.connect(tmp_path / "a.db")
     assert c.execute("select count(*) from picks where league='nba'").fetchone()[0] > 0
@@ -130,7 +131,7 @@ def test_parse_error_exit_2_and_others_continue(tmp_path):
 
 
 def test_unexpected_error_exit_3(tmp_path):
-    f = FakeFetcher({"nfl/picks": RuntimeError("boom"), "nba/picks": NBA_PICKS})
+    f = FakeFetcher({"nba/picks/game": NBA_BYGAME, "nfl/picks": RuntimeError("boom"), "nba/picks": NBA_PICKS})
     assert _run(tmp_path, f, ["nfl", "nba"], FakeOddsApi(odds={"nba": NBA_ODDS})) == 3
     c = sqlite3.connect(tmp_path / "a.db")
     assert "boom" in c.execute("select last_error from league_status where league='nfl'").fetchone()[0]
@@ -145,13 +146,32 @@ def test_all_leagues_fail_exit_1(tmp_path):
 def test_locked_excel_still_builds_site(tmp_path, monkeypatch):
     import actions_tracker.cli as cli_mod
     monkeypatch.setattr(cli_mod, "write_report", lambda tables, path: False)
-    assert _run(tmp_path, FakeFetcher({"nba/picks": NBA_PICKS}), ["nba"], FakeOddsApi(odds={"nba": NBA_ODDS})) == 4
+    assert _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], FakeOddsApi(odds={"nba": NBA_ODDS})) == 4
     assert (tmp_path / "site" / "index.html").exists()
 
 
 def test_dashboard_gets_ungraded_count_and_credits(tmp_path):
     _seed_past_pick(tmp_path)
     api = FakeOddsApi(odds={"nba": NBA_ODDS}, scores={"nba": []}, remaining=321)
-    _run(tmp_path, FakeFetcher({"nba/picks": NBA_PICKS}), ["nba"], api)
+    _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], api)
     html = (tmp_path / "site" / "index.html").read_text("utf-8")
     assert '"ungraded_past_games":1' in html and '"odds_api_remaining":321' in html
+
+
+
+def test_bygame_adds_picks(tmp_path):
+    only_page = _run(tmp_path / "a", FakeFetcher({"nba/picks/game": FetchError("x"), "nba/picks": NBA_PICKS}), ["nba"], None)
+    both = _run(tmp_path / "b", FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], None)
+    n_page = sqlite3.connect(tmp_path / "a" / "a.db").execute("select count(*) from picks").fetchone()[0]
+    n_both = sqlite3.connect(tmp_path / "b" / "a.db").execute("select count(*) from picks").fetchone()[0]
+    assert n_both > n_page > 0
+    assert only_page == 1 and both == 5  # by-game failure is recorded; no API key -> 5
+
+
+def test_bygame_uses_game_from_picks_page(tmp_path):
+    f = FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS})
+    seen = []
+    orig = f.get_text
+    f.get_text = lambda url: (seen.append(url), orig(url))[1]
+    _run(tmp_path, f, ["nba"], None)
+    assert any("/nba/picks/game?id=" in u for u in seen)

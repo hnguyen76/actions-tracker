@@ -99,3 +99,33 @@ def parse_picks_page(html: str, league: str) -> PicksPage:
                 games[k["game"]["id"]] = _game_row(k["game"], league)
     page.games = list(games.values())
     return page
+
+
+def _expert_row(pr: dict) -> dict:
+    return {"id": pr["id"], "name": pr.get("name"), "username": pr.get("username"), "followers": pr.get("followers")}
+
+
+def parse_bygame_page(html: str, league: str) -> PicksPage:
+    """The "By Game" picks page: every game on the league's current board with each expert's picks."""
+    data = extract_next_data(html)
+    try:
+        games = data["props"]["pageProps"]["scoreboardResponse"]["response"]["games"]
+    except (KeyError, TypeError) as e:
+        raise ParseError(f"by-game board missing: {e!r}") from e
+    page = PicksPage()
+    experts: dict[int, dict] = {}
+    picks: dict[int, dict] = {}
+    for g in games or []:
+        if g.get("id") is None:
+            continue
+        page.games.append(_game_row(g, league))
+        for pr in g.get("experts") or []:
+            experts.setdefault(pr["id"], _expert_row(pr))
+            for k in pr.get("picks") or []:
+                row = _pick_row(k, pr["id"], league)
+                if row is not None and row["game_id"] is not None:
+                    picks[row["id"]] = row
+    page.experts = list(experts.values())
+    page.picks = list(picks.values())
+    return page
+

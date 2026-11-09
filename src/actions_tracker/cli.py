@@ -14,10 +14,10 @@ from actions_tracker.analysis import build_tables
 from actions_tracker.build_site import build_site
 from actions_tracker.config import LEAGUES
 from actions_tracker.export_excel import write_report
-from actions_tracker.fetch import FetchError, Fetcher, fetch_picks
+from actions_tracker.fetch import FetchError, Fetcher, fetch_bygame, fetch_picks
 from actions_tracker.matching import match_events
 from actions_tracker.odds_api import OddsApi, OddsApiError, load_key, parse_lines, parse_scores
-from actions_tracker.parse import ParseError, parse_picks_page
+from actions_tracker.parse import ParseError, parse_bygame_page, parse_picks_page
 
 MIN_CREDITS_FOR_ODDS = 30
 SCORE_DELAY_H = 3     # a game is worth asking a score for 3h after kickoff
@@ -33,7 +33,8 @@ class OfflineFetcher:
 
     def get_text(self, url: str) -> str:
         m = re.search(r"\.com/([a-z]+)/picks", url)
-        path = self.folder / f"{m.group(1)}_picks.html" if m else None
+        kind = "bygame" if "/picks/game" in url else "picks"
+        path = self.folder / f"{m.group(1)}_{kind}.html" if m else None
         if path is None or not path.exists():
             raise FetchError(f"offline fixture missing for {url}")
         return path.read_text("utf-8")
@@ -68,16 +69,42 @@ def _shift(now: str, **delta) -> str:
     return (pd.Timestamp(now) + pd.Timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-def _collect_picks(conn, fetcher, league: str, now: str) -> list[Exception]:
-    try:
-        page = parse_picks_page(fetch_picks(fetcher, league), league)
-    except Exception as e:  # noqa: BLE001 - one league must never stop the others
-        return [e]
+def _store(conn, page, now: str) -> None:
     db.upsert_experts(conn, page.experts, now)
     db.upsert_games(conn, page.games, now)
     db.upsert_picks(conn, page.picks, now)
-    print(f"[{league}] experts={len(page.experts)} picks={len(page.picks)}")
-    return []
+
+
+def _board_game_id(conn, page, league: str, now: str) -> int | None:
+    """Any game on the league's current board, to open its "By Game" page."""
+    for row in (page.picks if page else []):
+        return row["game_id"]
+    for row in (page.games if page else []):
+        return row["id"]
+    r = conn.execute("SELECT id FROM games WHERE league = ? AND start_time > ? ORDER BY start_time LIMIT 1",
+                     (league, now)).fetchone()
+    return r[0] if r else None
+
+
+def _collect_picks(conn, fetcher, league: str, now: str) -> list[Exception]:
+    """Picks page first, then the By-Game page (every expert's picks for every game on the board)."""
+    errors: list[Exception] = []
+    page = None
+    try:
+        page = parse_picks_page(fetch_picks(fetcher, league), league)
+        _store(conn, page, now)
+        print(f"[{league}] picks page: experts={len(page.experts)} picks={len(page.picks)}")
+    except Exception as e:  # noqa: BLE001 - one league must never stop the others
+        errors.append(e)
+    game_id = _board_game_id(conn, page, league, now)
+    if game_id is not None:
+        try:
+            board = parse_bygame_page(fetch_bygame(fetcher, league, game_id), league)
+            _store(conn, board, now)
+            print(f"[{league}] by game: tran={len(board.games)} experts={len(board.experts)} picks={len(board.picks)}")
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+    return errors
 
 
 def _games(conn, sql: str, params: tuple) -> list[dict]:

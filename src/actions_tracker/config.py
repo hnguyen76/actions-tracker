@@ -10,6 +10,7 @@ LEAGUES: dict[str, bool] = {
 }
 
 PICKS_URL = "https://www.actionnetwork.com/{league}/picks"
+BYGAME_URL = "https://www.actionnetwork.com/{league}/picks/game?id={game_id}"
 
 MIN_EXPERTS = 3
 MIN_SAMPLE = 20
