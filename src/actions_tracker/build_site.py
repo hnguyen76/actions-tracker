@@ -28,9 +28,10 @@ def _records(df: pd.DataFrame) -> list[dict]:
 
 
 def build_site(tables: dict[str, pd.DataFrame], status: list[dict], out_dir: Path, xlsx: Path | None,
-               generated_at: str) -> Path:
+               generated_at: str, meta: dict | None = None) -> Path:
     payload = {
         "generated_at": generated_at,
+        "meta": {k: _plain(v) for k, v in (meta or {}).items()},
         "league_status": [{k: _plain(v) for k, v in s.items()} for s in status],
         "tables": {name: _records(df) for name, df in tables.items()},
     }

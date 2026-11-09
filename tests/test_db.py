@@ -48,3 +48,34 @@ def test_mark_league(tmp_path):
     db.mark_league(c, "nfl", False, "t2", "boom")
     row = c.execute("select last_success_at, last_error, last_error_at from league_status").fetchone()
     assert tuple(row) == ("t1", "boom", "t2")
+
+
+def test_migration_adds_columns_and_drops_action_network_scores(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript(
+        "CREATE TABLE games(id INTEGER PRIMARY KEY, league TEXT, season INTEGER, week INTEGER, start_time TEXT,"
+        " status TEXT, home_team_id INTEGER, away_team_id INTEGER, home_abbr TEXT, away_abbr TEXT,"
+        " home_score INTEGER, away_score INTEGER, updated_at TEXT);"
+        "INSERT INTO games(id, status, home_score, away_score, home_abbr) VALUES (1, 'complete', 24, 17, 'HOM');"
+        "CREATE TABLE closing_lines(game_id INTEGER, market TEXT, side TEXT, line REAL, odds INTEGER,"
+        " tickets_pct REAL, money_pct REAL, captured_at TEXT, PRIMARY KEY(game_id, market, side));"
+        "INSERT INTO closing_lines VALUES (1, 'spread', 'home', -3, -110, 60, 70, 't');")
+    old.commit(); old.close()
+    c = db.connect(path)
+    cols = {r[1] for r in c.execute("PRAGMA table_info(games)")}
+    assert {"home_name", "away_name", "odds_event_id"} <= cols
+    assert tuple(c.execute("select status, home_score, away_score, home_abbr from games").fetchone()) == (None, None, None, "HOM")
+    assert c.execute("select count(*) from closing_lines").fetchone()[0] == 0
+    db.upsert_games(c, [{"id": 1, "status": "complete", "home_score": 30}], "t2")
+    c.close()
+    c = db.connect(path)  # second connect must not wipe again
+    assert tuple(c.execute("select status, home_score from games").fetchone()) == ("complete", 30)
+
+
+def test_meta_roundtrip(tmp_path):
+    c = db.connect(tmp_path / "m.db")
+    assert db.get_meta(c, "odds_api_remaining") is None
+    db.set_meta(c, "odds_api_remaining", "480")
+    assert db.get_meta(c, "odds_api_remaining") == "480"

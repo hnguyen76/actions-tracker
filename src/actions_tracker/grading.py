@@ -96,10 +96,8 @@ def load_graded_picks(conn: sqlite3.Connection) -> pd.DataFrame:
             grade_side(r["market"], r["pick_side"], close, r["home_score"], r["away_score"])
             if _gradable(r, close) else None
         )
-        expert_result = None
-        if r["an_result"] in ("win", "loss", "push") and r["status"] not in ("cancelled", "postponed"):
-            expert_result = r["an_result"]  # Action Network already settled it, even if our game row is stale
-        elif r["status"] == "complete":
+        expert_result = None  # Action Network's own result is stored but not used (spec §12.1)
+        if r["status"] == "complete":
             own = r["line"] if not _missing(r["line"]) else close
             if _gradable(r, own):
                 expert_result = grade_side(r["market"], r["pick_side"], own, r["home_score"], r["away_score"])

@@ -51,9 +51,9 @@ def test_closing_vs_expert_line(tmp_path):
     assert df.loc[12].side_result == "loss"
 
 
-def test_an_result_wins_over_self_grade(tmp_path):
+def test_an_result_is_ignored_self_grade_wins(tmp_path):
     df = load_graded_picks(_seed(tmp_path, an_result="loss")).set_index("pick_id")
-    assert df.loc[11].expert_result == "loss"
+    assert df.loc[11].expert_result == "win"  # spec §12.1: only picks come from Action Network
 
 
 def test_missing_pick_odds_does_not_break(tmp_path):
@@ -72,10 +72,9 @@ def test_empty_db_has_columns(tmp_path):
     assert df.empty and {"side_result", "expert_result", "fav_dog"} <= set(df.columns)
 
 
-def test_an_result_used_even_if_game_status_stale(tmp_path):
+def test_an_result_not_used_when_no_score(tmp_path):
     df = load_graded_picks(_seed(tmp_path, status="scheduled", an_result="win")).set_index("pick_id")
-    assert df.loc[11].expert_result == "win"
-    assert df.loc[11].side_result is None
+    assert df.loc[11].expert_result is None and df.loc[11].side_result is None
 
 
 def test_an_result_ignored_for_cancelled_game(tmp_path):

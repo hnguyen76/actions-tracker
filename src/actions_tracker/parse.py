@@ -4,12 +4,10 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from actions_tracker.config import BOOK_ID, KEEP_TYPES
+from actions_tracker.config import KEEP_TYPES
 
 _NEXT_DATA = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 _RESULTS = {"win", "loss", "push"}
-_MARKETS = {"spread": "spread", "moneyline": "ml", "total": "total"}
-_SIDES = {"home", "away", "over", "under"}
 
 
 class ParseError(Exception):
@@ -23,12 +21,6 @@ class PicksPage:
     games: list[dict] = field(default_factory=list)
 
 
-@dataclass
-class Scoreboard:
-    games: list[dict] = field(default_factory=list)
-    lines: list[dict] = field(default_factory=list)
-
-
 def extract_next_data(html: str) -> dict:
     m = _NEXT_DATA.search(html)
     if not m:
@@ -40,21 +32,24 @@ def extract_next_data(html: str) -> dict:
 
 
 def _game_row(g: dict, league: str) -> dict:
+    """Identity and kickoff only — status and scores come from The Odds API (spec §12.1)."""
     abbr = {t.get("id"): t.get("abbr") for t in g.get("teams") or []}
-    box = g.get("boxscore") or {}
+    name = {t.get("id"): t.get("full_name") for t in g.get("teams") or []}
     return {
         "id": g["id"],
         "league": league,
         "season": g.get("season"),
         "week": g.get("week"),
         "start_time": g.get("start_time"),
-        "status": g.get("status"),
+        "status": None,
         "home_team_id": g.get("home_team_id"),
         "away_team_id": g.get("away_team_id"),
         "home_abbr": abbr.get(g.get("home_team_id")),
         "away_abbr": abbr.get(g.get("away_team_id")),
-        "home_score": box.get("total_home_points"),
-        "away_score": box.get("total_away_points"),
+        "home_score": None,
+        "away_score": None,
+        "home_name": name.get(g.get("home_team_id")),
+        "away_name": name.get(g.get("away_team_id")),
     }
 
 
@@ -104,27 +99,3 @@ def parse_picks_page(html: str, league: str) -> PicksPage:
                 games[k["game"]["id"]] = _game_row(k["game"], league)
     page.games = list(games.values())
     return page
-
-
-def parse_scoreboard(data: dict, league: str) -> Scoreboard:
-    if not isinstance(data, dict) or "games" not in data:
-        raise ParseError("scoreboard JSON has no 'games' key")
-    sb = Scoreboard()
-    for g in data["games"] or []:
-        sb.games.append(_game_row(g, league))
-        event = ((g.get("markets") or {}).get(BOOK_ID) or {}).get("event") or {}
-        for key, market in _MARKETS.items():
-            for o in event.get(key) or []:
-                if o.get("side") not in _SIDES:
-                    continue
-                info = o.get("bet_info") or {}
-                sb.lines.append({
-                    "game_id": g["id"],
-                    "market": market,
-                    "side": o["side"],
-                    "line": None if market == "ml" else o.get("value"),
-                    "odds": o.get("odds"),
-                    "tickets_pct": (info.get("tickets") or {}).get("percent"),
-                    "money_pct": (info.get("money") or {}).get("percent"),
-                })
-    return sb

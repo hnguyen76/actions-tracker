@@ -1,10 +1,9 @@
-import json
 import pathlib
 
 import pytest
 
 from actions_tracker.config import KEEP_TYPES
-from actions_tracker.parse import ParseError, extract_next_data, parse_picks_page, parse_scoreboard
+from actions_tracker.parse import ParseError, extract_next_data, parse_picks_page
 
 F = pathlib.Path(__file__).parent / "fixtures"
 
@@ -17,8 +16,9 @@ def test_mini_page_maps_and_filters():
         (12, "ml", "away", None, None),
     ]
     g = {x["id"]: x for x in p.games}[100]
-    assert (g["home_abbr"], g["away_abbr"], g["home_score"], g["away_score"], g["status"]) == (
-        "HOM", "AWY", 24, 17, "complete")
+    assert (g["home_abbr"], g["away_abbr"]) == ("HOM", "AWY")
+    assert (g["home_score"], g["away_score"], g["status"]) == (None, None, None)  # scores come from The Odds API
+    assert (g["home_name"], g["away_name"]) == ("Home Team", "Away Team")
 
 
 @pytest.mark.parametrize("league", ["nfl", "ncaaf", "nba"])
@@ -36,21 +36,11 @@ def test_real_page_counts_match_raw(league):
     assert all(x["league"] == league for x in p.picks)
 
 
-@pytest.mark.parametrize("league", ["nfl", "ncaaf", "nba"])
-def test_real_scoreboard(league):
-    s = parse_scoreboard(json.loads((F / f"{league}_scoreboard.json").read_text("utf-8")), league)
-    assert s.games and s.lines
-    assert {l["market"] for l in s.lines} <= {"spread", "ml", "total"}
-    assert {l["side"] for l in s.lines} <= {"home", "away", "over", "under"}
-    assert all(l["line"] is None for l in s.lines if l["market"] == "ml")
-
-
 def test_empty_offseason_is_valid():
     html = ('<script id="__NEXT_DATA__" type="application/json">'
             '{"props":{"pageProps":{"initialExpertsResponse":{"response":{"profiles":[]}}}}}</script>')
     p = parse_picks_page(html, "mlb")
     assert p.picks == [] and p.experts == []
-    assert parse_scoreboard({"games": []}, "mlb").games == []
 
 
 def test_structure_change_raises():
@@ -58,5 +48,3 @@ def test_structure_change_raises():
         parse_picks_page("<html>no data</html>", "nfl")
     with pytest.raises(ParseError):
         parse_picks_page('<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{}}}</script>', "nfl")
-    with pytest.raises(ParseError):
-        parse_scoreboard({"error": "x"}, "nfl")

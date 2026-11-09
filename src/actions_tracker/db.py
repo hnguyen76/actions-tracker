@@ -23,11 +23,13 @@ CREATE TABLE IF NOT EXISTS closing_lines(
     PRIMARY KEY(game_id, market, side));
 CREATE TABLE IF NOT EXISTS league_status(
     league TEXT PRIMARY KEY, last_success_at TEXT, last_error TEXT, last_error_at TEXT);
+CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 CREATE INDEX IF NOT EXISTS picks_game ON picks(game_id, market);
 """
 
 GAME_COLS = ["id", "league", "season", "week", "start_time", "status", "home_team_id", "away_team_id",
-             "home_abbr", "away_abbr", "home_score", "away_score"]
+             "home_abbr", "away_abbr", "home_score", "away_score", "home_name", "away_name", "odds_event_id"]
+_NEW_GAME_COLS = {"home_name": "TEXT", "away_name": "TEXT", "odds_event_id": "TEXT"}
 PICK_COLS = ["id", "expert_id", "game_id", "league", "market", "pick_side", "line", "odds", "units",
              "an_result", "created_at", "starts_at", "settled_at", "play_text"]
 PICK_UPDATABLE = ["an_result", "settled_at", "odds", "line", "units"]
@@ -41,7 +43,33 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=OFF")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Spec §12: scores, status and lines now come from The Odds API, so drop what Action Network supplied
+    the first time the new columns are added (runs once per database)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(games)")}
+    missing = [c for c in _NEW_GAME_COLS if c not in cols]
+    if not missing:
+        return
+    for c in missing:
+        conn.execute(f"ALTER TABLE games ADD COLUMN {c} {_NEW_GAME_COLS[c]}")
+    conn.execute("UPDATE games SET status = NULL, home_score = NULL, away_score = NULL")
+    conn.execute("DELETE FROM closing_lines")
+    conn.commit()
+
+
+def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute("INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (key, value))
+    conn.commit()
+
+
+def get_meta(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None
 
 
 def _values(rows: list[dict], cols: list[str], *extra) -> list[tuple]:
