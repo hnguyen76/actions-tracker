@@ -63,6 +63,7 @@ switch ($code) {
     2 { Write-Host 'Action Network đổi cấu trúc trang — cần sửa parser. Các giải khác vẫn được cập nhật.' -ForegroundColor Red }
     3 { Write-Host 'Có lỗi bất ngờ ở một giải (xem dòng LOI phía trên). Các giải khác vẫn được cập nhật.' -ForegroundColor Red }
     4 { Write-Host 'Dữ liệu đã cập nhật, nhưng file Excel đang mở nên chưa ghi được — đóng Excel rồi bấm lại.' -ForegroundColor Yellow }
+    5 { Write-Host 'Chưa có API key của The Odds API (file .odds_api_key) — chỉ lưu được picks, chưa có tỉ số/line.' -ForegroundColor Red }
     default { Write-Host "Lỗi không mong đợi (mã $code) — xem thông báo phía trên." -ForegroundColor Red }
 }
 

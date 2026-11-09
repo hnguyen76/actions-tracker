@@ -45,7 +45,8 @@ def test_closing_vs_expert_line(tmp_path):
     assert r.side_result == "push"
     assert r.expert_result == "win"
     assert (r.fav_dog, r.home_away, r.over_under) == ("favorite", "home", None)
-    assert (r.close_odds, r.opp_close_odds, r.tickets_pct) == (-105, -115, 40)
+    assert (r.close_odds, r.opp_close_odds) == (-105, -115)
+    assert "tickets_pct" not in df.columns
     assert r.expert_name == "A"
     assert df.loc[12].fav_dog == "underdog"
     assert df.loc[12].side_result == "loss"

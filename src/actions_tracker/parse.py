@@ -1,4 +1,4 @@
-"""Turn Action Network picks pages and scoreboard JSON into DB row dicts (spec §3, §5)."""
+"""Turn Action Network picks pages into DB row dicts (spec §3, §5, §12)."""
 
 import json
 import re

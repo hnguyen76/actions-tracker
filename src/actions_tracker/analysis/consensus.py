@@ -6,8 +6,7 @@ from actions_tracker.analysis.stats import SUMMARY_KEYS, summarize, with_all
 from actions_tracker.config import BUCKETS, MIN_EXPERTS
 
 CG_COLS = ["game_id", "league", "market", "start_time", "status", "home_abbr", "away_abbr", "side", "votes",
-           "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds", "tickets_pct",
-           "money_pct"]
+           "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds"]
 SUMMARY_COLS = ["league", "market", "bucket"] + SUMMARY_KEYS + ["fade_win_pct", "fade_roi"]
 UPCOMING_COLS = CG_COLS + ["hist_win_pct", "hist_n"]
 _FLIP = {"win": "loss", "loss": "win", "push": "push"}
@@ -39,7 +38,7 @@ def consensus_games(picks: pd.DataFrame) -> pd.DataFrame:
             "status": rep["status"], "home_abbr": rep["home_abbr"], "away_abbr": rep["away_abbr"],
             "side": side, "votes": int(counts.iloc[0]), "total_votes": total, "majority_pct": pct,
             "bucket": bucket_of(pct), "side_result": rep["side_result"], "side_odds": rep["close_odds"],
-            "opp_odds": rep["opp_close_odds"], "tickets_pct": rep["tickets_pct"], "money_pct": rep["money_pct"],
+            "opp_odds": rep["opp_close_odds"],
         })
     return pd.DataFrame(rows, columns=CG_COLS).astype(object)
 

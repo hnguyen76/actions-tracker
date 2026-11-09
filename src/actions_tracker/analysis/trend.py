@@ -1,4 +1,4 @@
-"""Weekly win-rate trend for consensus, top experts and contrarian sides."""
+"""Weekly win-rate trend for expert consensus and the top-10 experts."""
 
 import pandas as pd
 
@@ -26,11 +26,10 @@ def _series(name: str, df: pd.DataFrame, result_col: str) -> list[dict]:
     return rows
 
 
-def weekly_trend(cg: pd.DataFrame, picks: pd.DataFrame, lb: pd.DataFrame, pg: pd.DataFrame) -> pd.DataFrame:
+def weekly_trend(cg: pd.DataFrame, picks: pd.DataFrame, lb: pd.DataFrame) -> pd.DataFrame:
     top10 = set(lb.loc[pd.to_numeric(lb["rank"]) <= 10, "expert_id"]) if not lb.empty else set()
     rows = (
         _series("consensus_60plus", cg[cg["bucket"] != "50-60"], "side_result")
         + _series("top10_experts", picks[picks["expert_id"].isin(top10)], "expert_result")
-        + _series("contrarian", pg[pg["relation"] == "contrarian"], "side_result")
     )
     return pd.DataFrame(rows, columns=TREND_COLS)

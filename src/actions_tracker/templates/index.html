@@ -97,7 +97,6 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
-    <button role="tab" data-tab="public" aria-selected="false">Expert vs Public</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
   </nav>
 
@@ -136,18 +135,10 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
     </div>
   </section>
 
-  <section class="panel" id="tab-public">
-    <div class="card">
-      <h2>Expert đồng ý hay ngược public</h2>
-      <p class="note">"Public nặng" = từ 65% số bet trở lên vào một side. "money&gt;tickets" = side có % tiền cao hơn % bet từ 15 điểm trở lên.</p>
-      <div class="table-scroll" id="public-table"></div>
-    </div>
-  </section>
-
   <section class="panel" id="tab-trend">
     <div class="card">
       <h2>Win% theo tuần (tất cả giải)</h2>
-      <p class="note">Consensus ≥60% · Top 10 expert · Side expert ngược public. Đường nét đứt = hòa vốn 52,4%.</p>
+      <p class="note">Consensus ≥60% · Top 10 expert. Đường nét đứt = hòa vốn 52,4%.</p>
       <div class="chart-box"><canvas id="trend-chart" aria-label="Biểu đồ xu hướng theo tuần"></canvas></div>
     </div>
     <div class="card">
@@ -156,7 +147,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
     </div>
   </section>
 
-  <footer>Dữ liệu: picks công khai trên Action Network, tự thu thập. Chỉ để tham khảo cá nhân.</footer>
+  <footer>Picks: Action Network (công khai, tự thu thập). Tỉ số và line: The Odds API. Chỉ để tham khảo cá nhân.</footer>
 </div>
 
 <script>
@@ -175,7 +166,6 @@ const DATA = /*__DATA__*/null;
   const SERIES = [
     { key: "consensus_60plus", name: "Consensus ≥60%", color: "--s1" },
     { key: "top10_experts", name: "Top 10 expert", color: "--s2" },
-    { key: "contrarian", name: "Ngược public", color: "--s3" },
   ];
 
   const D = DATA || { generated_at: null, league_status: [], tables: {} };
@@ -248,12 +238,14 @@ const DATA = /*__DATA__*/null;
     && (state.market === "ALL" || r.market === state.market));
 
   function header() {
-    document.getElementById("updated").textContent = "Cập nhật lần cuối: " + fmtTime(D.generated_at);
+    const credits = D.meta && D.meta.odds_api_remaining;
+    document.getElementById("updated").textContent = "Cập nhật lần cuối: " + fmtTime(D.generated_at)
+      + (credits === null || credits === undefined ? "" : ` · Credit The Odds API còn: ${num(credits)}`);
     const box = document.getElementById("league-status");
     box.replaceChildren();
     for (const s of D.league_status || []) {
       const failed = s.last_error_at && (!s.last_success_at || s.last_error_at > s.last_success_at);
-      const pending = s.ungraded_past_games ? ` · ${s.ungraded_past_games} trận đã qua chưa có kết quả` : "";
+      const pending = s.ungraded_past_games ? ` · ${s.ungraded_past_games} trận đã qua chưa có tỉ số` : "";
       box.append(el("span", { class: "chip" + (failed || pending ? " err" : ""),
         text: `${leagueName(s.league)}: ${failed ? "lỗi " + fmtTime(s.last_error_at) : fmtTime(s.last_success_at)}${pending}`,
         title: failed ? String(s.last_error || "") : "" }));
@@ -294,8 +286,6 @@ const DATA = /*__DATA__*/null;
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => sideName(r) },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
-      { label: "Public bets", num: true, value: (r) => (r.tickets_pct === null ? "–" : num(r.tickets_pct) + "%") },
-      { label: "Public tiền", num: true, value: (r) => (r.money_pct === null ? "–" : num(r.money_pct) + "%") },
       { label: "Lịch sử", num: true, value: (r) => (r.hist_n ? `${pct(r.hist_win_pct)} (n=${num(r.hist_n)})` : "–") },
     ]);
   }
@@ -410,17 +400,6 @@ const DATA = /*__DATA__*/null;
     ]);
   }
 
-  function publicTab() {
-    const order = { agree: 0, contrarian: 1, "money>tickets": 2 };
-    const rows = byFilter(T("Expert_vs_Public")).sort((a, b) => (order[a.relation] - order[b.relation]) || ((a.heavy ? 1 : 0) - (b.heavy ? 1 : 0)));
-    const rel = { agree: "Expert đồng ý public", contrarian: "Expert ngược public", "money>tickets": "Side money > tickets" };
-    renderTable("public-table", rows, [
-      { label: "Trường hợp", value: (r) => rel[r.relation] || r.relation },
-      { label: "Public nặng", value: (r) => (r.heavy === null ? "–" : r.heavy ? "Có" : "Không") },
-      ...recordCols,
-    ]);
-  }
-
   function trendTab() {
     let rows = T("Trend_Weekly");
     if (state.range) {
@@ -463,7 +442,7 @@ const DATA = /*__DATA__*/null;
   }
 
   function render() {
-    upcomingTab(); consensusTab(); expertsTab(); publicTab(); trendTab();
+    upcomingTab(); consensusTab(); expertsTab(); trendTab();
   }
 
   function tabs() {
@@ -478,7 +457,7 @@ const DATA = /*__DATA__*/null;
   }
 
   header(); filters(); tabs();
-  if (window.Chart) render(); else { upcomingTab(); expertsTab(); publicTab(); }
+  if (window.Chart) render(); else { upcomingTab(); expertsTab(); }
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => window.Chart && render());
 })();
 </script>
