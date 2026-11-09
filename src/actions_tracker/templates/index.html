@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
 <title>Actions Expert Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -46,7 +47,7 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 16px 0 8px; }
 .filters label { display: flex; flex-direction: column; font-size: 12px; color: var(--ink-2); gap: 4px; }
 select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; min-width: 140px; }
-nav.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); margin-top: 8px; }
+nav.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); margin-top: 8px; }
 nav.tabs button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2); padding: 10px 12px; cursor: pointer; white-space: nowrap; }
 nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); font-weight: 600; }
 section.panel { display: none; padding-top: 16px; }
@@ -121,8 +122,8 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
 
   <section class="panel" id="tab-experts">
     <div class="card">
-      <h2>Bảng xếp hạng expert (từ 20 picks đã chấm)</h2>
-      <p class="note">Bấm vào một expert để xem thói quen chọn side và phong độ gần đây.</p>
+      <h2>Expert</h2>
+      <p class="note">Xếp hạng theo ROI khi đủ 20 picks đã chấm; expert chưa đủ mẫu nằm phía dưới. Bấm vào một expert để xem thói quen chọn side và phong độ gần đây.</p>
       <div class="table-scroll" id="leaderboard-table"></div>
     </div>
     <div class="card" id="expert-detail" hidden>
@@ -312,7 +313,11 @@ const DATA = /*__DATA__*/null;
           if (meta.hidden) return;
           const pts = meta.data.filter((p, j) => ds.data[j] !== null);
           const last = pts[pts.length - 1];
-          if (last) { ctx.textAlign = "right"; ctx.fillText(ds.label, Math.min(last.x - 6, chartArea.right - 4), last.y - 10); }
+          if (!last) return;
+          const w = ctx.measureText(ds.label).width;
+          const x = Math.min(last.x - 6, chartArea.right - 4);
+          if (x - w < chartArea.left) { ctx.textAlign = "left"; ctx.fillText(ds.label, last.x + 8, last.y - 10); }
+          else { ctx.textAlign = "right"; ctx.fillText(ds.label, x, last.y - 10); }
         });
       }
       ctx.restore();
@@ -364,9 +369,19 @@ const DATA = /*__DATA__*/null;
     ]);
   }
 
+  // every expert with graded picks in the current filter; those with n >= 20 are ranked by ROI first
+  function expertRows() {
+    const rows = byFilter(T("Experts")).filter((r) => r.window === "all" && r.n > 0);
+    const ranked = rows.filter((r) => !r.low_sample).sort((a, b) => b.roi - a.roi);
+    ranked.forEach((r, i) => { r.rank = i + 1; });
+    const rest = rows.filter((r) => r.low_sample).map((r) => ({ ...r, rank: null }))
+      .sort((a, b) => (b.n - a.n) || (b.roi - a.roi));
+    return ranked.concat(rest);
+  }
+
   function expertsTab() {
-    renderTable("leaderboard-table", T("Leaderboard"), [
-      { label: "#", num: true, value: (r) => num(r.rank) },
+    renderTable("leaderboard-table", expertRows(), [
+      { label: "#", num: true, value: (r) => (r.rank === null ? "–" : num(r.rank)) },
       { label: "Expert", value: (r) => r.expert_name || String(r.expert_id) },
       ...recordCols,
       { label: "Units", num: true, value: (r) => num(r.units, 1), cls: (r) => roiCls(r.units) },
