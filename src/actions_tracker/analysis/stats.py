@@ -23,6 +23,25 @@ def wilson_ci(wins: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (centre - half, centre + half)
 
 
+SUMMARY_KEYS = ["n", "wins", "losses", "pushes", "win_pct", "ci_low", "ci_high", "units", "roi", "low_sample"]
+
+
+def with_all(df, cols: list[str]):
+    """Stack copies of df where each subset of `cols` is replaced by "ALL" (for overall rows)."""
+    import itertools
+
+    import pandas as pd
+
+    parts = []
+    for mask in itertools.product([False, True], repeat=len(cols)):
+        part = df.copy()
+        for col, all_ in zip(cols, mask):
+            if all_:
+                part[col] = "ALL"
+        parts.append(part)
+    return pd.concat(parts, ignore_index=True) if parts else df
+
+
 def summarize(results: Sequence[str], odds: Sequence[int | None]) -> dict:
     wins = losses = pushes = 0
     units = 0.0
