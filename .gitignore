@@ -7,3 +7,5 @@ __pycache__/
 *.tmp.xlsx
 .odds_api_key
 .env
+.therundown_api_key
+.apify_token
