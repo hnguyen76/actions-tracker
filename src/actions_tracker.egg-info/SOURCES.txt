@@ -1,0 +1,8 @@
+pyproject.toml
+src/actions_tracker/__init__.py
+src/actions_tracker.egg-info/PKG-INFO
+src/actions_tracker.egg-info/SOURCES.txt
+src/actions_tracker.egg-info/dependency_links.txt
+src/actions_tracker.egg-info/requires.txt
+src/actions_tracker.egg-info/top_level.txt
+src/actions_tracker/analysis/__init__.py
