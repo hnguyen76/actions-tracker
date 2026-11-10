@@ -54,3 +54,25 @@ def test_empty_inputs():
     up = upcoming(cg, s, now="2026-11-10T00:00:00.000Z")
     assert cg.empty and s.empty and up.empty
     assert "bucket" in cg.columns and "hist_win_pct" in up.columns
+
+
+def test_past_plays_day_groups_and_labels():
+    from actions_tracker.analysis.consensus import past_plays
+    rows = (votes(1, ["home"] * 3, "win") + votes(2, ["away"] * 3, "loss") + votes(3, ["home"] * 3, status="scheduled"))
+    for r in rows:
+        r.update(home_abbr=f"H{r['game_id']}", away_abbr=f"A{r['game_id']}")
+        # game 1: Thu 20:15 ET; game 2: Sun 22:00 ET (= Mon 03:00 UTC); game 3: not played
+        r["start_time"] = {1: "2026-11-06T01:15:00.000Z", 2: "2026-11-09T03:00:00.000Z", 3: "2026-11-20T01:00:00.000Z"}[r["game_id"]]
+    total = [dict(pick_id=900 + i, expert_id=i, game_id=1, market="total", pick_side="under", side_result="loss",
+                  home_abbr="H1", away_abbr="A1", start_time="2026-11-06T01:15:00.000Z") for i in range(3)]
+    pp = past_plays(consensus_games(make_picks(rows + total))).set_index(["game_id", "market"])
+    assert set(pp.index) == {(1, "spread"), (1, "total"), (2, "spread")}
+    assert pp.loc[(1, "spread")].day_group == "T2-6" and pp.loc[(2, "spread")].day_group == "T7-CN"
+    assert (pp.loc[(1, "spread")].pick, pp.loc[(2, "spread")].pick, pp.loc[(1, "total")].pick) == ("H1", "A2", "Under")
+    assert pp.loc[(2, "spread")].et_date == "2026-11-08" and pp.loc[(1, "spread")].match == "A1@H1"
+
+
+def test_past_plays_empty():
+    from actions_tracker.analysis.consensus import past_plays
+    out = past_plays(consensus_games(make_picks([])))
+    assert out.empty and {"day_group", "pick", "match"} <= set(out.columns)

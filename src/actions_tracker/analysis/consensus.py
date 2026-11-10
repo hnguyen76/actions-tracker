@@ -3,7 +3,7 @@
 import pandas as pd
 
 from actions_tracker.analysis.stats import SUMMARY_KEYS, summarize, with_all
-from actions_tracker.config import BUCKETS, MIN_EXPERTS
+from actions_tracker.config import BUCKETS, MIN_EXPERTS, TZ
 
 CG_COLS = ["game_id", "league", "market", "start_time", "status", "home_abbr", "away_abbr", "side", "votes",
            "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds"]
@@ -65,3 +65,23 @@ def upcoming(cg: pd.DataFrame, summary: pd.DataFrame, now: str) -> pd.DataFrame:
         columns={"win_pct": "hist_win_pct", "n": "hist_n"})
     up = up.merge(hist, on=["league", "market", "bucket"], how="left")
     return up.sort_values("start_time", kind="stable").reset_index(drop=True)[UPCOMING_COLS]
+
+
+PAST_COLS = ["game_id", "league", "market", "start_time", "et_date", "day_group", "match", "pick", "votes",
+             "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds"]
+
+
+def past_plays(cg: pd.DataFrame) -> pd.DataFrame:
+    """Graded consensus plays, newest first, tagged Mon-Fri ("T2-6") or Sat-Sun ("T7-CN") by US/Eastern date."""
+    done = cg[cg["side_result"].notna() & (cg["status"] == "complete")].copy()
+    if done.empty:
+        return pd.DataFrame(columns=PAST_COLS)
+    local = pd.to_datetime(done["start_time"], utc=True, errors="coerce").dt.tz_convert(TZ)
+    done["et_date"] = local.dt.strftime("%Y-%m-%d")
+    done["day_group"] = ["T2-6" if d <= 4 else "T7-CN" for d in local.dt.day_of_week]
+    done["match"] = done["away_abbr"].astype(str) + "@" + done["home_abbr"].astype(str)
+    done["pick"] = [r.home_abbr if r.side == "home" else r.away_abbr if r.side == "away" else str(r.side).title()
+                    for r in done.itertuples()]
+    done = done.sort_values(["start_time", "majority_pct"], ascending=[False, False], kind="stable")
+    return done.reset_index(drop=True)[PAST_COLS]
+

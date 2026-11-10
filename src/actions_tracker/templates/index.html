@@ -15,6 +15,7 @@
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
   --good: #006300; --critical: #d03b3b; --warning: #fab219;
   --accent-wash: rgba(42,120,214,0.10);
+  --win: #0ca30c; --loss: #d03b3b;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
@@ -95,6 +96,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
 
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
+    <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
@@ -105,6 +107,21 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <p class="note">Chỉ các kèo có từ 3 expert trở lên. "Lịch sử" = win% của các kèo cùng giải, loại kèo và mức đồng thuận trong quá khứ.</p>
       <div class="table-scroll" id="upcoming-table"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-past">
+    <div class="card">
+      <h2>Thứ 2 – Thứ 6</h2>
+      <p class="note">Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p>
+      <div class="table-scroll" id="past-chart-wk"></div>
+      <div class="table-scroll" id="past-table-wk"></div>
+    </div>
+    <div class="card">
+      <h2>Thứ 7 – Chủ nhật</h2>
+      <p class="note">Cùng cách đọc như trên, cho các trận cuối tuần.</p>
+      <div class="table-scroll" id="past-chart-we"></div>
+      <div class="table-scroll" id="past-table-we"></div>
     </div>
   </section>
 
@@ -441,8 +458,72 @@ const DATA = /*__DATA__*/null;
     ]);
   }
 
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs, text) {
+    const e = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  const RESULT_LABEL = { win: "Thắng", loss: "Thua", push: "Hòa" };
+  const pickLabel = (r) => `${r.match} · ${MARKET_LABEL[r.market] || r.market} · ${r.pick} (${num(r.votes)}/${num(r.total_votes)})`;
+
+  // one row per play: dot at % of experts on the majority side, coloured by result, dashed line at 75%
+  function lollipop(target, rows) {
+    const host = document.getElementById(target);
+    host.replaceChildren();
+    if (!rows.length) { host.append(el("div", { class: "empty", text: EMPTY_TEXT })); return; }
+    const sorted = rows.slice().sort((a, b) => (b.majority_pct - a.majority_pct) || (a.match < b.match ? -1 : 1));
+    const x0 = 290, x1 = 720, y0 = 70, rh = 22, H = y0 + sorted.length * rh + 46;
+    const xs = (p) => x0 + (p - 50) / 50 * (x1 - x0), yy = (i) => y0 + i * rh, yEnd = y0 + sorted.length * rh;
+    const svg = svgEl("svg", { viewBox: `0 0 760 ${H}`, role: "img", "aria-label": "Kèo đã qua theo mức đồng thuận", "font-size": "12", style: "width:100%;min-width:620px;height:auto;display:block" });
+    const tally = (a) => `${a.filter((r) => r.side_result === "win").length} thắng – ${a.filter((r) => r.side_result === "loss").length} thua`;
+    const lo = rows.filter((r) => r.majority_pct < 75), hi = rows.filter((r) => r.majority_pct >= 75);
+    svg.append(svgEl("circle", { cx: 6, cy: 14, r: 5, fill: "var(--win)" }), svgEl("text", { x: 16, y: 18, fill: "var(--ink-2)" }, "Side đa số thắng"),
+               svgEl("circle", { cx: 136, cy: 14, r: 5, fill: "var(--loss)" }), svgEl("text", { x: 146, y: 18, fill: "var(--ink-2)" }, "Side đa số thua"));
+    svg.append(svgEl("text", { x: xs(62.5), y: 48, "text-anchor": "middle", "font-weight": "600", fill: "var(--ink)" }, `Dưới 75%: ${tally(lo)}`),
+               svgEl("text", { x: xs(87.5), y: 48, "text-anchor": "middle", "font-weight": "600", fill: "var(--ink)" }, `Từ 75%: ${tally(hi)}`));
+    for (const p of [50, 60, 70, 80, 90, 100]) {
+      svg.append(svgEl("line", { x1: xs(p), x2: xs(p), y1: y0 - 12, y2: yEnd, stroke: "var(--grid)" }),
+                 svgEl("text", { x: xs(p), y: yEnd + 18, "text-anchor": "middle", fill: "var(--muted)" }, `${p}%`));
+    }
+    svg.append(svgEl("line", { x1: xs(75), x2: xs(75), y1: 34, y2: yEnd, stroke: "var(--muted)", "stroke-dasharray": "4 4" }),
+               svgEl("text", { x: xs(75), y: yEnd + 36, "text-anchor": "middle", fill: "var(--muted)" }, "ngưỡng 75%"));
+    sorted.forEach((r, i) => {
+      const colour = r.side_result === "win" ? "var(--win)" : r.side_result === "loss" ? "var(--loss)" : "var(--muted)";
+      const dot = svgEl("circle", { cx: xs(r.majority_pct), cy: yy(i), r: 6, fill: colour });
+      dot.append(svgEl("title", {}, `${r.et_date} · ${pickLabel(r)} · ${num(r.majority_pct)}% → ${RESULT_LABEL[r.side_result] || r.side_result}`));
+      svg.append(svgEl("text", { x: x0 - 12, y: yy(i) + 4, "text-anchor": "end", fill: "var(--ink-2)" }, pickLabel(r)),
+                 svgEl("line", { x1: xs(50), x2: xs(r.majority_pct), y1: yy(i), y2: yy(i), stroke: "var(--axis)", "stroke-width": 2 }), dot);
+    });
+    host.append(svg);
+  }
+
+  function pastTab() {
+    let rows = rawFilter(T("Past_Plays"));
+    if (state.range) {
+      const cutoff = Date.now() - state.range * 86400000;
+      rows = rows.filter((r) => new Date(r.start_time).getTime() >= cutoff);
+    }
+    const columns = [
+      { label: "Ngày", value: (r) => r.et_date },
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Side đa số", value: (r) => r.pick },
+      { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
+      { label: "Kết quả", value: (r) => RESULT_LABEL[r.side_result] || r.side_result,
+        cls: (r) => (r.side_result === "win" ? "pos" : r.side_result === "loss" ? "neg" : "") },
+    ];
+    for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
+      const part = rows.filter((r) => r.day_group === group);
+      lollipop(`past-chart-${suffix}`, part);
+      renderTable(`past-table-${suffix}`, part, columns);
+    }
+  }
+
   function render() {
-    upcomingTab(); consensusTab(); expertsTab(); trendTab();
+    upcomingTab(); pastTab(); consensusTab(); expertsTab(); trendTab();
   }
 
   function tabs() {
@@ -451,13 +532,13 @@ const DATA = /*__DATA__*/null;
       buttons.forEach((x) => x.setAttribute("aria-selected", String(x === b)));
       document.querySelectorAll("section.panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + b.dataset.tab));
       // the time-range filter only applies to Upcoming and Trend; hide it elsewhere so all-time numbers are not misread
-      document.getElementById("range-wrap").hidden = !["upcoming", "trend"].includes(b.dataset.tab);
+      document.getElementById("range-wrap").hidden = !["upcoming", "past", "trend"].includes(b.dataset.tab);
       Object.values(charts).forEach((c) => c && c.resize());
     }));
   }
 
   header(); filters(); tabs();
-  if (window.Chart) render(); else { upcomingTab(); expertsTab(); }
+  if (window.Chart) render(); else { upcomingTab(); pastTab(); expertsTab(); }
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => window.Chart && render());
 })();
 </script>
