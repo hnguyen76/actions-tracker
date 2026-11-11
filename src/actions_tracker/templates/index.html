@@ -70,6 +70,11 @@ tr.clickable:hover, tr.selected { background: var(--accent-wash); }
 .empty { color: var(--muted); padding: 24px 0; text-align: center; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } .chart-box { height: 240px; } }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--ink); }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0 0; color: var(--ink-2); font-size: 13px; }
+.pager .btn { padding: 4px 12px; font-weight: 500; }
+.pager .btn:disabled { opacity: .4; cursor: default; }
 footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
 </style>
 </head>
@@ -100,6 +105,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
+    <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
   </nav>
 
   <section class="panel active" id="tab-upcoming">
@@ -113,6 +119,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
   <section class="panel" id="tab-past">
     <div class="card">
       <h2>Thứ 2 – Thứ 6</h2>
+      <p class="note"><b>Nguồn: dữ liệu live</b> (picks thu bằng nút bấm; mỗi expert tính 1 lần mỗi kèo; chấm theo line đóng cửa The Odds API, thiếu thì median line của expert). Không gộp với tab "Lịch sử mùa".</p>
       <p class="note">Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p>
       <div class="table-scroll" id="past-chart-wk"></div>
       <div class="table-scroll" id="past-table-wk"></div>
@@ -164,7 +171,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
   <section class="panel" id="tab-trend">
     <div class="card">
       <h2>Win% theo tuần (tất cả giải)</h2>
-      <p class="note">Consensus ≥60% · Top 10 expert. Đường nét đứt = hòa vốn 52,4%.</p>
+      <p class="note">Consensus ≥60% · Top 10 expert: mỗi tuần xếp hạng lại chỉ bằng picks <b>trước</b> tuần đó (ROI, ≥ 20 picks), không nhìn trước kết quả. Đường nét đứt = hòa vốn 52,4%. Dữ liệu live.</p>
       <div class="chart-box"><canvas id="trend-chart" aria-label="Biểu đồ xu hướng theo tuần"></canvas></div>
     </div>
     <div class="card">
@@ -173,7 +180,25 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
     </div>
   </section>
 
-  <footer>Picks: Action Network (công khai, tự thu thập). Tỉ số và line: The Odds API. Chỉ để tham khảo cá nhân.</footer>
+  <section class="panel" id="tab-history">
+    <div class="card">
+      <h2>Lịch sử mùa — consensus theo số picks trên thẻ By Game</h2>
+      <p class="note"><b>Khác phương pháp với tab "Kèo đã qua"</b>: ở đây đếm <b>số picks</b> hiển thị trên thẻ By Game của từng tuần (một expert có thể được tính nhiều lần, không có tên expert); tỉ số và line đóng cửa lấy từ <b>scoreboard Action Network</b> (ngoại lệ một lần cho lịch sử). Kèo cần ≥ 3 picks và một side nhiều hơn. Ngày theo giờ miền Đông Mỹ.</p>
+      <div class="table-scroll" id="hist-summary"></div>
+    </div>
+    <div class="card">
+      <h2>Theo tuần</h2>
+      <p class="note">Theo side đa số mỗi tuần. NFL và NCAAF đánh số tuần riêng.</p>
+      <div class="table-scroll" id="hist-weekly"></div>
+    </div>
+    <div class="card">
+      <h2>Danh sách kèo</h2>
+      <div class="filters" style="margin-top:0"><label>Tuần<select id="hist-week"></select></label></div>
+      <div class="table-scroll" id="hist-plays"></div>
+    </div>
+  </section>
+
+  <footer>Picks: Action Network (công khai, tự thu thập). Tỉ số và line dữ liệu live: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
 </div>
 
 <script>
@@ -224,14 +249,41 @@ const DATA = /*__DATA__*/null;
     return e;
   }
 
-  // columns: [{label, value(row) -> string|Node, num?, cls?(row)}]
-  function renderTable(target, rows, columns, onRow) {
+  // columns: [{label, value(row) -> string|Node, num?, cls?(row), sort?(row) -> number|string}]
+  // every table sorts by clicking a header (again = reverse); opts.pageSize adds paging
+  const tableState = {};
+  function renderTable(target, rows, columns, onRow, opts) {
     const host = document.getElementById(target);
     host.replaceChildren();
     if (!rows.length) { host.append(el("div", { class: "empty", text: EMPTY_TEXT })); return; }
-    const thead = el("thead", {}, el("tr", {}, ...columns.map((c) => el("th", { class: c.num ? "num" : "", text: c.label }))));
+    const st = tableState[target] || (tableState[target] = { col: null, dir: 1, page: 0 });
+    if (st.col !== null && st.col >= columns.length) st.col = null;
+    const keyOf = (c, r) => { const v = c.sort ? c.sort(r) : c.value(r); return v instanceof Node ? v.textContent : v; };
+    let list = rows;
+    if (st.col !== null) {
+      const c = columns[st.col];
+      list = rows.slice().sort((a, b) => {
+        const x = keyOf(c, a), y = keyOf(c, b);
+        if (x === null || x === undefined) return 1;
+        if (y === null || y === undefined) return -1;
+        return st.dir * (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "vi", { numeric: true }));
+      });
+    }
+    const size = opts && opts.pageSize, pages = size ? Math.ceil(list.length / size) : 1;
+    if (st.page >= pages) st.page = 0;
+    if (size) list = list.slice(st.page * size, (st.page + 1) * size);
+    const redraw = () => renderTable(target, rows, columns, onRow, opts);
+    const thead = el("thead", {}, el("tr", {}, ...columns.map((c, i) => {
+      const th = el("th", { class: (c.num ? "num " : "") + "sortable", tabindex: "0", title: "Bấm để sắp xếp",
+        "aria-sort": st.col === i ? (st.dir > 0 ? "ascending" : "descending") : "none" },
+        c.label + (st.col === i ? (st.dir > 0 ? " ▲" : " ▼") : ""));
+      const go = () => { st.dir = st.col === i ? -st.dir : (c.num ? -1 : 1); st.col = i; st.page = 0; redraw(); };
+      th.addEventListener("click", go);
+      th.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+      return th;
+    })));
     const tbody = el("tbody");
-    for (const r of rows) {
+    for (const r of list) {
       const tr = el("tr", {}, ...columns.map((c) => {
         const v = c.value(r);
         const td = el("td", { class: [c.num ? "num" : "", c.cls ? c.cls(r) : ""].join(" ").trim() });
@@ -247,6 +299,14 @@ const DATA = /*__DATA__*/null;
       tbody.append(tr);
     }
     host.append(el("table", {}, thead, tbody));
+    if (size && pages > 1) {
+      const prev = el("button", { class: "btn", type: "button", text: "‹ Trước" });
+      const next = el("button", { class: "btn", type: "button", text: "Sau ›" });
+      prev.disabled = st.page === 0; next.disabled = st.page >= pages - 1;
+      prev.addEventListener("click", () => { st.page -= 1; redraw(); });
+      next.addEventListener("click", () => { st.page += 1; redraw(); });
+      host.append(el("div", { class: "pager" }, prev, el("span", { text: `Trang ${st.page + 1}/${pages} · ${rows.length} kèo` }), next));
+    }
   }
 
   const sampleCell = (r) => {
@@ -256,11 +316,11 @@ const DATA = /*__DATA__*/null;
   };
   const roiCls = (v) => (v === null || v === undefined ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
   const recordCols = [
-    { label: "n", num: true, value: sampleCell },
-    { label: "W-L-P", num: true, value: (r) => `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}` },
-    { label: "Win%", num: true, value: (r) => pct(r.win_pct) },
-    { label: "CI 95%", num: true, value: (r) => (r.ci_low === null ? "–" : `${pct(r.ci_low)} – ${pct(r.ci_high)}`) },
-    { label: "ROI", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi) },
+    { label: "n", num: true, value: sampleCell, sort: (r) => r.n },
+    { label: "W-L-P", num: true, value: (r) => `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}`, sort: (r) => r.wins },
+    { label: "Win%", num: true, value: (r) => pct(r.win_pct), sort: (r) => r.win_pct },
+    { label: "CI 95%", num: true, value: (r) => (r.ci_low === null ? "–" : `${pct(r.ci_low)} – ${pct(r.ci_high)}`), sort: (r) => r.ci_low },
+    { label: "ROI", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi), sort: (r) => r.roi },
   ];
 
   const byFilter = (rows) => rows.filter((r) => r.league === state.league && r.market === state.market);
@@ -289,7 +349,7 @@ const DATA = /*__DATA__*/null;
 
   function filters() {
     const leagues = new Set();
-    for (const name of ["Consensus", "Upcoming", "Experts"]) for (const r of T(name)) if (r.league && r.league !== "ALL") leagues.add(r.league);
+    for (const name of ["Consensus", "Upcoming", "Experts", "History_Summary"]) for (const r of T(name)) if (r.league && r.league !== "ALL") leagues.add(r.league);
     for (const s of D.league_status || []) leagues.add(s.league);
     const fl = document.getElementById("f-league");
     fl.replaceChildren(el("option", { value: "ALL", text: "Tất cả" }), ...[...leagues].sort().map((l) => el("option", { value: l, text: leagueName(l) })));
@@ -554,7 +614,10 @@ const DATA = /*__DATA__*/null;
     const x0 = 290, x1 = 720, y0 = 70, rh = 22, H = y0 + sorted.length * rh + 46;
     const xs = (p) => x0 + (p - 50) / 50 * (x1 - x0), yy = (i) => y0 + i * rh, yEnd = y0 + sorted.length * rh;
     const svg = svgEl("svg", { viewBox: `0 0 760 ${H}`, role: "img", "aria-label": "Kèo đã qua theo mức đồng thuận", "font-size": "12", style: "width:100%;min-width:620px;height:auto;display:block" });
-    const tally = (a) => `${a.filter((r) => r.side_result === "win").length} thắng – ${a.filter((r) => r.side_result === "loss").length} thua`;
+    const tally = (a) => {
+      const k = (x) => a.filter((r) => r.side_result === x).length;
+      return `${k("win")} thắng – ${k("loss")} thua` + (k("push") ? ` – ${k("push")} hòa` : "");
+    };
     const lo = rows.filter((r) => r.majority_pct < 75), hi = rows.filter((r) => r.majority_pct >= 75);
     svg.append(svgEl("circle", { cx: 6, cy: 14, r: 5, fill: "var(--win)" }), svgEl("text", { x: 16, y: 18, fill: "var(--ink-2)" }, "Side đa số thắng"),
                svgEl("circle", { cx: 136, cy: 14, r: 5, fill: "var(--loss)" }), svgEl("text", { x: 146, y: 18, fill: "var(--ink-2)" }, "Side đa số thua"));
@@ -599,8 +662,70 @@ const DATA = /*__DATA__*/null;
     }
   }
 
+  const GROUP_LABEL = { "T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN", ALL: "Cả tuần" };
+  const wlp = (r) => (r && r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)} · ${pct(r.win_pct)}` : "–");
+
+  function historyTab() {
+    const sum = T("History_Summary").filter((r) => r.league === state.league && r.market === state.market);
+    const find = (bucket, group) => sum.find((r) => r.bucket === bucket && r.day_group === group);
+    const all = (b) => find(b, "ALL");
+    renderTable("hist-summary", ["ALL", ...BUCKETS].filter((b) => all(b)), [
+      { label: "% picks cùng side", value: (b) => (b === "ALL" ? "Tất cả" : b + "%") },
+      { label: "Thứ 2–6", num: true, value: (b) => wlp(find(b, "T2-6")), sort: (b) => (find(b, "T2-6") || {}).win_pct },
+      { label: "Thứ 7–CN", num: true, value: (b) => wlp(find(b, "T7-CN")), sort: (b) => (find(b, "T7-CN") || {}).win_pct },
+      { label: "Cả tuần", num: true, value: (b) => wlp(all(b)), sort: (b) => all(b).win_pct },
+      { label: "ROI theo", num: true, value: (b) => signed(all(b).roi), cls: (b) => roiCls(all(b).roi), sort: (b) => all(b).roi },
+      { label: "Đánh ngược win%", num: true, value: (b) => pct(all(b).fade_win_pct), sort: (b) => all(b).fade_win_pct },
+      { label: "ROI đánh ngược", num: true, value: (b) => signed(all(b).fade_roi), cls: (b) => roiCls(all(b).fade_roi), sort: (b) => all(b).fade_roi },
+    ]);
+
+    // weekly table and play list follow the league and market filters
+    const plays = rawFilter(T("History_Plays"));
+    const weeks = new Map();
+    for (const r of plays) {
+      const key = `${r.league}|${r.week}`;
+      if (!weeks.has(key)) weeks.set(key, { league: r.league, week: r.week, ALL: [], "T2-6": [], "T7-CN": [] });
+      const w = weeks.get(key); w.ALL.push(r); w[r.day_group].push(r);
+    }
+    const rec = (a) => {
+      const k = (x) => a.filter((r) => r.side_result === x).length, n = k("win") + k("loss");
+      return { wins: k("win"), losses: k("loss"), pushes: k("push"), n, win_pct: n ? k("win") / n : null };
+    };
+    const byWeek = (a, b) => (a.league < b.league ? -1 : a.league > b.league ? 1 : b.week - a.week);
+    const weekRows = [...weeks.values()].map((w) => ({ ...w, all: rec(w.ALL), wk: rec(w["T2-6"]), we: rec(w["T7-CN"]) })).sort(byWeek);
+    renderTable("hist-weekly", weekRows, [
+      { label: "Giải", value: (w) => leagueName(w.league) },
+      { label: "Tuần", num: true, value: (w) => num(w.week), sort: (w) => w.week },
+      { label: "Thứ 2–6", num: true, value: (w) => wlp(w.wk), sort: (w) => w.wk.win_pct },
+      { label: "Thứ 7–CN", num: true, value: (w) => wlp(w.we), sort: (w) => w.we.win_pct },
+      { label: "Cả tuần", num: true, value: (w) => wlp(w.all), sort: (w) => w.all.win_pct },
+    ]);
+
+    const sel = document.getElementById("hist-week");
+    const keep = sel.value;
+    sel.replaceChildren(el("option", { value: "", text: "Tất cả tuần" }),
+      ...[...weeks.values()].sort(byWeek).map((w) => el("option", { value: `${w.league}|${w.week}`, text: `${leagueName(w.league)} tuần ${w.week}` })));
+    sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
+    if (!sel.dataset.bound) { sel.dataset.bound = "1"; sel.addEventListener("change", historyTab); }
+    const shown = sel.value ? plays.filter((r) => `${r.league}|${r.week}` === sel.value) : plays;
+    const lineText = (r) => (r.line === null || r.market === "ml" ? "" : " " + (r.market === "spread" && r.line > 0 ? "+" : "") + num(r.line, 1));
+    renderTable("hist-plays", shown, [
+      { label: "Ngày", value: (r) => r.et_date },
+      { label: "Nhóm ngày", value: (r) => GROUP_LABEL[r.day_group] || r.day_group },
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Tuần", num: true, value: (r) => num(r.week), sort: (r) => r.week },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Side đa số", value: (r) => r.pick + lineText(r) },
+      { label: "Picks", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`, sort: (r) => r.majority_pct },
+      { label: "% bet public", num: true, value: (r) => (r.tickets_pct === null ? "–" : num(r.tickets_pct) + "%"), sort: (r) => r.tickets_pct },
+      { label: "Kết quả", value: (r) => RESULT_LABEL[r.side_result] || r.side_result,
+        cls: (r) => (r.side_result === "win" ? "pos" : r.side_result === "loss" ? "neg" : "") },
+    ], null, { pageSize: 50 });
+  }
+
   function render() {
-    upcomingTab(); pastTab(); consensusTab(); expertsTab(); trendTab();
+    upcomingTab(); pastTab(); consensusTab(); expertsTab(); trendTab(); historyTab();
   }
 
   function tabs() {
@@ -615,7 +740,7 @@ const DATA = /*__DATA__*/null;
   }
 
   header(); filters(); tabs();
-  if (window.Chart) render(); else { upcomingTab(); pastTab(); expertsTab(); }
+  if (window.Chart) render(); else { upcomingTab(); pastTab(); expertsTab(); historyTab(); }
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => window.Chart && render());
 })();
 </script>

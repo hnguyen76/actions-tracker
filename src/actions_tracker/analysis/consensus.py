@@ -6,7 +6,7 @@ from actions_tracker.analysis.stats import SUMMARY_KEYS, summarize, with_all
 from actions_tracker.config import BUCKETS, MIN_EXPERTS, TZ
 
 CG_COLS = ["game_id", "league", "market", "start_time", "status", "home_abbr", "away_abbr", "side", "votes",
-           "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds"]
+           "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds", "line_source"]
 SUMMARY_COLS = ["league", "market", "bucket"] + SUMMARY_KEYS + ["fade_win_pct", "fade_roi"]
 UPCOMING_COLS = CG_COLS + ["hist_win_pct", "hist_n"]
 _FLIP = {"win": "loss", "loss": "win", "push": "push"}
@@ -38,7 +38,7 @@ def consensus_games(picks: pd.DataFrame) -> pd.DataFrame:
             "status": rep["status"], "home_abbr": rep["home_abbr"], "away_abbr": rep["away_abbr"],
             "side": side, "votes": int(counts.iloc[0]), "total_votes": total, "majority_pct": pct,
             "bucket": bucket_of(pct), "side_result": rep["side_result"], "side_odds": rep["close_odds"],
-            "opp_odds": rep["opp_close_odds"],
+            "opp_odds": rep["opp_close_odds"], "line_source": rep["line_source"],
         })
     return pd.DataFrame(rows, columns=CG_COLS).astype(object)
 
@@ -68,7 +68,8 @@ def upcoming(cg: pd.DataFrame, summary: pd.DataFrame, now: str) -> pd.DataFrame:
 
 
 PAST_COLS = ["game_id", "league", "market", "start_time", "et_date", "day_group", "match", "pick", "votes",
-             "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds"]
+             "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds",
+             "source", "count_basis", "line_source"]
 
 
 def past_plays(cg: pd.DataFrame) -> pd.DataFrame:
@@ -79,6 +80,8 @@ def past_plays(cg: pd.DataFrame) -> pd.DataFrame:
     local = pd.to_datetime(done["start_time"], utc=True, errors="coerce").dt.tz_convert(TZ)
     done["et_date"] = local.dt.strftime("%Y-%m-%d")
     done["day_group"] = ["T2-6" if d <= 4 else "T7-CN" for d in local.dt.day_of_week]
+    done["source"] = "live"  # picks collected by the button (Action Network) + The Odds API scores/lines
+    done["count_basis"] = "distinct_expert"  # each expert counted once per game x market (latest pick)
     done["match"] = done["away_abbr"].astype(str) + "@" + done["home_abbr"].astype(str)
     done["pick"] = [r.home_abbr if r.side == "home" else r.away_abbr if r.side == "away" else str(r.side).title()
                     for r in done.itertuples()]

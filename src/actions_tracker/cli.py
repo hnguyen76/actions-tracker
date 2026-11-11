@@ -193,7 +193,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         db.set_meta(conn, "odds_api_remaining", str(odds_api.remaining))
         print(f"The Odds API con {odds_api.remaining} credit.")
 
-    tables = build_tables(conn, now)
+    tables = build_tables(conn, now, Path(db_path).parent / "history")
     excel_ok = write_report(tables, report_path)
     if not excel_ok:
         print(f"CANH BAO: {report_path} dang mo trong Excel - dong file roi bam lai de cap nhat Excel.")

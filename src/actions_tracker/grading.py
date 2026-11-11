@@ -11,7 +11,7 @@ COLUMNS = [
     "pick_id", "expert_id", "expert_name", "league", "game_id", "market", "pick_side", "line", "odds",
     "created_at", "start_time", "status", "home_abbr", "away_abbr", "home_score", "away_score",
     "close_line", "close_odds", "opp_close_odds",
-    "home_away", "fav_dog", "over_under", "side_result", "expert_result",
+    "home_away", "fav_dog", "over_under", "side_result", "expert_result", "line_source",
 ]
 
 _SQL = """
@@ -89,8 +89,13 @@ def load_graded_picks(conn: sqlite3.Connection) -> pd.DataFrame:
     out = []
     for r in raw:
         close = r["close_line"]
-        if _missing(close):
+        if r["market"] == "ml":
+            line_source = "ml_no_line"
+        elif not _missing(close):
+            line_source = "odds_api_close"
+        else:
             close = medians.get((r["game_id"], r["market"], r["pick_side"]))
+            line_source = "median_expert_line" if close is not None else None
         side_result = (
             grade_side(r["market"], r["pick_side"], close, r["home_score"], r["away_score"])
             if _gradable(r, close) else None
@@ -107,5 +112,6 @@ def load_graded_picks(conn: sqlite3.Connection) -> pd.DataFrame:
             "over_under": r["pick_side"] if r["market"] == "total" else None,
             "side_result": side_result,
             "expert_result": expert_result,
+            "line_source": line_source,
         })
     return pd.DataFrame(out, columns=COLUMNS).astype(object)
