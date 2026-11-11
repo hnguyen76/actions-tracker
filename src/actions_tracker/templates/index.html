@@ -139,6 +139,15 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
 
   <section class="panel" id="tab-experts">
     <div class="card">
+      <h2>Expert đang xanh thì pick tiếp theo có hay thua?</h2>
+      <p class="note">Mỗi pick được gắn phong độ của expert <b>lúc pick, trước giờ đá</b> (theo Action Network: units 30 ngày trong giải đó và chuỗi thắng/thua). Chấm: win% của các pick đó, thanh ngang = CI 95%, đường nét đứt = hòa vốn 52,4%. Chấm rỗng = chưa đủ 20 picks. Chỉ có dữ liệu từ 11/11/2026 trở đi.</p>
+      <div class="grid2">
+        <div><p class="note"><b>Thứ 2–6</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
+        <div><p class="note"><b>Thứ 7–CN</b></p><div class="table-scroll" id="form-chart-we"></div></div>
+      </div>
+      <div class="table-scroll" id="form-table"></div>
+    </div>
+    <div class="card">
       <h2>Expert</h2>
       <p class="note">Xếp hạng theo ROI khi đủ 20 picks đã chấm; expert chưa đủ mẫu nằm phía dưới. Bấm vào một expert để xem thói quen chọn side và phong độ gần đây.</p>
       <div class="table-scroll" id="leaderboard-table"></div>
@@ -180,6 +189,10 @@ const DATA = /*__DATA__*/null;
   const WINDOW_LABEL = { all: "Toàn bộ", last_30_days: "30 ngày qua", last_30_picks: "30 picks gần nhất" };
   const LABEL_TYPE = { fav_dog: "Favorite / Underdog", home_away: "Nhà / Khách", over_under: "Over / Under" };
   const LABEL = { favorite: "Favorite", underdog: "Underdog", pickem: "Pick'em", home: "Đội nhà", away: "Đội khách", over: "Over", under: "Under" };
+  const FORM_ROWS = [
+    ["units_30", "hot", "Đang xanh (≥ +3u)"], ["units_30", "neutral", "Bình thường (−3u … +3u)"], ["units_30", "cold", "Đang đỏ (≤ −3u)"],
+    ["streak", "hot_long", "Chuỗi thắng ≥ 3"], ["streak", "hot", "Chuỗi thắng 1–2"], ["streak", "cold", "Chuỗi thua 1–2"], ["streak", "cold_long", "Chuỗi thua ≥ 3"],
+  ];
   const SERIES = [
     { key: "consensus_60plus", name: "Consensus ≥60%", color: "--s1" },
     { key: "top10_experts", name: "Top 10 expert", color: "--s2" },
@@ -391,13 +404,77 @@ const DATA = /*__DATA__*/null;
     return ranked.concat(rest);
   }
 
+  // latest Action Network form of an expert: "+8,2u · thắng 3" (per league when the filter is "all leagues")
+  function formNow(id) {
+    const rows = T("Expert_Form_Now").filter((r) => r.expert_id === id && (state.league === "ALL" || r.league === state.league));
+    if (!rows.length) return "–";
+    return rows.map((r) => {
+      const u = r.units_30 === null ? "–" : (r.units_30 > 0 ? "+" : "") + num(r.units_30, 1) + "u";
+      const st = r.streak_type ? ` · ${r.streak_type === "hot" ? "thắng" : "thua"} ${num(r.streak_value)}` : "";
+      return (state.league === "ALL" ? leagueName(r.league) + " " : "") + u + st;
+    }).join(" | ");
+  }
+
+  // one row per form bucket: dot = win%, whisker = 95% CI, dashed line = break-even
+  function formChart(target, rows) {
+    const host = document.getElementById(target);
+    host.replaceChildren();
+    const got = FORM_ROWS.map(([dim, b, label]) => ({ label, dim, r: rows.find((x) => x.dim === dim && x.bucket === b) }));
+    if (!got.some((g) => g.r)) { host.append(el("div", { class: "empty", text: EMPTY_TEXT })); return; }
+    const x0 = 150, x1 = 330, y0 = 34, rh = 26, gap = 14, W = 420;
+    const yy = (i) => y0 + i * rh + (i >= 3 ? gap : 0), yEnd = yy(FORM_ROWS.length - 1) + 16;
+    const xs = (p) => x0 + p * (x1 - x0);
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${yEnd + 24}`, role: "img", "aria-label": "Win% theo phong độ lúc pick", "font-size": "12", style: "width:100%;min-width:290px;height:auto;display:block" });
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+      svg.append(svgEl("line", { x1: xs(p), x2: xs(p), y1: y0 - 14, y2: yEnd, stroke: "var(--grid)" }),
+                 svgEl("text", { x: xs(p), y: yEnd + 16, "text-anchor": "middle", fill: "var(--muted)" }, `${p * 100}%`));
+    }
+    svg.append(svgEl("line", { x1: xs(BREAKEVEN), x2: xs(BREAKEVEN), y1: y0 - 22, y2: yEnd, stroke: "var(--muted)", "stroke-dasharray": "4 4" }),
+               svgEl("text", { x: xs(BREAKEVEN) + 4, y: y0 - 18, fill: "var(--muted)" }, "hòa vốn 52,4%"));
+    svg.append(svgEl("text", { x: 0, y: y0 - 18, fill: "var(--ink)", "font-weight": "600" }, "Units 30 ngày"),
+               svgEl("text", { x: 0, y: yy(3) - 12, fill: "var(--ink)", "font-weight": "600" }, "Chuỗi"));
+    got.forEach((g, i) => {
+      const y = yy(i);
+      svg.append(svgEl("text", { x: 0, y: y + 4, fill: "var(--ink-2)" }, g.label));
+      if (!g.r || !g.r.n) { svg.append(svgEl("text", { x: x0, y: y + 4, fill: "var(--muted)" }, "chưa có pick")); return; }
+      const r = g.r;
+      svg.append(svgEl("line", { x1: xs(r.ci_low), x2: xs(r.ci_high), y1: y, y2: y, stroke: "var(--s1)", "stroke-width": 2, "stroke-linecap": "round" }));
+      const dot = svgEl("circle", { cx: xs(r.win_pct), cy: y, r: 6, fill: r.low_sample ? "var(--surface)" : "var(--s1)", stroke: "var(--s1)", "stroke-width": 2 });
+      dot.append(svgEl("title", {}, `${g.label}: ${num(r.wins)}-${num(r.losses)}-${num(r.pushes)} · win ${pct(r.win_pct)} (CI ${pct(r.ci_low)} – ${pct(r.ci_high)}) · ROI ${signed(r.roi)}`));
+      svg.append(dot, svgEl("text", { x: x1 + 10, y: y + 4, fill: "var(--ink-2)" }, `${pct(r.win_pct)} · n=${num(r.n)}`));
+    });
+    host.append(svg);
+  }
+
+  function formSection() {
+    const rows = T("Expert_Form").filter((r) => r.league === state.league && r.market === state.market);
+    formChart("form-chart-wk", rows.filter((r) => r.day_group === "T2-6"));
+    formChart("form-chart-we", rows.filter((r) => r.day_group === "T7-CN"));
+    const cell = (dim, b, group) => {
+      const r = rows.find((x) => x.dim === dim && x.bucket === b && x.day_group === group);
+      return r && r.n ? `${num(r.wins)}-${num(r.losses)} · ${pct(r.win_pct)}` : "–";
+    };
+    const table = FORM_ROWS.map(([dim, b, label]) => ({ dim, b, label, all: rows.find((x) => x.dim === dim && x.bucket === b && x.day_group === "ALL") }))
+      .filter((x) => x.all);
+    renderTable("form-table", table, [
+      { label: "Phong độ lúc pick", value: (x) => x.label },
+      { label: "Tất cả ngày", num: true, value: (x) => cell(x.dim, x.b, "ALL") },
+      { label: "Thứ 2–6", num: true, value: (x) => cell(x.dim, x.b, "T2-6") },
+      { label: "Thứ 7–CN", num: true, value: (x) => cell(x.dim, x.b, "T7-CN") },
+      { label: "CI 95% (tất cả)", num: true, value: (x) => `${pct(x.all.ci_low)} – ${pct(x.all.ci_high)}` },
+      { label: "ROI (tất cả)", num: true, value: (x) => signed(x.all.roi), cls: (x) => roiCls(x.all.roi) },
+    ]);
+  }
+
   function expertsTab() {
     renderTable("leaderboard-table", expertRows(), [
       { label: "#", num: true, value: (r) => (r.rank === null ? "–" : num(r.rank)) },
       { label: "Expert", value: (r) => r.expert_name || String(r.expert_id) },
       ...recordCols,
       { label: "Units", num: true, value: (r) => num(r.units, 1), cls: (r) => roiCls(r.units) },
+      { label: "Phong độ AN (30 ngày)", value: (r) => formNow(r.expert_id) },
     ], (r) => { state.expert = r.expert_id; expertsTab(); });
+    formSection();
     const box = document.getElementById("expert-detail");
     if (state.expert === null) { box.hidden = true; return; }
     box.hidden = false;

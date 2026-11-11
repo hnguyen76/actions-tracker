@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS closing_lines(
 CREATE TABLE IF NOT EXISTS league_status(
     league TEXT PRIMARY KEY, last_success_at TEXT, last_error TEXT, last_error_at TEXT);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS pick_form(
+    pick_id INTEGER PRIMARY KEY, expert_id INTEGER, league TEXT, captured_at TEXT,
+    streak_type TEXT, streak_value INTEGER, units_30 REAL, wins_30 INTEGER, losses_30 INTEGER, pushes_30 INTEGER);
 CREATE INDEX IF NOT EXISTS picks_game ON picks(game_id, market);
 """
 
@@ -33,6 +36,8 @@ _NEW_GAME_COLS = {"home_name": "TEXT", "away_name": "TEXT", "odds_event_id": "TE
 PICK_COLS = ["id", "expert_id", "game_id", "league", "market", "pick_side", "line", "odds", "units",
              "an_result", "created_at", "starts_at", "settled_at", "play_text"]
 PICK_UPDATABLE = ["an_result", "settled_at", "odds", "line", "units"]
+FORM_COLS = ["pick_id", "expert_id", "league", "streak_type", "streak_value", "units_30", "wins_30", "losses_30",
+             "pushes_30"]
 LINE_COLS = ["game_id", "market", "side", "line", "odds", "tickets_pct", "money_pct"]
 
 
@@ -120,6 +125,20 @@ def upsert_lines(conn: sqlite3.Connection, rows: list[dict], captured_at: str) -
               line=excluded.line, odds=excluded.odds, tickets_pct=excluded.tickets_pct,
               money_pct=excluded.money_pct, captured_at=excluded.captured_at""",
         [v + (v[0], captured_at) for v in _values(rows, LINE_COLS, captured_at)],
+    )
+    conn.commit()
+
+
+def insert_pick_forms(conn: sqlite3.Connection, rows: list[dict], captured_at: str) -> None:
+    """Keep the expert's form from the first time a pick is seen, and only before its game starts,
+    so the pick's own result is never part of the form it is judged by."""
+    cols = FORM_COLS + ["captured_at"]
+    conn.executemany(
+        f"""INSERT OR IGNORE INTO pick_form({', '.join(cols)})
+            SELECT {', '.join('?' * len(cols))}
+            WHERE EXISTS (SELECT 1 FROM picks p JOIN games g ON g.id = p.game_id
+                          WHERE p.id = ? AND g.start_time > ?)""",
+        [v + (v[0], captured_at) for v in _values(rows, FORM_COLS, captured_at)],
     )
     conn.commit()
 

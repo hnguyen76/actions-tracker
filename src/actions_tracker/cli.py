@@ -73,6 +73,7 @@ def _store(conn, page, now: str) -> None:
     db.upsert_experts(conn, page.experts, now)
     db.upsert_games(conn, page.games, now)
     db.upsert_picks(conn, page.picks, now)
+    db.insert_pick_forms(conn, page.forms, now)
 
 
 def _board_game_id(conn, page, league: str, now: str) -> int | None:

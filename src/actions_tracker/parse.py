@@ -19,6 +19,7 @@ class PicksPage:
     experts: list[dict] = field(default_factory=list)
     picks: list[dict] = field(default_factory=list)
     games: list[dict] = field(default_factory=list)
+    forms: list[dict] = field(default_factory=list)  # expert form (streak, last-30-day record) per pick
 
 
 def extract_next_data(html: str) -> dict:
@@ -75,6 +76,25 @@ def _pick_row(k: dict, expert_id: int, league: str) -> dict | None:
     }
 
 
+def _form(pr: dict, pick: dict, league: str) -> dict:
+    """The expert's form as the page shows it now: win/loss streak and the league's last-month record."""
+    streak = pr.get("win_streak") if isinstance(pr.get("win_streak"), dict) else {}
+    rec = pr.get("record") if isinstance(pr.get("record"), dict) else {}
+    if rec.get("window") not in (None, "last_month"):
+        rec = {}
+    return {
+        "pick_id": pick["id"],
+        "expert_id": pick["expert_id"],
+        "league": league,
+        "streak_type": streak.get("type"),
+        "streak_value": streak.get("value"),
+        "units_30": rec.get("units_net"),
+        "wins_30": rec.get("win"),
+        "losses_30": rec.get("loss"),
+        "pushes_30": rec.get("push"),
+    }
+
+
 def parse_picks_page(html: str, league: str) -> PicksPage:
     data = extract_next_data(html)
     try:
@@ -95,6 +115,7 @@ def parse_picks_page(html: str, league: str) -> PicksPage:
             if row is None or row["game_id"] is None:
                 continue
             page.picks.append(row)
+            page.forms.append(_form(pr, row, league))
             if isinstance(k.get("game"), dict) and k["game"].get("id") is not None:
                 games[k["game"]["id"]] = _game_row(k["game"], league)
     page.games = list(games.values())
@@ -115,6 +136,7 @@ def parse_bygame_page(html: str, league: str) -> PicksPage:
     page = PicksPage()
     experts: dict[int, dict] = {}
     picks: dict[int, dict] = {}
+    forms: dict[int, dict] = {}
     for g in games or []:
         if g.get("id") is None:
             continue
@@ -125,7 +147,9 @@ def parse_bygame_page(html: str, league: str) -> PicksPage:
                 row = _pick_row(k, pr["id"], league)
                 if row is not None and row["game_id"] is not None:
                     picks[row["id"]] = row
+                    forms[row["id"]] = _form(pr, row, league)
     page.experts = list(experts.values())
     page.picks = list(picks.values())
+    page.forms = list(forms.values())
     return page
 

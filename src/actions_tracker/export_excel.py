@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 from openpyxl.utils import get_column_letter
 
-SHEETS = ["Upcoming", "Past_Plays", "Consensus", "Experts", "Expert_Habits", "Trend_Weekly", "Picks"]
+SHEETS = ["Upcoming", "Past_Plays", "Consensus", "Experts", "Expert_Habits", "Expert_Form", "Trend_Weekly", "Picks"]
 PERCENT_COLS = {"win_pct", "roi", "ci_low", "ci_high", "share", "fade_win_pct", "fade_roi", "hist_win_pct"}
 MAX_WIDTH = 40
 
