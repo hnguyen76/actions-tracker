@@ -111,7 +111,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
   <section class="panel active" id="tab-upcoming">
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
-      <p class="note">Chỉ các kèo có từ 3 expert trở lên. "Lịch sử" = win% của các kèo cùng giải, loại kèo và mức đồng thuận trong quá khứ.</p>
+      <p class="note">Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p>
       <div class="table-scroll" id="upcoming-table"></div>
     </div>
   </section>
@@ -367,6 +367,14 @@ const DATA = /*__DATA__*/null;
     return !state.range || t <= Date.now() + state.range * 86400000;
   }
 
+  // "47,5% (n=131)" + a "chưa đủ mẫu" badge under MIN_SAMPLE (20) so a 100% of 2 plays is not misread
+  function histCell(winPct, n, suffix) {
+    if (!n) return "–";
+    const span = el("span", { text: `${pct(winPct)} (n=${num(n)})` + (suffix ? ` · ${suffix}` : "") });
+    if (n < 20) span.append(el("span", { class: "badge", text: "chưa đủ mẫu" }));
+    return span;
+  }
+
   function upcomingTab() {
     const rows = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
     renderTable("upcoming-table", rows, [
@@ -376,7 +384,8 @@ const DATA = /*__DATA__*/null;
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => sideName(r) },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
-      { label: "Lịch sử", num: true, value: (r) => (r.hist_n ? `${pct(r.hist_win_pct)} (n=${num(r.hist_n)})` : "–") },
+      { label: "Lịch sử (live)", num: true, value: (r) => histCell(r.hist_win_pct, r.hist_n), sort: (r) => r.hist_win_pct },
+      { label: "Lịch sử mùa", num: true, value: (r) => histCell(r.season_win_pct, r.season_n, GROUP_LABEL[r.day_group]), sort: (r) => r.season_win_pct },
     ]);
   }
 

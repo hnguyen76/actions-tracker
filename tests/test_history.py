@@ -2,8 +2,8 @@
 
 import pandas as pd
 
-from actions_tracker.analysis.history import (COUNT_BASIS, LINE_SOURCE, PLAY_COLS, history_plays, history_summary,
-                                              history_weekly, load_history)
+from actions_tracker.analysis.history import (COUNT_BASIS, LINE_SOURCE, PLAY_COLS, add_season, history_plays,
+                                              history_summary, history_weekly, load_history)
 
 
 def side(game, market, s, picks, opp, result, day="T7-CN", week=1, league="ncaaf"):
@@ -46,3 +46,18 @@ def test_load_history_missing_dir_and_files(tmp_path):
     SIDES.to_csv(tmp_path / "ncaaf_sides.csv", index=False)
     assert len(load_history(tmp_path)) == len(SIDES)
     assert history_plays(pd.DataFrame()).empty and history_summary(pd.DataFrame(columns=PLAY_COLS)).empty
+
+
+def test_add_season_matches_day_group():
+    summary = history_summary(history_plays(SIDES))
+    up = pd.DataFrame([
+        dict(league="ncaaf", market="spread", bucket="75-90", start_time="2026-11-14T17:00:00.000Z"),  # Sat
+        dict(league="ncaaf", market="spread", bucket="75-90", start_time="2026-11-12T00:30:00.000Z"),  # Wed ET
+        dict(league="nba", market="spread", bucket="75-90", start_time="2026-11-14T17:00:00.000Z"),
+    ])
+    out = add_season(up, summary)
+    assert list(out.day_group) == ["T7-CN", "T2-6", "T7-CN"]
+    assert out.season_n.iloc[0] == 1 and out.season_win_pct.iloc[0] == 1.0
+    assert pd.isna(out.season_n.iloc[1]) and pd.isna(out.season_n.iloc[2])
+    empty = add_season(up, pd.DataFrame())
+    assert "season_win_pct" in empty.columns and empty.season_n.isna().all()

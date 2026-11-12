@@ -12,7 +12,7 @@ import pandas as pd
 
 from actions_tracker.analysis.consensus import bucket_of
 from actions_tracker.analysis.stats import SUMMARY_KEYS, summarize, with_all
-from actions_tracker.config import MIN_EXPERTS
+from actions_tracker.config import MIN_EXPERTS, TZ
 
 SOURCE = "history_bygame_cards"
 COUNT_BASIS = "pick_count"
@@ -75,3 +75,21 @@ def history_weekly(plays: pd.DataFrame) -> pd.DataFrame:
         rows.append(dict(zip(["league", "week", "day_group"], key))
                     | summarize(list(g["side_result"]), list(g["side_odds"])))
     return pd.DataFrame(rows, columns=WEEKLY_COLS)
+
+
+SEASON_COLS = ["day_group", "season_win_pct", "season_n", "season_pushes"]
+
+
+def add_season(up: pd.DataFrame, summary: pd.DataFrame) -> pd.DataFrame:
+    """Attach the season-history record of the same league x market x agreement bucket x day group to each
+    upcoming play. It is a different statistic (pick counts, Action Network lines) and stays in its own columns."""
+    up = up.copy()
+    local = pd.to_datetime(up["start_time"], utc=True, errors="coerce").dt.tz_convert(TZ)
+    up["day_group"] = ["T2-6" if d <= 4 else "T7-CN" for d in local.dt.day_of_week] if len(up) else []
+    if summary.empty or up.empty:
+        for c in SEASON_COLS[1:]:
+            up[c] = None
+        return up
+    season = summary[["league", "market", "bucket", "day_group", "win_pct", "n", "pushes"]].rename(
+        columns={"win_pct": "season_win_pct", "n": "season_n", "pushes": "season_pushes"})
+    return up.merge(season, on=["league", "market", "bucket", "day_group"], how="left")

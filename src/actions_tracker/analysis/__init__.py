@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from actions_tracker.analysis.consensus import consensus_games, consensus_summary, past_plays, upcoming
-from actions_tracker.analysis.history import history_plays, history_summary, history_weekly, load_history
+from actions_tracker.analysis.history import add_season, history_plays, history_summary, history_weekly, load_history
 from actions_tracker.analysis.form import expert_form, expert_form_now
 from actions_tracker.analysis.experts import expert_habits, expert_summary, leaderboard
 from actions_tracker.analysis.trend import weekly_trend
@@ -21,6 +21,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     es = expert_summary(picks, now)
     lb = leaderboard(es)
     hp = history_plays(load_history(history_dir))
+    hs = history_summary(hp)
     return {
         "Picks": picks,
         "Consensus": cs,
@@ -29,10 +30,10 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Expert_Form": expert_form(picks, forms),
         "Expert_Form_Now": expert_form_now(forms),
         "Trend_Weekly": weekly_trend(cg, picks),
-        "Upcoming": upcoming(cg, cs, now),
+        "Upcoming": add_season(upcoming(cg, cs, now), hs),
         "Past_Plays": past_plays(cg),
         "Leaderboard": lb,
         "History_Plays": hp,
-        "History_Summary": history_summary(hp),
+        "History_Summary": hs,
         "History_Weekly": history_weekly(hp),
     }
