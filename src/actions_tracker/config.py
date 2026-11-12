@@ -10,6 +10,8 @@ LEAGUES: dict[str, bool] = {
 }
 
 PICKS_URL = "https://www.actionnetwork.com/{league}/picks"
+PUBLIC_URL = "https://www.actionnetwork.com/{league}/public-betting"
+PUBLIC_BOOK = "15"  # Action Network consensus book, the one the season history was graded at
 BYGAME_URL = "https://www.actionnetwork.com/{league}/picks/game?id={game_id}"
 
 MIN_EXPERTS = 3
@@ -31,3 +33,7 @@ KEEP_TYPES: dict[str, tuple[str, str]] = {
     "over": ("total", "over"),
     "under": ("total", "under"),
 }
+NIGHT_HOUR = 19  # kickoff at or after 19:00 US/Eastern is a night game
+RULE_TARGET_N = 100  # graded plays a rule needs before it is judged
+RULE_PASS = 0.55     # ... and the win rate it must hold; under RULE_FAIL it is dropped
+RULE_FAIL = 0.50

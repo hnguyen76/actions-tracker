@@ -5,7 +5,7 @@ from actions_tracker import db
 from actions_tracker.analysis import build_tables
 from actions_tracker.export_excel import SHEETS, write_report
 
-ORDER = ["Upcoming", "Past_Plays", "Consensus", "Experts", "Expert_Habits", "Expert_Form", "Trend_Weekly", "History_Summary", "History_Weekly", "History_Plays", "Picks"]
+ORDER = ["Upcoming", "Rule_Summary", "Rule_Plays", "Past_Plays", "Consensus", "Experts", "Expert_Habits", "Expert_Form", "Trend_Weekly", "History_Summary", "History_Weekly", "History_Plays", "Picks"]
 
 
 def test_sheet_order_and_format(tmp_path):

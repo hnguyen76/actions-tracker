@@ -125,6 +125,9 @@ th.sortable:hover { color: var(--ink); }
 .pill.info { background: var(--accent-wash); } .pill.info::before { background: var(--accent); }
 .pill.dim { color: var(--ink-2); }
 .muted { color: var(--muted); }
+td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
+.rule-name { font-weight: 600; }
+.rule-how { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
 .pos { color: var(--good); font-weight: 600; } .neg { color: var(--critical); font-weight: 600; }
 .empty { color: var(--muted); padding: 28px 0; text-align: center; font-size: 15px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px 0; color: var(--ink-2); font-size: 14px; }
@@ -179,6 +182,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <div class="toolbar">
     <nav class="tabs" role="tablist">
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
+    <button role="tab" data-tab="rules" aria-selected="false">Quy tắc</button>
     <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
@@ -205,6 +209,22 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h2>Tất cả trận có picks</h2>
       <details class="howto"><summary>Cách đọc</summary><p>Mọi kèo sắp đá có ít nhất 1 expert, kể cả khi hai bên bằng nhau (<b>chia đôi</b>) hoặc chưa đủ 3 expert (<b>ít picks</b>) — những kèo này không có ở bảng trên. Số trong tên side = line trung vị các expert bên đó đã lấy.</p></details>
       <div class="table-scroll" id="board-table"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-rules">
+    <div class="card">
+      <h2>Quy tắc đang kiểm chứng — kèo ghi trước giờ đá</h2>
+      <details class="howto"><summary>Cách đọc</summary><p>Ba quy tắc được chốt ngày 12/11/2026 từ dữ liệu cả mùa và <b>không chỉnh sửa trong lúc kiểm chứng</b>. Mỗi lần cập nhật, hệ thống ghi các kèo sắp đá khớp quy tắc; trạng thái ở lần cập nhật cuối trước giờ đá là kèo chính thức, sau đó đóng băng. <b>Nhìn lại cả mùa</b> = kết quả khi áp quy tắc vào quá khứ (đã biết kết quả, đếm theo số picks trên thẻ) — chỉ để tham khảo. <b>Ghi trước</b> = kết quả thật của các kèo đã ghi trước giờ đá (mỗi expert 1 phiếu; chấm theo line đóng cửa The Odds API, thiếu thì line Action Network lúc ghi; % số bet và % tiền lấy từ trang Public Betting của Action Network).</p><p>Một quy tắc chỉ được đánh giá khi đủ 100 kèo đã chấm: từ 55% = <b>Đạt</b>, dưới 50% = <b>Bỏ</b>. Trước đó chưa phải tín hiệu để đặt tiền.</p></details>
+      <div class="table-scroll" id="rules-summary"></div>
+    </div>
+    <div class="card">
+      <h2>Kèo đang chờ kết quả</h2>
+      <div class="table-scroll" id="rules-pending"></div>
+    </div>
+    <div class="card">
+      <h2>Kèo đã chấm</h2>
+      <div class="table-scroll" id="rules-graded"></div>
     </div>
   </section>
 
@@ -289,7 +309,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
   </section>
 
-  <footer>Picks: Action Network (công khai, tự thu thập). Tỉ số và line dữ liệu live: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
+  <footer>Picks và % public (NCAAF): Action Network (trang công khai, tự thu thập). Tỉ số và line dữ liệu live: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
 </div>
 
 <script>
@@ -476,7 +496,7 @@ const DATA = /*__DATA__*/null;
 
   function filters() {
     const leagues = new Set();
-    for (const name of ["Consensus", "Upcoming", "Experts", "History_Summary"]) for (const r of T(name)) if (r.league && r.league !== "ALL") leagues.add(r.league);
+    for (const name of ["Consensus", "Upcoming", "Experts", "History_Summary", "Rule_Summary"]) for (const r of T(name)) if (r.league && r.league !== "ALL") leagues.add(r.league);
     for (const s of D.league_status || []) leagues.add(s.league);
     const fl = document.getElementById("f-league");
     fl.replaceChildren(el("option", { value: "ALL", text: "Tất cả" }), ...[...leagues].sort().map((l) => el("option", { value: l, text: leagueName(l) })));
@@ -820,6 +840,56 @@ const DATA = /*__DATA__*/null;
   }
 
   const GROUP_LABEL = { "T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN", ALL: "Cả tuần" };
+  const DECISION = { collecting: ["Đang ghi", "info"], pass: ["Đạt", "win"], fail: ["Bỏ", "loss"], watch: ["Theo dõi tiếp", "dim"] };
+
+  function rulesTab() {
+    const inFilter = (r) => (state.league === "ALL" || r.league === state.league) && (state.market === "ALL" || r.market === state.market);
+    renderTable("rules-summary", T("Rule_Summary").filter(inFilter), [
+      { label: "Quy tắc", cls: () => "cell-wrap", sort: (r) => r.name,
+        value: (r) => el("div", {}, el("div", { class: "rule-name", text: r.name }), el("div", { class: "rule-how", text: r.how })) },
+      { label: "Nhìn lại cả mùa", num: true, value: (r) => `${r.hist_record} · ${pct(r.hist_win_pct)}`, sort: (r) => r.hist_win_pct },
+      { label: "Ghi trước (W-L-P)", num: true, value: (r) => (r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)} · ${pct(r.win_pct)}` : "chưa có"), sort: (r) => r.win_pct },
+      { label: "CI 95%", num: true, value: (r) => (r.ci_low === null ? "–" : `${pct(r.ci_low)} – ${pct(r.ci_high)}`), sort: (r) => r.ci_low },
+      { label: "ROI", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi), sort: (r) => r.roi },
+      { label: "Đang chờ", num: true, value: (r) => num(r.pending), sort: (r) => r.pending },
+      { label: "Tiến độ", num: true, value: (r) => `${num(r.n)}/${num(r.target_n)}`, sort: (r) => r.n },
+      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (DECISION[r.decision] || ["", "dim"])[1], text: (DECISION[r.decision] || [r.decision])[0] }), sort: (r) => r.decision },
+    ]);
+
+    const plays = T("Rule_Plays").filter(inFilter);
+    // two rules can pick opposite sides of the same market: flag it instead of hiding it
+    const sides = new Map();
+    for (const r of plays) {
+      const k = `${r.game_id}|${r.market}`;
+      sides.set(k, (sides.get(k) || new Set()).add(r.bet_side));
+    }
+    const bet = (r) => {
+      const ln = r.line === null || r.market === "ml" ? "" : " " + (r.market === "spread" && r.line > 0 ? "+" : "") + num(r.line, 1);
+      const span = el("span", { text: r.pick + ln });
+      if (sides.get(`${r.game_id}|${r.market}`).size > 1) span.append(el("span", { class: "badge", text: "2 quy tắc ngược nhau" }));
+      return span;
+    };
+    const shortName = (r) => { const t = String(r.rule_name || r.rule_id).replace(/^NCAAF /, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
+    const pending = plays.filter((r) => r.status === "pending").sort((a, b) => (a.start_time < b.start_time ? -1 : 1));
+    renderTable("rules-pending", pending, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Quy tắc", value: shortName },
+      { label: "Đặt", value: bet, sort: (r) => r.pick },
+      { label: "Căn cứ", value: (r) => r.basis || "–" },
+      { label: "Ghi lúc", value: (r) => fmtTime(r.logged_at), sort: (r) => r.logged_at },
+    ], null, { pageSize: 50 });
+    renderTable("rules-graded", plays.filter((r) => r.status === "graded"), [
+      { label: "Ngày", value: (r) => r.et_date },
+      { label: "Nhóm ngày", value: (r) => GROUP_LABEL[r.day_group] || r.day_group },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Quy tắc", value: shortName },
+      { label: "Đặt", value: bet, sort: (r) => r.pick },
+      { label: "Căn cứ", value: (r) => r.basis || "–" },
+      { label: "Kết quả", value: (r) => resultPill(r.result), sort: (r) => r.result },
+      { label: "Units", num: true, value: (r) => (r.units === null ? "–" : (r.units > 0 ? "+" : "") + num(r.units, 2)), cls: (r) => roiCls(r.units), sort: (r) => r.units },
+    ], null, { pageSize: 50 });
+  }
   const wlp = (r) => (r && r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)} · ${pct(r.win_pct)}` : "–");
 
   function historyTab() {
@@ -881,7 +951,7 @@ const DATA = /*__DATA__*/null;
   }
 
   function render() {
-    kpis(); upcomingTab(); pastTab(); consensusTab(); expertsTab(); trendTab(); historyTab();
+    kpis(); upcomingTab(); rulesTab(); pastTab(); consensusTab(); expertsTab(); trendTab(); historyTab();
   }
 
   function tabs() {
@@ -897,7 +967,7 @@ const DATA = /*__DATA__*/null;
 
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
   theme(); header(); filters(); tabs();
-  if (window.Chart) render(); else { kpis(); upcomingTab(); pastTab(); expertsTab(); historyTab(); }
+  if (window.Chart) render(); else { kpis(); upcomingTab(); rulesTab(); pastTab(); expertsTab(); historyTab(); }
 })();
 </script>
 </body>

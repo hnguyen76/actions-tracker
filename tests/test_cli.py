@@ -217,3 +217,25 @@ def test_budget_scores_spaced_out(tmp_path):
     later = FakeOddsApi(scores={"nba": PAST_SCORE})
     _budget(tmp_path, later, "2026-11-10T11:00:00.000Z")
     assert ("scores", "nba") in later.calls
+
+
+def test_rule_league_stores_public_splits_and_logs_rule_plays(tmp_path):
+    f = FakeFetcher({"ncaaf/picks/game": (FX / "ncaaf_bygame.html").read_text("utf-8"),
+                     "ncaaf/picks": (FX / "ncaaf_picks.html").read_text("utf-8"),
+                     "ncaaf/public-betting": (FX / "ncaaf_public.html").read_text("utf-8")})
+    assert _run(tmp_path, f, ["ncaaf"], FakeOddsApi()) == 0
+    c = sqlite3.connect(tmp_path / "a.db")
+    assert c.execute("select count(*) from public_splits").fetchone()[0] > 100
+    rules = dict(c.execute("select rule_id, count(*) from rule_plays group by 1").fetchall())
+    assert rules.get("ncaaf_total_money", 0) > 0
+    html = (tmp_path / "site" / "index.html").read_text("utf-8")
+    assert '"Rule_Summary":[' in html and '"Rule_Plays":[' in html
+
+
+def test_public_page_failure_keeps_picks_and_flags_league(tmp_path):
+    f = FakeFetcher({"ncaaf/picks/game": (FX / "ncaaf_bygame.html").read_text("utf-8"),
+                     "ncaaf/picks": (FX / "ncaaf_picks.html").read_text("utf-8"),
+                     "ncaaf/public-betting": FetchError("blocked")})
+    assert _run(tmp_path, f, ["ncaaf"], FakeOddsApi()) == 1
+    c = sqlite3.connect(tmp_path / "a.db")
+    assert c.execute("select count(*) from picks").fetchone()[0] > 0

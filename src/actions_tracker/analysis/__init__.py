@@ -8,6 +8,7 @@ import pandas as pd
 from actions_tracker.analysis.consensus import (consensus_games, consensus_summary, past_plays, upcoming,
                                                 upcoming_board)
 from actions_tracker.analysis.history import add_season, history_plays, history_summary, history_weekly, load_history
+from actions_tracker.analysis.rule_report import rule_plays, rule_summary
 from actions_tracker.analysis.form import expert_form, expert_form_now
 from actions_tracker.analysis.experts import expert_habits, expert_summary, leaderboard
 from actions_tracker.analysis.trend import weekly_trend
@@ -23,6 +24,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     lb = leaderboard(es)
     hp = history_plays(load_history(history_dir))
     hs = history_summary(hp)
+    rp = rule_plays(conn)
     return {
         "Picks": picks,
         "Consensus": cs,
@@ -35,6 +37,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Upcoming_Board": upcoming_board(picks, now),
         "Past_Plays": past_plays(cg),
         "Leaderboard": lb,
+        "Rule_Summary": rule_summary(rp),
+        "Rule_Plays": rp,
         "History_Plays": hp,
         "History_Summary": hs,
         "History_Weekly": history_weekly(hp),

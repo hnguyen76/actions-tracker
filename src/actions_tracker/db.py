@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS pick_form(
     pick_id INTEGER PRIMARY KEY, expert_id INTEGER, league TEXT, captured_at TEXT,
     streak_type TEXT, streak_value INTEGER, units_30 REAL, wins_30 INTEGER, losses_30 INTEGER, pushes_30 INTEGER);
+CREATE TABLE IF NOT EXISTS public_splits(
+    game_id INTEGER, market TEXT, side TEXT, line REAL, odds INTEGER,
+    tickets_pct REAL, money_pct REAL, captured_at TEXT,
+    PRIMARY KEY(game_id, market, side));
+CREATE TABLE IF NOT EXISTS rule_plays(
+    rule_id TEXT, game_id INTEGER, market TEXT, bet_side TEXT, line REAL, odds INTEGER, basis TEXT,
+    first_logged_at TEXT, logged_at TEXT,
+    PRIMARY KEY(rule_id, game_id, market));
 CREATE INDEX IF NOT EXISTS picks_game ON picks(game_id, market);
 """
 
@@ -139,6 +147,21 @@ def insert_pick_forms(conn: sqlite3.Connection, rows: list[dict], captured_at: s
             WHERE EXISTS (SELECT 1 FROM picks p JOIN games g ON g.id = p.game_id
                           WHERE p.id = ? AND g.start_time > ?)""",
         [v + (v[0], captured_at) for v in _values(rows, FORM_COLS, captured_at)],
+    )
+    conn.commit()
+
+
+def upsert_public(conn: sqlite3.Connection, rows: list[dict], captured_at: str) -> None:
+    """Action Network public splits (line, % bets, % money); like closing lines, frozen once the game starts."""
+    cols = LINE_COLS + ["captured_at"]
+    conn.executemany(
+        f"""INSERT INTO public_splits({', '.join(cols)})
+            SELECT {', '.join('?' * len(cols))}
+            WHERE EXISTS (SELECT 1 FROM games WHERE id = ? AND start_time > ?)
+            ON CONFLICT(game_id, market, side) DO UPDATE SET
+              line=excluded.line, odds=excluded.odds, tickets_pct=excluded.tickets_pct,
+              money_pct=excluded.money_pct, captured_at=excluded.captured_at""",
+        [v + (v[0], captured_at) for v in _values(rows, LINE_COLS, captured_at)],
     )
     conn.commit()
 

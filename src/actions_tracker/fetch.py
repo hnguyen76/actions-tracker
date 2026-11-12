@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import requests
 
-from actions_tracker.config import BYGAME_URL, PICKS_URL
+from actions_tracker.config import BYGAME_URL, PICKS_URL, PUBLIC_URL
 
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -65,6 +65,10 @@ class Fetcher:
 
 def fetch_picks(fetcher: Fetcher, league: str) -> str:
     return fetcher.get_text(PICKS_URL.format(league=league))
+
+
+def fetch_public(fetcher: Fetcher, league: str) -> str:
+    return fetcher.get_text(PUBLIC_URL.format(league=league))
 
 
 def fetch_bygame(fetcher: Fetcher, league: str, game_id: int) -> str:

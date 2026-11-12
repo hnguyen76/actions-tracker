@@ -14,10 +14,11 @@ from actions_tracker.analysis import build_tables
 from actions_tracker.build_site import build_site
 from actions_tracker.config import LEAGUES
 from actions_tracker.export_excel import write_report
-from actions_tracker.fetch import FetchError, Fetcher, fetch_bygame, fetch_picks
+from actions_tracker.fetch import FetchError, Fetcher, fetch_bygame, fetch_picks, fetch_public
 from actions_tracker.matching import match_events
 from actions_tracker.odds_api import OddsApi, OddsApiError, load_key, parse_lines, parse_scores
-from actions_tracker.parse import ParseError, parse_bygame_page, parse_picks_page
+from actions_tracker.parse import ParseError, parse_bygame_page, parse_picks_page, parse_public_page
+from actions_tracker.rules import RULE_LEAGUES, sync_rule_plays
 
 MIN_CREDITS_FOR_ODDS = 30
 SCORE_DELAY_H = 3     # a game is worth asking a score for 3h after kickoff
@@ -29,7 +30,9 @@ BUDGET_ODDS_EVERY_H = {"nba": 12.0}
 BUDGET_SCORES_EVERY_H = {"nba": 12.0}
 BUDGET_DEFAULT_ODDS_H = 0.75
 BUDGET_DEFAULT_SCORES_H = 6.0
-_PICKED = "EXISTS (SELECT 1 FROM picks p WHERE p.game_id = games.id)"
+# games worth a score/line: any game with an expert pick or a logged rule play
+_PICKED = ("(EXISTS (SELECT 1 FROM picks p WHERE p.game_id = games.id)"
+           " OR EXISTS (SELECT 1 FROM rule_plays rp WHERE rp.game_id = games.id))")
 
 
 class OfflineFetcher:
@@ -39,8 +42,8 @@ class OfflineFetcher:
         self.folder = Path(folder)
 
     def get_text(self, url: str) -> str:
-        m = re.search(r"\.com/([a-z]+)/picks", url)
-        kind = "bygame" if "/picks/game" in url else "picks"
+        m = re.search(r"\.com/([a-z]+)/(?:picks|public-betting)", url)
+        kind = "public" if "/public-betting" in url else "bygame" if "/picks/game" in url else "picks"
         path = self.folder / f"{m.group(1)}_{kind}.html" if m else None
         if path is None or not path.exists():
             raise FetchError(f"offline fixture missing for {url}")
@@ -112,6 +115,23 @@ def _collect_picks(conn, fetcher, league: str, now: str) -> list[Exception]:
             print(f"[{league}] by game: tran={len(board.games)} experts={len(board.experts)} picks={len(board.picks)}")
         except Exception as e:  # noqa: BLE001
             errors.append(e)
+    return errors
+
+
+def _collect_rules(conn, fetcher, league: str, now: str) -> list[Exception]:
+    """Public splits for the leagues that have rules, then log the plays the rules select before kickoff."""
+    errors: list[Exception] = []
+    try:
+        games, splits = parse_public_page(fetch_public(fetcher, league), league)
+        db.upsert_games(conn, games, now)
+        db.upsert_public(conn, splits, now)
+        print(f"[{league}] public: tran={len(games)} dong={len(splits)}")
+    except Exception as e:  # noqa: BLE001 - rules still run on the last stored splits
+        errors.append(e)
+    try:
+        print(f"[{league}] quy tac: {sync_rule_plays(conn, now)} keo sap da khop")
+    except Exception as e:  # noqa: BLE001
+        errors.append(e)
     return errors
 
 
@@ -202,6 +222,8 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
     failed, parse_failed, unexpected = 0, False, False
     for league in leagues:
         errors = _collect_picks(conn, fetcher, league, now)
+        if league in RULE_LEAGUES:
+            errors += _collect_rules(conn, fetcher, league, now)
         if odds_api is not None:
             errors += _collect_odds(conn, odds_api, league, now, budget)
         if errors:

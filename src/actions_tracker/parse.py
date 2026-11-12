@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from actions_tracker.config import KEEP_TYPES
+from actions_tracker.config import KEEP_TYPES, PUBLIC_BOOK
 
 _NEXT_DATA = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 _RESULTS = {"win", "loss", "push"}
@@ -153,3 +153,37 @@ def parse_bygame_page(html: str, league: str) -> PicksPage:
     page.forms = list(forms.values())
     return page
 
+
+
+_PUBLIC_MARKETS = {"spread": "spread", "total": "total", "moneyline": "ml"}
+
+
+def _pct(info: dict, kind: str):
+    return ((info or {}).get(kind) or {}).get("percent")
+
+
+def parse_public_page(html: str, league: str) -> tuple[list[dict], list[dict]]:
+    """The "Public Betting" page: every game on the board with line, % of bets and % of money per side.
+    Returns (games, splits). A market whose sides all show 0% has no public data yet -> percentages are None."""
+    data = extract_next_data(html)
+    try:
+        games = data["props"]["pageProps"]["scoreboardResponse"]["games"]
+    except (KeyError, TypeError) as e:
+        raise ParseError(f"public betting board missing: {e!r}") from e
+    rows, splits = [], []
+    for g in games or []:
+        if g.get("id") is None:
+            continue
+        rows.append(_game_row(g, league))
+        event = ((g.get("markets") or {}).get(PUBLIC_BOOK) or {}).get("event") or {}
+        for key, market in _PUBLIC_MARKETS.items():
+            sides = [o for o in event.get(key) or [] if o.get("side") in ("home", "away", "over", "under")]
+            has = {kind: sum(_pct(o.get("bet_info"), kind) or 0 for o in sides) > 0 for kind in ("tickets", "money")}
+            for o in sides:
+                splits.append({
+                    "game_id": g["id"], "market": market, "side": o["side"],
+                    "line": None if market == "ml" else o.get("value"), "odds": o.get("odds"),
+                    "tickets_pct": _pct(o.get("bet_info"), "tickets") if has["tickets"] else None,
+                    "money_pct": _pct(o.get("bet_info"), "money") if has["money"] else None,
+                })
+    return rows, splits
