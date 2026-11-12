@@ -44,7 +44,7 @@ body { margin: 0; background: var(--page); color: var(--ink);
 /* top bar */
 .topbar { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--page) 86%, transparent);
   backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
-.topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; }
+.topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; padding-bottom: 12px; }
 .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .logo { width: 40px; height: 40px; border-radius: 10px; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 18px;
   color: #fff; background: linear-gradient(135deg, var(--s1), #7c5cff); box-shadow: var(--shadow); }
@@ -58,22 +58,23 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
 
 /* status + KPI row */
-.status { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
-.chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--surface);
-  border-radius: 999px; padding: 5px 12px; font-size: 13.5px; color: var(--ink-2); }
+.status { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; justify-content: flex-end; min-width: 0; }
+.chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 4px 11px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
 .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
 .chip.err { color: var(--ink); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
 .chip.err::before { background: var(--critical); }
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 18px 0 0; }
-.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
-.kpi .label { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-.kpi .value { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.kpi .hint { font-size: 14px; color: var(--ink-2); margin-top: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0 0; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px;
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center; }
+.kpi .label { grid-column: 2; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.kpi .value { grid-column: 1; grid-row: 1 / span 2; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.kpi .hint { grid-column: 2; font-size: 13.5px; color: var(--ink-2); }
 .stale { margin: 16px 0 0; padding: 12px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--critical) 50%, transparent);
   color: var(--ink); background: color-mix(in srgb, var(--critical) 10%, var(--surface)); font-size: 15px; }
 
 /* tabs + filters toolbar */
-.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; margin: 26px 0 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin: 16px 0 0; }
 nav.tabs { display: flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 nav.tabs button { font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; background: none; border: 0; color: var(--ink-2);
@@ -87,10 +88,16 @@ select { font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1
 select:focus-visible, button:focus-visible, th:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* panels + cards */
-section.panel { display: none; padding-top: 20px; }
+section.panel { display: none; padding-top: 16px; }
 section.panel.active { display: block; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
-.card h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 6px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
+.card h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 10px; }
+details.howto { margin: -4px 0 12px; color: var(--ink-2); font-size: 15px; }
+details.howto summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 14px; width: max-content; list-style: none; }
+details.howto summary::-webkit-details-marker { display: none; }
+details.howto summary::before { content: "ⓘ  "; }
+details.howto[open] summary { margin-bottom: 6px; }
+details.howto p { margin: 0 0 8px; max-width: 110ch; }
 .card p.note { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; max-width: 110ch; }
 .chart-box { position: relative; height: 340px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -125,6 +132,10 @@ th.sortable:hover { color: var(--ink); }
 .pager .btn:disabled { opacity: .4; cursor: default; }
 footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
 
+@media (max-width: 1100px) {
+  .topbar .wrap { flex-wrap: wrap; }
+  .status { order: 3; flex-basis: 100%; justify-content: flex-start; }
+}
 @media (max-width: 900px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid2 { grid-template-columns: 1fr; }
@@ -137,7 +148,9 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   h1 { font-size: 17px; } .sub { font-size: 12.5px; }
   .logo { display: none; }
   .btn { padding: 8px 12px; font-size: 14px; }
-  .kpis { gap: 10px; } .kpi { padding: 12px 14px; } .kpi .value { font-size: 24px; }
+  .kpis { display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; margin-top: 12px; }
+  .kpi { flex: 0 0 auto; padding: 8px 12px; } .kpi .value { font-size: 22px; } .kpi .hint { font-size: 12.5px; }
+  .chip { font-size: 12px; padding: 3px 9px; }
   .card { padding: 16px; border-radius: 14px; }
   .card h2 { font-size: 17px; }
   .chart-box { height: 260px; }
@@ -153,13 +166,13 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <div class="logo" aria-hidden="true">A</div>
       <div><h1>Actions Expert Tracker</h1><div class="sub" id="updated"></div></div>
     </div>
+    <div class="status" id="league-status"></div>
     <div class="actions">
       <button class="btn" id="theme-toggle" type="button" aria-label="Đổi giao diện sáng/tối">Sáng</button>
     </div>
   </div>
 </header>
 <div class="wrap">
-  <div class="status" id="league-status"></div>
   <div class="kpis" id="kpis"></div>
   <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ — hãy bấm nút <b>Actions - Cap nhat</b> trên Desktop (hoặc kiểm tra điện thoại chạy tự động).</div>
 
@@ -185,12 +198,12 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel active" id="tab-upcoming">
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
-      <p class="note">Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p>
+      <details class="howto"><summary>Cách đọc</summary><p>Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p></details>
       <div class="table-scroll" id="upcoming-table"></div>
     </div>
     <div class="card">
       <h2>Tất cả trận có picks</h2>
-      <p class="note">Mọi kèo sắp đá có ít nhất 1 expert, kể cả khi hai bên bằng nhau (<b>chia đôi</b>) hoặc chưa đủ 3 expert (<b>ít picks</b>) — những kèo này không có ở bảng trên. Số trong tên side = line trung vị các expert bên đó đã lấy.</p>
+      <details class="howto"><summary>Cách đọc</summary><p>Mọi kèo sắp đá có ít nhất 1 expert, kể cả khi hai bên bằng nhau (<b>chia đôi</b>) hoặc chưa đủ 3 expert (<b>ít picks</b>) — những kèo này không có ở bảng trên. Số trong tên side = line trung vị các expert bên đó đã lấy.</p></details>
       <div class="table-scroll" id="board-table"></div>
     </div>
   </section>
@@ -198,8 +211,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-past">
     <div class="card">
       <h2>Thứ 2 – Thứ 6</h2>
-      <p class="note"><b>Nguồn: dữ liệu live</b> (picks thu bằng nút bấm; mỗi expert tính 1 lần mỗi kèo; chấm theo line đóng cửa The Odds API, thiếu thì median line của expert). Không gộp với tab "Lịch sử mùa".</p>
-      <p class="note">Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p>
+      <details class="howto"><summary>Cách đọc</summary><p><b>Nguồn: dữ liệu live</b> (picks thu bằng nút bấm; mỗi expert tính 1 lần mỗi kèo; chấm theo line đóng cửa The Odds API, thiếu thì median line của expert). Không gộp với tab "Lịch sử mùa".</p><p>Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p></details>
       <div class="table-scroll" id="past-chart-wk"></div>
       <div class="table-scroll" id="past-table-wk"></div>
     </div>
@@ -226,7 +238,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-experts">
     <div class="card">
       <h2>Expert đang xanh thì pick tiếp theo có hay thua?</h2>
-      <p class="note">Mỗi pick được gắn phong độ của expert <b>lúc pick, trước giờ đá</b> (theo Action Network: units 30 ngày trong giải đó và chuỗi thắng/thua). Chấm: win% của các pick đó, thanh ngang = CI 95%, đường nét đứt = hòa vốn 52,4%. Chấm rỗng = chưa đủ 20 picks. Chỉ có dữ liệu từ 11/11/2026 trở đi.</p>
+      <details class="howto"><summary>Cách đọc</summary><p>Mỗi pick được gắn phong độ của expert <b>lúc pick, trước giờ đá</b> (theo Action Network: units 30 ngày trong giải đó và chuỗi thắng/thua). Chấm: win% của các pick đó, thanh ngang = CI 95%, đường nét đứt = hòa vốn 52,4%. Chấm rỗng = chưa đủ 20 picks. Chỉ có dữ liệu từ 11/11/2026 trở đi.</p></details>
       <div class="grid2">
         <div><p class="note"><b>Thứ 2–6</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
         <div><p class="note"><b>Thứ 7–CN</b></p><div class="table-scroll" id="form-chart-we"></div></div>
@@ -250,7 +262,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-trend">
     <div class="card">
       <h2>Win% theo tuần (tất cả giải)</h2>
-      <p class="note">Consensus ≥60% · Top 10 expert: mỗi tuần xếp hạng lại chỉ bằng picks <b>trước</b> tuần đó (ROI, ≥ 20 picks), không nhìn trước kết quả. Đường nét đứt = hòa vốn 52,4%. Dữ liệu live.</p>
+      <details class="howto"><summary>Cách đọc</summary><p>Consensus ≥60% · Top 10 expert: mỗi tuần xếp hạng lại chỉ bằng picks <b>trước</b> tuần đó (ROI, ≥ 20 picks), không nhìn trước kết quả. Đường nét đứt = hòa vốn 52,4%. Dữ liệu live.</p></details>
       <div class="chart-box"><canvas id="trend-chart" aria-label="Biểu đồ xu hướng theo tuần"></canvas></div>
     </div>
     <div class="card">
@@ -262,7 +274,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-history">
     <div class="card">
       <h2>Lịch sử mùa — consensus theo số picks trên thẻ By Game</h2>
-      <p class="note"><b>Khác phương pháp với tab "Kèo đã qua"</b>: ở đây đếm <b>số picks</b> hiển thị trên thẻ By Game của từng tuần (một expert có thể được tính nhiều lần, không có tên expert); tỉ số và line đóng cửa lấy từ <b>scoreboard Action Network</b> (ngoại lệ một lần cho lịch sử). Kèo cần ≥ 3 picks và một side nhiều hơn. Ngày theo giờ miền Đông Mỹ.</p>
+      <details class="howto"><summary>Cách đọc</summary><p><b>Khác phương pháp với tab "Kèo đã qua"</b>: ở đây đếm <b>số picks</b> hiển thị trên thẻ By Game của từng tuần (một expert có thể được tính nhiều lần, không có tên expert); tỉ số và line đóng cửa lấy từ <b>scoreboard Action Network</b> (ngoại lệ một lần cho lịch sử). Kèo cần ≥ 3 picks và một side nhiều hơn. Ngày theo giờ miền Đông Mỹ.</p></details>
       <div class="table-scroll" id="hist-summary"></div>
     </div>
     <div class="card">
