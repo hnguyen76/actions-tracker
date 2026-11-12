@@ -2,6 +2,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pandas as pd
+
 from actions_tracker import db
 from actions_tracker.cli import main, run
 from actions_tracker.fetch import FetchError
@@ -175,3 +177,43 @@ def test_bygame_uses_game_from_picks_page(tmp_path):
     f.get_text = lambda url: (seen.append(url), orig(url))[1]
     _run(tmp_path, f, ["nba"], None)
     assert any("/nba/picks/game?id=" in u for u in seen)
+
+
+# --- budget mode (hourly schedule on the phone): lines only on the last run before a kickoff, scores spaced out ---
+
+def _budget(tmp_path, api, now, scores=None):
+    f = FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS})
+    return run(tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["nba"], f, now, api, budget=True)
+
+
+def _first_kickoff(tmp_path):
+    c = db.connect(tmp_path / "a.db")
+    return c.execute("select min(start_time) from games where league='nba' and start_time > ?", (NOW,)).fetchone()[0]
+
+
+def test_budget_odds_only_near_kickoff_and_once(tmp_path):
+    _run(tmp_path, FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), ["nba"], None)
+    kick = pd.Timestamp(_first_kickoff(tmp_path))
+    fmt = "%Y-%m-%dT%H:%M:%S.000Z"
+    far = FakeOddsApi(odds={"nba": NBA_ODDS})
+    _budget(tmp_path, far, (kick - pd.Timedelta(hours=3)).strftime(fmt))
+    assert ("odds", "nba") not in far.calls
+    near = FakeOddsApi(odds={"nba": NBA_ODDS})
+    _budget(tmp_path, near, (kick - pd.Timedelta(minutes=40)).strftime(fmt))
+    assert ("odds", "nba") in near.calls
+    again = FakeOddsApi(odds={"nba": NBA_ODDS})
+    _budget(tmp_path, again, (kick - pd.Timedelta(minutes=20)).strftime(fmt))
+    assert ("odds", "nba") not in again.calls  # NBA: one odds call per 12h
+
+
+def test_budget_scores_spaced_out(tmp_path):
+    _seed_past_pick(tmp_path)
+    first = FakeOddsApi(scores={"nba": [{**PAST_SCORE[0], "completed": False, "scores": None}]})
+    _budget(tmp_path, first, NOW)
+    assert ("scores", "nba") in first.calls
+    soon = FakeOddsApi(scores={"nba": PAST_SCORE})
+    _budget(tmp_path, soon, "2026-11-09T23:00:00.000Z")
+    assert ("scores", "nba") not in soon.calls
+    later = FakeOddsApi(scores={"nba": PAST_SCORE})
+    _budget(tmp_path, later, "2026-11-10T11:00:00.000Z")
+    assert ("scores", "nba") in later.calls

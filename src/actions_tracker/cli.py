@@ -22,6 +22,13 @@ from actions_tracker.parse import ParseError, parse_bygame_page, parse_picks_pag
 MIN_CREDITS_FOR_ODDS = 30
 SCORE_DELAY_H = 3     # a game is worth asking a score for 3h after kickoff
 SCORE_WINDOW_D = 3    # The Odds API scores go back at most 3 days
+# --budget (hourly schedule): The Odds API free plan is 500 credits/month, so lines are fetched only on the
+# last run before a kickoff and scores are spaced out. NBA gets one odds/scores call per 12h.
+BUDGET_ODDS_LEAD_MIN = 70
+BUDGET_ODDS_EVERY_H = {"nba": 12.0}
+BUDGET_SCORES_EVERY_H = {"nba": 12.0}
+BUDGET_DEFAULT_ODDS_H = 0.75
+BUDGET_DEFAULT_SCORES_H = 6.0
 _PICKED = "EXISTS (SELECT 1 FROM picks p WHERE p.game_id = games.id)"
 
 
@@ -122,12 +129,29 @@ def _match(games: list[dict], events: list[dict]) -> dict[int, dict]:
     return out
 
 
-def _collect_odds(conn, api, league: str, now: str) -> list[Exception]:
+def _recent(conn, key: str, now: str, hours: float) -> bool:
+    """True when `key` (a meta timestamp) was set less than `hours` before `now`."""
+    last = db.get_meta(conn, key)
+    return last is not None and pd.Timestamp(last) > pd.Timestamp(now) - pd.Timedelta(hours=hours)
+
+
+def _collect_odds(conn, api, league: str, now: str, budget: bool = False) -> list[Exception]:
     errors: list[Exception] = []
     upcoming = _games(conn, "league = ? AND start_time > ?", (league, now))
     past = _games(conn, "league = ? AND start_time <= ? AND start_time >= ? "
                         "AND (status IS NULL OR status != 'complete')",
                   (league, _shift(now, hours=-SCORE_DELAY_H), _shift(now, days=-SCORE_WINDOW_D)))
+    if budget and upcoming:
+        soon = _shift(now, minutes=BUDGET_ODDS_LEAD_MIN)
+        if not any(g["start_time"] <= soon for g in upcoming):
+            upcoming = []  # no picked game kicks off before the next hourly run
+        elif _recent(conn, f"odds_at_{league}", now, BUDGET_ODDS_EVERY_H.get(league, BUDGET_DEFAULT_ODDS_H)):
+            print(f"[{league}] odds: vua lay gan day, bo qua")
+            upcoming = []
+    if budget and past and _recent(conn, f"scores_at_{league}", now,
+                                   BUDGET_SCORES_EVERY_H.get(league, BUDGET_DEFAULT_SCORES_H)):
+        print(f"[{league}] ti so: vua hoi gan day, bo qua")
+        past = []
     if upcoming:
         if api.remaining is not None and api.remaining < MIN_CREDITS_FOR_ODDS:
             print(f"[{league}] bo qua odds: chi con {api.remaining} credit")
@@ -142,6 +166,7 @@ def _collect_odds(conn, api, league: str, now: str) -> list[Exception]:
                 db.upsert_games(conn, [{"id": gid, "odds_event_id": e["event_id"]} for gid, e in matched.items()], now)
                 db.upsert_lines(conn, [{**l, "game_id": gid} for gid, e in matched.items()
                                        for l in by_event[e["event_id"]]], now)
+                db.set_meta(conn, f"odds_at_{league}", now)
                 print(f"[{league}] odds: {len(matched)}/{len(upcoming)} tran sap da co line")
             except Exception as e:  # noqa: BLE001
                 errors.append(e)
@@ -154,6 +179,7 @@ def _collect_odds(conn, api, league: str, now: str) -> list[Exception]:
                 "status": "complete" if e["completed"] else None,
                 "home_score": e["home_score"], "away_score": e["away_score"],
             } for gid, e in matched.items()], now)
+            db.set_meta(conn, f"scores_at_{league}", now)
             done = sum(1 for e in matched.values() if e["completed"])
             print(f"[{league}] ti so: {done}/{len(past)} tran da qua co ket qua")
         except Exception as e:  # noqa: BLE001
@@ -169,7 +195,7 @@ def _ungraded_past_games(conn, league: str, now: str) -> int:
 
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,
-        odds_api=None) -> int:
+        odds_api=None, budget: bool = False) -> int:
     """Exit codes: 0 ok, 1 every league failed, 2 page structure changed, 3 unexpected error,
     4 Excel file open, 5 no The Odds API key."""
     conn = db.connect(db_path)
@@ -177,7 +203,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
     for league in leagues:
         errors = _collect_picks(conn, fetcher, league, now)
         if odds_api is not None:
-            errors += _collect_odds(conn, odds_api, league, now)
+            errors += _collect_odds(conn, odds_api, league, now, budget)
         if errors:
             failed += 1
             parse_failed |= any(isinstance(e, ParseError) for e in errors)
@@ -226,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--db", default="data/actions.db")
     r.add_argument("--report", default="reports/actions_report.xlsx")
     r.add_argument("--site", default="site")
+    r.add_argument("--budget", action="store_true",
+                   help="hourly schedule: fetch lines only before kickoffs and scores sparingly (saves credits)")
     r.add_argument("--offline", help="folder with {league}_picks.html and odds_{league}_{scores|odds}.json")
     args = ap.parse_args(argv)
     leagues = [x.strip() for x in args.leagues.split(",") if x.strip()]
@@ -234,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         key = load_key(Path.cwd())
         fetcher, api = Fetcher(), (OddsApi(key) if key else None)
-    return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api)
+    return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget)
 
 
 if __name__ == "__main__":

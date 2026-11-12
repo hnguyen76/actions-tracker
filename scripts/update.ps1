@@ -41,21 +41,24 @@ if ($onMain -and (Invoke-Git pull --rebase --autostash -q) -ne 0) {
 & $python -m actions_tracker run
 $code = $LASTEXITCODE
 
-$changes = & git status --porcelain -- data reports site
+$changes = & git status --porcelain -- data
 if (-not $changes) {
     Write-Host 'Không có dữ liệu mới.'
 } elseif (-not $onMain) {
     Write-Host 'Dữ liệu mới chỉ nằm trên máy (không ở nhánh main).' -ForegroundColor Yellow
 } else {
-    Invoke-Git add -- data reports site | Out-Null
+    Invoke-Git add -- data | Out-Null
     if ((Invoke-Git commit -q -m "data: update $stamp") -ne 0) {
         Write-Host 'Không commit được dữ liệu mới — xem thông báo git phía trên.' -ForegroundColor Red
     } elseif ((Invoke-Git push -q) -ne 0) {
-        Write-Host 'Chưa push được lên GitHub (mất mạng?) — lần bấm sau sẽ push tiếp.' -ForegroundColor Red
+        Write-Host 'Chưa push được dữ liệu lên GitHub (mất mạng, hoặc điện thoại vừa đẩy bản mới) — lần bấm sau sẽ thử lại.' -ForegroundColor Red
     } else {
-        Write-Host 'Đã đẩy dữ liệu lên GitHub — dashboard online cập nhật sau 1–2 phút.' -ForegroundColor Green
+        Write-Host 'Đã lưu dữ liệu lên GitHub.' -ForegroundColor Green
     }
 }
+
+# the website lives on the gh-pages branch (replaced on every publish, so the repo does not grow)
+if ($onMain) { & $python (Join-Path $repo 'scripts\publish_site.py') }
 
 switch ($code) {
     0 { Write-Host 'Cập nhật xong.' -ForegroundColor Green }

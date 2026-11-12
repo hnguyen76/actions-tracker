@@ -9,3 +9,7 @@ __pycache__/
 .env
 .therundown_api_key
 .apify_token
+# generated locally on every run; the website is published to the gh-pages branch
+site/
+reports/
+.auto_update.lock
