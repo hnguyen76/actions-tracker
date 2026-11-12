@@ -46,6 +46,14 @@ echo "== 5/5 Hen gio chay moi gio (phut thu 7) =="
 source "$PREFIX/etc/profile.d/start-services.sh" 2>/dev/null || true
 sv-enable crond || echo "Neu bao loi: dong Termux, mo lai, roi chay: sv-enable crond"
 termux-wake-lock || true
+# restart the schedule after a phone reboot (needs the Termux:Boot app from F-Droid, opened once)
+mkdir -p "$HOME/.termux/boot"
+cat > "$HOME/.termux/boot/start-actions.sh" <<'BOOT'
+#!/data/data/com.termux/files/usr/bin/sh
+termux-wake-lock
+. "$PREFIX/etc/profile.d/start-services.sh"
+BOOT
+chmod +x "$HOME/.termux/boot/start-actions.sh"
 crontab -l
 echo "Xong. Nho: Cai dat > Pin > Gioi han su dung nen > 'Ung dung khong bao gio ngu' > them Termux."
 echo "Xem nhat ky: tail -n 40 ~/actions-auto.log"
