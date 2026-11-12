@@ -9,6 +9,7 @@ ID_COLS = ["expert_id", "expert_name"]
 SUMMARY_COLS = ID_COLS + ["league", "market", "window"] + SUMMARY_KEYS
 HABIT_COLS = ID_COLS + ["league", "label_type", "label", "share"] + SUMMARY_KEYS
 LEADERBOARD_COLS = ["rank"] + SUMMARY_COLS
+CLV_COLS = ID_COLS + ["league", "market", "n", "avg_clv", "beat", "same", "worse", "beat_pct"]
 LABEL_TYPES = ["fav_dog", "home_away", "over_under"]
 _GRADED = {"win", "loss", "push"}
 
@@ -57,3 +58,30 @@ def leaderboard(summary: pd.DataFrame) -> pd.DataFrame:
     lb = lb.sort_values("roi", ascending=False, kind="stable").reset_index(drop=True)
     lb.insert(0, "rank", range(1, len(lb) + 1))
     return lb[LEADERBOARD_COLS]
+
+
+def _clv(market: str, side: str, line: float, close: float) -> float:
+    """Points of line value the expert got versus the closing line on the same side (positive = better)."""
+    if market == "total":
+        return close - line if side == "over" else line - close
+    return line - close  # spread: a bigger number is always better for the side that takes it
+
+
+def expert_clv(picks: pd.DataFrame, now: str) -> pd.DataFrame:
+    """Closing line value per expert: spread/total picks of games that have started and have a closing line."""
+    if picks.empty:
+        return pd.DataFrame(columns=CLV_COLS)
+    started = _ts(picks["start_time"]) <= pd.Timestamp(now)
+    line, close = pd.to_numeric(picks["line"], errors="coerce"), pd.to_numeric(picks["close_line"], errors="coerce")
+    df = picks[started & picks["market"].isin(["spread", "total"]) & line.notna() & close.notna()].copy()
+    if df.empty:
+        return pd.DataFrame(columns=CLV_COLS)
+    df["clv"] = [_clv(m, sd, float(a), float(b)) for m, sd, a, b in zip(df["market"], df["pick_side"], df["line"], df["close_line"])]
+    rows = []
+    for key, g in with_all(df, ["league", "market"]).groupby(ID_COLS + ["league", "market"], sort=True):
+        n = len(g)
+        beat, same = int((g["clv"] > 0).sum()), int((g["clv"] == 0).sum())
+        rows.append(dict(zip(ID_COLS + ["league", "market"], key)) | {
+            "n": n, "avg_clv": float(g["clv"].mean()), "beat": beat, "same": same, "worse": n - beat - same,
+            "beat_pct": beat / n})
+    return pd.DataFrame(rows, columns=CLV_COLS)

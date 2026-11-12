@@ -208,10 +208,12 @@ def _collect_odds(conn, api, league: str, now: str, budget: bool = False) -> lis
 
 
 def _ungraded_past_games(conn, league: str, now: str) -> int:
+    """Played games still waiting for a score that a later run can fetch. Games older than The Odds API's
+    score window can never be graded, so they are not counted (they would keep the chip red forever)."""
     return conn.execute(
-        f"SELECT count(*) FROM games WHERE league = ? AND start_time <= ? "
+        f"SELECT count(*) FROM games WHERE league = ? AND start_time <= ? AND start_time >= ? "
         f"AND (status IS NULL OR status != 'complete') AND {_PICKED}",
-        (league, _shift(now, hours=-SCORE_DELAY_H))).fetchone()[0]
+        (league, _shift(now, hours=-SCORE_DELAY_H), _shift(now, days=-SCORE_WINDOW_D))).fetchone()[0]
 
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,

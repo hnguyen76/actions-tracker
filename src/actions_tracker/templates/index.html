@@ -267,7 +267,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card">
       <h2>Expert</h2>
-      <p class="note">Xếp hạng theo ROI khi đủ 20 picks đã chấm; expert chưa đủ mẫu nằm phía dưới. Bấm vào một expert để xem thói quen chọn side và phong độ gần đây.</p>
+      <details class="howto"><summary>Cách đọc</summary><p>Xếp hạng theo ROI khi đủ 20 picks đã chấm; expert chưa đủ mẫu nằm phía dưới. Bấm vào một expert để xem thói quen chọn side và phong độ gần đây. <b>CLV</b> = trung bình số điểm line expert lấy tốt hơn (+) hay tệ hơn (−) line đóng cửa ở cùng side (spread và total; line đóng cửa = lần cập nhật cuối trước giờ đá), kèm số lần tốt hơn. Expert có tay nghề thật thường có CLV dương — chỉ số này ổn định hơn win% khi mẫu còn nhỏ.</p></details>
       <div class="table-scroll" id="leaderboard-table"></div>
     </div>
     <div class="card" id="expert-detail" hidden>
@@ -703,12 +703,25 @@ const DATA = /*__DATA__*/null;
     ]);
   }
 
+  // closing line value: points better (+) or worse (−) than the closing line, and how often the expert beat it
+  const clvRow = (id) => T("Expert_CLV").find((x) => x.expert_id === id && x.league === state.league && x.market === state.market);
+  function clvCell(id) {
+    const r = clvRow(id);
+    if (!r || !r.n) return "–";
+    const v = (r.avg_clv > 0 ? "+" : "") + num(r.avg_clv, 2);
+    const span = el("span", { class: r.avg_clv > 0 ? "pos" : r.avg_clv < 0 ? "neg" : "", text: v },
+      el("span", { class: "muted", text: ` · tốt hơn ${num(r.beat)}/${num(r.n)}` }));
+    span.title = `Tốt hơn line đóng cửa ${r.beat} lần, bằng ${r.same}, tệ hơn ${r.worse} (spread và total, trận đã bắt đầu)`;
+    return span;
+  }
+
   function expertsTab() {
     renderTable("leaderboard-table", expertRows(), [
       { label: "#", num: true, value: (r) => (r.rank === null ? "–" : num(r.rank)) },
       { label: "Expert", value: (r) => r.expert_name || String(r.expert_id) },
       ...recordCols,
       { label: "Units", num: true, value: (r) => num(r.units, 1), cls: (r) => roiCls(r.units) },
+      { label: "CLV", num: true, value: (r) => clvCell(r.expert_id), sort: (r) => (clvRow(r.expert_id) || {}).avg_clv },
       { label: "Phong độ AN (30 ngày)", value: (r) => formNow(r.expert_id) },
     ], (r) => { state.expert = r.expert_id; expertsTab(); });
     formSection();

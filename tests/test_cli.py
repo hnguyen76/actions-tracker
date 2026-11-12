@@ -160,6 +160,14 @@ def test_dashboard_gets_ungraded_count_and_credits(tmp_path):
     assert '"ungraded_past_games":1' in html and '"odds_api_remaining":321' in html
 
 
+def test_games_past_the_score_window_are_not_counted_as_ungraded(tmp_path):
+    _seed_past_pick(tmp_path)  # kickoff 2026-11-09T00:30Z
+    late = "2026-11-20T00:00:00.000Z"  # every fixture game is now more than 3 days old: no score can come back
+    run(tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["nba"],
+        FakeFetcher({"nba/picks/game": NBA_BYGAME, "nba/picks": NBA_PICKS}), late, FakeOddsApi())
+    assert '"ungraded_past_games":0' in (tmp_path / "site" / "index.html").read_text("utf-8")
+
+
 
 def test_bygame_adds_picks(tmp_path):
     only_page = _run(tmp_path / "a", FakeFetcher({"nba/picks/game": FetchError("x"), "nba/picks": NBA_PICKS}), ["nba"], None)

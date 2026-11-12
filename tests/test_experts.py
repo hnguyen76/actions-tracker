@@ -43,3 +43,24 @@ def test_empty():
     s = expert_summary(df, now=NOW)
     assert s.empty and expert_habits(df).empty and leaderboard(s).empty
     assert "rank" in leaderboard(s).columns
+
+
+def test_clv_points_by_market_and_side():
+    from actions_tracker.analysis.experts import CLV_COLS, expert_clv
+    started = "2026-11-08T18:00:00.000Z"
+    rows = [
+        dict(pick_id=1, expert_id=1, game_id=1, market="spread", pick_side="away", line=3.5, close_line=2.5, start_time=started),   # +1.0
+        dict(pick_id=2, expert_id=1, game_id=2, market="spread", pick_side="home", line=-3.5, close_line=-2.5, start_time=started), # -1.0
+        dict(pick_id=3, expert_id=1, game_id=3, market="total", pick_side="over", line=44.5, close_line=46.5, start_time=started),  # +2.0
+        dict(pick_id=4, expert_id=1, game_id=4, market="total", pick_side="under", line=44.5, close_line=44.5, start_time=started), # 0
+        dict(pick_id=5, expert_id=1, game_id=5, market="ml", pick_side="home", line=None, close_line=None, start_time=started),     # ignored
+        dict(pick_id=6, expert_id=1, game_id=6, market="spread", pick_side="away", line=7.0, close_line=None, start_time=started),  # no close
+        dict(pick_id=7, expert_id=1, game_id=7, market="spread", pick_side="away", line=7.0, close_line=6.0,
+             start_time="2026-11-30T18:00:00.000Z"),                                                                              # not started
+    ]
+    t = expert_clv(make_picks(rows), NOW)
+    assert list(t.columns) == CLV_COLS
+    r = t.set_index(["expert_id", "league", "market"]).loc[(1, "ALL", "ALL")]
+    assert (r.n, r.avg_clv, r.beat, r.same, r.worse, r.beat_pct) == (4, 0.5, 2, 1, 1, 0.5)
+    assert t.set_index(["expert_id", "league", "market"]).loc[(1, "nfl", "total")].avg_clv == 1.0
+    assert expert_clv(make_picks([]), NOW).empty

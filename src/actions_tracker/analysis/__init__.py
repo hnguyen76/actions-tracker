@@ -10,7 +10,7 @@ from actions_tracker.analysis.consensus import (consensus_games, consensus_summa
 from actions_tracker.analysis.history import add_season, history_plays, history_summary, history_weekly, load_history
 from actions_tracker.analysis.rule_report import rule_plays, rule_summary
 from actions_tracker.analysis.form import expert_form, expert_form_now
-from actions_tracker.analysis.experts import expert_habits, expert_summary, leaderboard
+from actions_tracker.analysis.experts import expert_clv, expert_habits, expert_summary, leaderboard
 from actions_tracker.analysis.trend import weekly_trend
 from actions_tracker.grading import load_graded_picks
 
@@ -30,6 +30,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Consensus": cs,
         "Experts": es,
         "Expert_Habits": expert_habits(picks),
+        "Expert_CLV": expert_clv(picks, now),
         "Expert_Form": expert_form(picks, forms),
         "Expert_Form_Now": expert_form_now(forms),
         "Trend_Weekly": weekly_trend(cg, picks),
