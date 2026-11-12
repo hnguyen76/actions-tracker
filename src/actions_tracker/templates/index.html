@@ -125,6 +125,19 @@ th.sortable:hover { color: var(--ink); }
 .pill.info { background: var(--accent-wash); } .pill.info::before { background: var(--accent); }
 .pill.dim { color: var(--ink-2); }
 .muted { color: var(--muted); }
+.card.decide { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.decide-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 12px; }
+.decide-head h2 { margin: 0; }
+.day-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-chip { font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.day-chip[aria-pressed="true"] { color: var(--ink); background: var(--accent-wash); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.verdict { border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.verdict.go { background: color-mix(in srgb, var(--win) 12%, var(--surface)); border-color: color-mix(in srgb, var(--win) 40%, transparent); }
+.verdict.hold { border-left: 4px solid var(--warning); }
+.verdict-main { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.verdict-sub { color: var(--ink-2); font-size: 15px; margin-top: 4px; }
+#decide-skips { margin-top: 12px; }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .rule-name { font-weight: 600; }
 .rule-how { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
@@ -200,6 +213,16 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   </div>
 
   <section class="panel active" id="tab-upcoming">
+    <div class="card decide">
+      <div class="decide-head">
+        <h2 id="decide-title">Quyết định</h2>
+        <div class="day-chips" id="decide-days"></div>
+      </div>
+      <div class="verdict" id="decide-verdict"></div>
+      <div class="table-scroll" id="decide-table"></div>
+      <details class="howto" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
+      <details class="howto"><summary>Cách hệ thống quyết định</summary><p><b>Đặt</b> chỉ khi kèo khớp một quy tắc đã <b>Đạt</b> bài kiểm chứng (≥ 100 kèo ghi trước giờ đá, thắng ≥ 55%) — mức cược 1 unit. <b>Theo dõi</b> = khớp quy tắc đang kiểm chứng: ghi lại, chưa đặt tiền thật. <b>Bỏ qua</b> = chỉ có consensus của expert (cả mùa theo consensus thắng 48,6%, đánh ngược 51,4%, đều dưới hòa vốn 52,4%), hai quy tắc ngược nhau, hoặc quy tắc đã bị loại. Kèo đổi đến lần cập nhật cuối trước giờ đá — bấm cập nhật gần giờ đá rồi mới quyết.</p></details>
+    </div>
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <details class="howto"><summary>Cách đọc</summary><p>Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p></details>
@@ -336,7 +359,7 @@ const DATA = /*__DATA__*/null;
 
   const D = DATA || { generated_at: null, league_status: [], tables: {} };
   const T = (name) => (D.tables && D.tables[name]) || [];
-  const state = { league: "ALL", market: "ALL", range: 0, expert: null };
+  const state = { league: "ALL", market: "ALL", range: 0, expert: null, day: null };
   const charts = {};
 
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -532,7 +555,75 @@ const DATA = /*__DATA__*/null;
     return `${name}${ln}: ${num(votes)}`;
   }
 
+  const ACTION = {
+    bet: { label: "Đặt", cls: "win" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
+    conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
+  };
+  const etDate = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const dayLabel = (ymd) => {
+    const today = etDate(Date.now()), tomorrow = etDate(Date.now() + 86400000);
+    const d = new Date(ymd + "T12:00:00Z").toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
+    return ymd === today ? `Hôm nay (${d})` : ymd === tomorrow ? `Ngày mai (${d})` : d;
+  };
+
+  // game-day decision: what to bet, how much, and why — for one US/Eastern date at a time
+  function decideCard() {
+    const all = rawFilter(T("Decisions")).filter((r) => inRangeAhead(r.start_time));
+    const days = [...new Set(all.map((r) => r.et_date))].sort();
+    if (!days.includes(state.day)) state.day = days[0] || null;
+    const chips = document.getElementById("decide-days");
+    chips.replaceChildren(...days.slice(0, 5).map((d) => {
+      const b = el("button", { type: "button", class: "day-chip", "aria-pressed": String(d === state.day), text: dayLabel(d) });
+      b.addEventListener("click", () => { state.day = d; decideCard(); });
+      return b;
+    }));
+    const rows = all.filter((r) => r.et_date === state.day);
+    const act = rows.filter((r) => r.action !== "skip" || r.rule_ids);
+    const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids);
+    const bets = act.filter((r) => r.action === "bet"), paper = act.filter((r) => r.action === "paper");
+    document.getElementById("decide-title").textContent = state.day ? "Quyết định — " + dayLabel(state.day) : "Quyết định";
+    const verdict = document.getElementById("decide-verdict");
+    verdict.replaceChildren();
+    if (!state.day) {
+      verdict.append(el("div", { class: "verdict-main", text: "Chưa có kèo sắp đá nào trong dữ liệu." }));
+    } else if (bets.length) {
+      const units = bets.reduce((a, r) => a + r.stake_u, 0);
+      verdict.className = "verdict go";
+      verdict.append(el("div", { class: "verdict-main", text: `Đặt ${bets.length} kèo · tổng ${num(units, 1)} unit` }),
+        el("div", { class: "verdict-sub", text: "Chỉ những kèo khớp quy tắc đã đạt kiểm chứng. Mọi kèo khác: không đặt." }));
+    } else {
+      verdict.className = "verdict hold";
+      const when = state.day === etDate(Date.now()) ? "hôm nay" : "ngày " + dayLabel(state.day);
+      verdict.append(el("div", { class: "verdict-main", text: "Không đặt tiền thật " + when }),
+        el("div", { class: "verdict-sub", text: paper.length
+          ? `${paper.length} kèo khớp quy tắc đang kiểm chứng — chỉ theo dõi, chưa quy tắc nào đủ 100 kèo ghi trước để tin. ${skips.length} kèo chỉ có consensus: bỏ qua.`
+          : `Không kèo nào khớp quy tắc. ${skips.length} kèo chỉ có consensus của expert: bỏ qua (không có lợi thế).` }));
+    }
+    const actionPill = (r) => el("span", { class: "pill " + (ACTION[r.action] || ACTION.skip).cls,
+      text: (ACTION[r.action] || ACTION.skip).label + (r.stake_u > 0 ? ` ${num(r.stake_u, 1)}u` : "") });
+    renderTable("decide-table", act, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Quyết định", value: actionPill, sort: (r) => r.action },
+      { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
+      { label: "Vì sao", cls: () => "cell-wrap", value: (r) => el("div", {}, el("div", { text: r.reason }),
+          r.evidence ? el("div", { class: "rule-how", text: r.evidence }) : null) },
+    ]);
+    if (!act.length) document.getElementById("decide-table").replaceChildren(el("div", { class: "empty", text: "Không có kèo nào khớp quy tắc ngày này." }));
+    const sk = document.getElementById("decide-skips");
+    sk.hidden = !skips.length;
+    sk.querySelector("summary").textContent = `${skips.length} kèo chỉ có consensus — bỏ qua`;
+    renderTable("decide-skip-table", skips, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Expert", value: (r) => r.pick },
+    ]);
+  }
+
   function upcomingTab() {
+    decideCard();
     renderTable("board-table", rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)), [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Giải", value: (r) => leagueName(r.league) },
