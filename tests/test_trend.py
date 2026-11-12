@@ -25,7 +25,8 @@ def test_build_tables_empty_db_without_public(tmp_path):
     t = build_tables(db.connect(tmp_path / "e.db"), "2026-11-09T00:00:00.000Z")
     assert set(t) == {"Picks", "Consensus", "Experts", "Expert_Habits", "Trend_Weekly", "Upcoming", "Leaderboard", "Past_Plays",
                       "Expert_Form", "Expert_Form_Now",
-                      "History_Plays", "History_Summary", "History_Weekly"}
+                      "History_Plays", "History_Summary", "History_Weekly",
+                      "Upcoming_Board"}
     assert all(df.empty for df in t.values())
     assert "tickets_pct" not in t["Upcoming"].columns and "tickets_pct" not in t["Picks"].columns
 

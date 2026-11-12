@@ -76,3 +76,21 @@ def test_past_plays_empty():
     from actions_tracker.analysis.consensus import past_plays
     out = past_plays(consensus_games(make_picks([])))
     assert out.empty and {"day_group", "pick", "match"} <= set(out.columns)
+
+
+def test_upcoming_board_lists_every_game_with_status():
+    from actions_tracker.analysis.consensus import BOARD_COLS, upcoming_board
+    rows = (votes(1, ["home"] * 3 + ["away"], status=None)                       # majority
+            + votes(2, ["home", "home", "home", "away", "away", "away"], status=None)  # 3-3 split
+            + votes(3, ["over", "over"], status=None, market="total")             # only 2 experts
+            + votes(4, ["home"] * 3, status="complete"))                          # already played: not listed
+    for r in rows:
+        r["line"] = {"home": -1.5, "away": 2.5, "over": 43.5}[r["pick_side"]]
+    b = upcoming_board(make_picks(rows), "2026-11-19T00:00:00.000Z")
+    assert list(b.columns) == BOARD_COLS
+    got = {(r.game_id, r.market): r for r in b.itertuples()}
+    assert set(got) == {(1, "spread"), (2, "spread"), (3, "total")}
+    assert (got[(1, "spread")].status, got[(1, "spread")].b_votes, got[(1, "spread")].a_votes) == ("majority", 3, 1)
+    assert (got[(2, "spread")].status, got[(2, "spread")].a_line, got[(2, "spread")].b_line) == ("split", 2.5, -1.5)
+    assert (got[(3, "total")].status, got[(3, "total")].a_side, got[(3, "total")].a_votes) == ("few", "over", 2)
+    assert got[(3, "total")].b_votes == 0

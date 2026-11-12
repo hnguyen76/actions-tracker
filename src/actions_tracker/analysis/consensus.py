@@ -67,6 +67,39 @@ def upcoming(cg: pd.DataFrame, summary: pd.DataFrame, now: str) -> pd.DataFrame:
     return up.sort_values("start_time", kind="stable").reset_index(drop=True)[UPCOMING_COLS]
 
 
+BOARD_COLS = ["game_id", "league", "market", "start_time", "away_abbr", "home_abbr", "a_side", "a_votes", "a_line",
+              "b_side", "b_votes", "b_line", "total_votes", "status"]
+_PAIR = {"total": ("over", "under")}
+
+
+def upcoming_board(picks: pd.DataFrame, now: str) -> pd.DataFrame:
+    """Every upcoming game x market that has picks, including 50/50 splits and markets with fewer than
+    MIN_EXPERTS experts, so no game silently disappears from the dashboard.
+    status: "majority" (a consensus play), "split" (tie) or "few" (under MIN_EXPERTS experts)."""
+    if picks.empty:
+        return pd.DataFrame(columns=BOARD_COLS)
+    up = picks[(picks["status"] != "complete") & (picks["start_time"].astype(str) > now)]
+    if up.empty:
+        return pd.DataFrame(columns=BOARD_COLS)
+    latest = up.sort_values("created_at", kind="stable").drop_duplicates(["game_id", "market", "expert_id"], keep="last")
+    rows = []
+    for (game_id, market), g in latest.groupby(["game_id", "market"], sort=True):
+        a, b = _PAIR.get(market, ("away", "home"))
+        rep = g.iloc[-1]
+        side_rows = {s: g[g["pick_side"] == s] for s in (a, b)}
+        line = {s: (pd.to_numeric(r["line"], errors="coerce").median() if len(r) else None) for s, r in side_rows.items()}
+        va, vb = len(side_rows[a]), len(side_rows[b])
+        total = va + vb
+        status = "few" if total < MIN_EXPERTS else "split" if va == vb else "majority"
+        rows.append({"game_id": game_id, "league": rep["league"], "market": market, "start_time": rep["start_time"],
+                     "away_abbr": rep["away_abbr"], "home_abbr": rep["home_abbr"],
+                     "a_side": a, "a_votes": va, "a_line": None if pd.isna(line[a]) else float(line[a]),
+                     "b_side": b, "b_votes": vb, "b_line": None if pd.isna(line[b]) else float(line[b]),
+                     "total_votes": total, "status": status})
+    out = pd.DataFrame(rows, columns=BOARD_COLS)
+    return out.sort_values(["start_time", "game_id", "market"], kind="stable").reset_index(drop=True)
+
+
 PAST_COLS = ["game_id", "league", "market", "start_time", "et_date", "day_group", "match", "pick", "votes",
              "total_votes", "majority_pct", "bucket", "side_result", "side_odds", "opp_odds",
              "source", "count_basis", "line_source"]

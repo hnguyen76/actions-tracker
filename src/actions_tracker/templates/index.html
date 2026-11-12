@@ -66,6 +66,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.clickable { cursor: pointer; }
 tr.clickable:hover, tr.selected { background: var(--accent-wash); }
 .badge { display: inline-block; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; margin-left: 6px; }
+.muted { color: var(--muted); }
 .pos { color: var(--good); } .neg { color: var(--critical); }
 .empty { color: var(--muted); padding: 24px 0; text-align: center; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -113,6 +114,11 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <p class="note">Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p>
       <div class="table-scroll" id="upcoming-table"></div>
+    </div>
+    <div class="card">
+      <h2>Tất cả trận có picks</h2>
+      <p class="note">Mọi kèo sắp đá có ít nhất 1 expert, kể cả khi hai bên bằng nhau (<b>chia đôi</b>) hoặc chưa đủ 3 expert (<b>ít picks</b>) — những kèo này không có ở bảng trên. Số trong tên side = line trung vị các expert bên đó đã lấy.</p>
+      <div class="table-scroll" id="board-table"></div>
     </div>
   </section>
 
@@ -375,7 +381,27 @@ const DATA = /*__DATA__*/null;
     return span;
   }
 
+  const BOARD_STATUS = { majority: "Đa số (bảng trên)", split: "Chia đôi", few: "Ít picks (< 3)" };
+  // "WAS +2,5: 3" = side, the experts' median line on that side, number of experts
+  function boardSide(r, which) {
+    const side = r[which + "_side"], votes = r[which + "_votes"], line = r[which + "_line"];
+    const name = side === "home" ? r.home_abbr : side === "away" ? r.away_abbr : LABEL[side] || side;
+    const ln = line === null || line === undefined || r.market === "ml" ? ""
+      : " " + (r.market === "spread" && line > 0 ? "+" : "") + num(line, 1);
+    return `${name}${ln}: ${num(votes)}`;
+  }
+
   function upcomingTab() {
+    renderTable("board-table", rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)), [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Trận", value: (r) => `${r.away_abbr || "?"} @ ${r.home_abbr || "?"}` },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Bên 1", value: (r) => boardSide(r, "a") },
+      { label: "Bên 2", value: (r) => boardSide(r, "b") },
+      { label: "Expert", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
+      { label: "Trạng thái", value: (r) => BOARD_STATUS[r.status] || r.status, cls: (r) => (r.status === "majority" ? "" : "muted") },
+    ]);
     const rows = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
     renderTable("upcoming-table", rows, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time) },
