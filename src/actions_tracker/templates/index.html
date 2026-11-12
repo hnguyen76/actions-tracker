@@ -7,90 +7,171 @@
 <link rel="icon" href="data:,">
 <title>Actions Expert Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* dark is the default; the toggle sets data-theme="light" */
 :root {
-  color-scheme: light;
-  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
-  --good: #006300; --critical: #d03b3b; --warning: #fab219;
-  --accent-wash: rgba(42,120,214,0.10);
-  --win: #0ca30c; --loss: #d03b3b;
-}
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
-    --good: #0ca30c; --critical: #e66767; --accent-wash: rgba(57,135,229,0.16);
-  }
-}
-:root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
-  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
-  --good: #0ca30c; --critical: #e66767; --accent-wash: rgba(57,135,229,0.16);
+  --page: #0b0e14; --surface: #121722; --surface-2: #182030; --raised: #1d2738;
+  --ink: #e8ecf3; --ink-2: #aab3c2; --muted: #7d8799;
+  --grid: #222b3a; --axis: #33405a; --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.14);
+  --s1: #4c8dff; --s2: #e8692f; --s3: #1baf7a;
+  --good: #34d399; --critical: #f87171; --warning: #fbbf24;
+  --accent: #4c8dff; --accent-wash: rgba(76,141,255,0.14);
+  --win: #22c55e; --loss: #ef4444; --push: #94a3b8;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #f5f6f8; --surface: #ffffff; --surface-2: #f3f5f8; --raised: #eef1f5;
+  --ink: #0f172a; --ink-2: #475569; --muted: #7b8494;
+  --grid: #e5e8ee; --axis: #cbd2dc; --border: rgba(15,23,42,0.08); --border-strong: rgba(15,23,42,0.16);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --good: #047857; --critical: #c62828; --warning: #b45309;
+  --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.10);
+  --win: #16a34a; --loss: #dc2626; --push: #64748b;
+  --shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 20px rgba(15,23,42,.06);
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
-header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-start; justify-content: space-between; }
-h1 { font-size: 20px; margin: 0 0 4px; }
-.sub { color: var(--ink-2); font-size: 13px; }
-.status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.chip { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--ink-2); }
-.chip.err { color: var(--critical); }
-.btn { display: inline-block; border: 1px solid var(--border); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 8px 14px; text-decoration: none; font-weight: 600; }
-.btn:hover { background: var(--accent-wash); }
-.stale { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--critical); color: var(--critical); background: var(--surface); }
-.filters { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 16px 0 8px; }
-.filters label { display: flex; flex-direction: column; font-size: 12px; color: var(--ink-2); gap: 4px; }
-select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; min-width: 140px; }
-nav.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); margin-top: 8px; }
-nav.tabs button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2); padding: 10px 12px; cursor: pointer; white-space: nowrap; }
-nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); font-weight: 600; }
-section.panel { display: none; padding-top: 16px; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 16px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-feature-settings: "cv11", "ss01"; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 24px; }
+
+/* top bar */
+.topbar { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--page) 86%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+.topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.logo { width: 40px; height: 40px; border-radius: 10px; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 18px;
+  color: #fff; background: linear-gradient(135deg, var(--s1), #7c5cff); box-shadow: var(--shadow); }
+h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
+.sub { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
+.actions { display: flex; gap: 10px; flex: none; }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink);
+  border-radius: 10px; padding: 9px 16px; text-decoration: none; font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; cursor: pointer; }
+.btn:hover { background: var(--raised); }
+.btn.primary { background: var(--accent); border-color: transparent; color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+
+/* status + KPI row */
+.status { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+.chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 5px 12px; font-size: 13.5px; color: var(--ink-2); }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+.chip.err { color: var(--ink); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
+.chip.err::before { background: var(--critical); }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 18px 0 0; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+.kpi .label { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.kpi .value { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpi .hint { font-size: 14px; color: var(--ink-2); margin-top: 4px; }
+.stale { margin: 16px 0 0; padding: 12px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--critical) 50%, transparent);
+  color: var(--ink); background: color-mix(in srgb, var(--critical) 10%, var(--surface)); font-size: 15px; }
+
+/* tabs + filters toolbar */
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; margin: 26px 0 0; }
+nav.tabs { display: flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+nav.tabs button { font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; background: none; border: 0; color: var(--ink-2);
+  padding: 11px 16px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+nav.tabs button:hover { color: var(--ink); background: var(--surface-2); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); background: var(--raised); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; }
+.filters label { display: flex; flex-direction: column; font-size: 12.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); gap: 6px; }
+select { font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1.2; color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 10px; padding: 9px 12px; min-width: 150px; cursor: pointer; }
+select:focus-visible, button:focus-visible, th:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* panels + cards */
+section.panel { display: none; padding-top: 20px; }
 section.panel.active { display: block; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-.card h2 { font-size: 15px; margin: 0 0 4px; }
-.card p.note { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; }
-.chart-box { position: relative; height: 300px; }
-.table-scroll { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
-th { color: var(--ink-2); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.card h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 6px; }
+.card p.note { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; max-width: 110ch; }
+.chart-box { position: relative; height: 340px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* tables */
+.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+.table-scroll:has(> svg), .table-scroll:has(> .empty) { border: 0; border-radius: 0; }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+th { color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  position: sticky; top: 0; background: var(--surface-2); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: var(--surface-2); }
 tr.clickable { cursor: pointer; }
-tr.clickable:hover, tr.selected { background: var(--accent-wash); }
-.badge { display: inline-block; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; margin-left: 6px; }
-.muted { color: var(--muted); }
-.pos { color: var(--good); } .neg { color: var(--critical); }
-.empty { color: var(--muted); padding: 24px 0; text-align: center; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } .chart-box { height: 240px; } }
+tr.selected, tr.selected:hover { background: var(--accent-wash); }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
-.pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0 0; color: var(--ink-2); font-size: 13px; }
-.pager .btn { padding: 4px 12px; font-weight: 500; }
+.badge { display: inline-block; font-size: 12px; font-weight: 500; color: var(--muted); border: 1px solid var(--border-strong); border-radius: 999px; padding: 1px 8px; margin-left: 8px; vertical-align: 1px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; border-radius: 999px; padding: 3px 11px;
+  background: var(--raised); color: var(--ink); }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--push); }
+.pill.win { background: color-mix(in srgb, var(--win) 16%, transparent); } .pill.win::before { background: var(--win); }
+.pill.loss { background: color-mix(in srgb, var(--loss) 16%, transparent); } .pill.loss::before { background: var(--loss); }
+.pill.info { background: var(--accent-wash); } .pill.info::before { background: var(--accent); }
+.pill.dim { color: var(--ink-2); }
+.muted { color: var(--muted); }
+.pos { color: var(--good); font-weight: 600; } .neg { color: var(--critical); font-weight: 600; }
+.empty { color: var(--muted); padding: 28px 0; text-align: center; font-size: 15px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px 0; color: var(--ink-2); font-size: 14px; }
+.pager .btn { padding: 7px 14px; font-weight: 600; }
 .pager .btn:disabled { opacity: .4; cursor: default; }
-footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
+footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .wrap { padding: 0 16px; }
+  body { font-size: 15px; }
+  .topbar { position: static; }
+  .topbar .wrap { padding-top: 12px; padding-bottom: 12px; gap: 10px; }
+  h1 { font-size: 17px; } .sub { font-size: 12.5px; }
+  .logo { display: none; }
+  .btn { padding: 8px 12px; font-size: 14px; }
+  .kpis { gap: 10px; } .kpi { padding: 12px 14px; } .kpi .value { font-size: 24px; }
+  .card { padding: 16px; border-radius: 14px; }
+  .card h2 { font-size: 17px; }
+  .chart-box { height: 260px; }
+  th, td { padding: 10px 12px; } table { font-size: 14px; }
+  select { min-width: 0; }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <h1>Actions Expert Tracker</h1>
-      <div class="sub" id="updated"></div>
-      <div class="status" id="league-status"></div>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">A</div>
+      <div><h1>Actions Expert Tracker</h1><div class="sub" id="updated"></div></div>
     </div>
-    <a class="btn" href="actions_report.xlsx" download>Tải Excel</a>
-  </header>
-  <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ — hãy bấm nút <b>Actions - Cap nhat</b> trên Desktop.</div>
+    <div class="actions">
+      <button class="btn" id="theme-toggle" type="button" aria-label="Đổi giao diện sáng/tối">Sáng</button>
+    </div>
+  </div>
+</header>
+<div class="wrap">
+  <div class="status" id="league-status"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ — hãy bấm nút <b>Actions - Cap nhat</b> trên Desktop (hoặc kiểm tra điện thoại chạy tự động).</div>
 
+  <div class="toolbar">
+    <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
+    <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
+    <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
+    <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
+    <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
+    <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
+  </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
     <label>Loại kèo<select id="f-market"></select></label>
@@ -99,15 +180,7 @@ footer { color: var(--muted); font-size: 12px; padding: 16px 0 32px; }
       <option value="90">90 ngày</option><option value="0" selected>Tất cả</option>
     </select></label>
   </div>
-
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
-    <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
-    <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
-    <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
-    <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
-    <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
-  </nav>
+  </div>
 
   <section class="panel active" id="tab-upcoming">
     <div class="card">
@@ -333,10 +406,46 @@ const DATA = /*__DATA__*/null;
   const rawFilter = (rows) => rows.filter((r) => (state.league === "ALL" || r.league === state.league)
     && (state.market === "ALL" || r.market === state.market));
 
-  function header() {
+  // headline numbers for the current league/market filter
+  function kpis() {
+    const box = document.getElementById("kpis");
+    const up = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
+    const past = rawFilter(T("Past_Plays"));
+    const k = (x) => past.filter((r) => r.side_result === x).length;
+    const w = k("win"), l = k("loss"), pu = k("push");
+    const picks = rawFilter(T("Picks"));
+    const experts = new Set(picks.map((r) => r.expert_id)).size;
     const credits = D.meta && D.meta.odds_api_remaining;
-    document.getElementById("updated").textContent = "Cập nhật lần cuối: " + fmtTime(D.generated_at)
-      + (credits === null || credits === undefined ? "" : ` · Credit The Odds API còn: ${num(credits)}`);
+    const tile = (label, value, hint) => el("div", { class: "kpi" }, el("div", { class: "label", text: label }),
+      el("div", { class: "value", text: value }), el("div", { class: "hint", text: hint }));
+    box.replaceChildren(
+      tile("Kèo đa số sắp tới", num(up.length), `${num(rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)).length)} kèo có picks`),
+      tile("Consensus đã chấm (live)", w + l ? pct(w / (w + l)) : "–", `${w}-${l}-${pu} · hòa vốn 52,4%`),
+      tile("Picks đã thu", num(picks.length), `${num(experts)} expert`),
+      tile("Credit The Odds API", credits === null || credits === undefined ? "–" : num(credits), "gói free 500/tháng"),
+    );
+  }
+
+  function theme() {
+    const btn = document.getElementById("theme-toggle");
+    const apply = (t) => {
+      if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+      else document.documentElement.removeAttribute("data-theme");
+      btn.textContent = t === "light" ? "Tối" : "Sáng";
+    };
+    let saved = null;
+    try { saved = localStorage.getItem("theme"); } catch (e) { /* storage blocked */ }
+    apply(saved === "light" ? "light" : "dark");
+    btn.addEventListener("click", () => {
+      const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+      apply(next);
+      try { localStorage.setItem("theme", next); } catch (e) { /* storage blocked */ }
+      if (window.Chart) render(); else { pastTab(); expertsTab(); }
+    });
+  }
+
+  function header() {
+    document.getElementById("updated").textContent = "Cập nhật lần cuối: " + fmtTime(D.generated_at);  // credits: KPI tile
     const box = document.getElementById("league-status");
     box.replaceChildren();
     for (const s of D.league_status || []) {
@@ -400,7 +509,7 @@ const DATA = /*__DATA__*/null;
       { label: "Bên 1", value: (r) => boardSide(r, "a") },
       { label: "Bên 2", value: (r) => boardSide(r, "b") },
       { label: "Expert", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
-      { label: "Trạng thái", value: (r) => BOARD_STATUS[r.status] || r.status, cls: (r) => (r.status === "majority" ? "" : "muted") },
+      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: BOARD_STATUS[r.status] || r.status }), sort: (r) => r.status },
     ]);
     const rows = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
     renderTable("upcoming-table", rows, [
@@ -427,7 +536,7 @@ const DATA = /*__DATA__*/null;
       ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y); ctx.stroke();
       ctx.setLineDash([]);
       if (opts && opts.directLabels) {
-        ctx.font = "12px system-ui, sans-serif"; ctx.fillStyle = css("--ink-2"); ctx.textBaseline = "middle";
+        ctx.font = "600 13px Inter, system-ui, sans-serif"; ctx.fillStyle = css("--ink-2"); ctx.textBaseline = "middle";
         chart.data.datasets.forEach((ds, i) => {
           const meta = chart.getDatasetMeta(i);
           if (meta.hidden) return;
@@ -452,8 +561,9 @@ const DATA = /*__DATA__*/null;
         y: { min: 0, max: 100, grid: { color: css("--grid") }, border: { display: false },
              ticks: { color: css("--muted"), callback: (v) => v + "%" } },
       },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: css("--surface"), titleColor: css("--ink"),
-        bodyColor: css("--ink"), borderColor: css("--border"), borderWidth: 1, padding: 10 } },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: css("--raised"), titleColor: css("--ink"),
+        bodyColor: css("--ink"), borderColor: css("--border-strong"), borderWidth: 1, padding: 12,
+        titleFont: { size: 14, weight: "600" }, bodyFont: { size: 14 } } },
     };
   }
 
@@ -516,10 +626,10 @@ const DATA = /*__DATA__*/null;
     host.replaceChildren();
     const got = FORM_ROWS.map(([dim, b, label]) => ({ label, dim, r: rows.find((x) => x.dim === dim && x.bucket === b) }));
     if (!got.some((g) => g.r)) { host.append(el("div", { class: "empty", text: EMPTY_TEXT })); return; }
-    const x0 = 150, x1 = 330, y0 = 34, rh = 26, gap = 14, W = 420;
+    const x0 = 150, x1 = 330, y0 = 34, rh = 26, gap = 26, W = 420;
     const yy = (i) => y0 + i * rh + (i >= 3 ? gap : 0), yEnd = yy(FORM_ROWS.length - 1) + 16;
     const xs = (p) => x0 + p * (x1 - x0);
-    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${yEnd + 24}`, role: "img", "aria-label": "Win% theo phong độ lúc pick", "font-size": "12", style: "width:100%;min-width:290px;height:auto;display:block" });
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${yEnd + 24}`, role: "img", "aria-label": "Win% theo phong độ lúc pick", "font-size": "13", "font-family": "Inter, system-ui, sans-serif", style: "width:100%;max-width:540px;min-width:290px;height:auto;display:block" });
     for (const p of [0, 0.25, 0.5, 0.75, 1]) {
       svg.append(svgEl("line", { x1: xs(p), x2: xs(p), y1: y0 - 14, y2: yEnd, stroke: "var(--grid)" }),
                  svgEl("text", { x: xs(p), y: yEnd + 16, "text-anchor": "middle", fill: "var(--muted)" }, `${p * 100}%`));
@@ -527,7 +637,7 @@ const DATA = /*__DATA__*/null;
     svg.append(svgEl("line", { x1: xs(BREAKEVEN), x2: xs(BREAKEVEN), y1: y0 - 22, y2: yEnd, stroke: "var(--muted)", "stroke-dasharray": "4 4" }),
                svgEl("text", { x: xs(BREAKEVEN) + 4, y: y0 - 18, fill: "var(--muted)" }, "hòa vốn 52,4%"));
     svg.append(svgEl("text", { x: 0, y: y0 - 18, fill: "var(--ink)", "font-weight": "600" }, "Units 30 ngày"),
-               svgEl("text", { x: 0, y: yy(3) - 12, fill: "var(--ink)", "font-weight": "600" }, "Chuỗi"));
+               svgEl("text", { x: 0, y: yy(3) - 18, fill: "var(--ink)", "font-weight": "600" }, "Chuỗi"));
     got.forEach((g, i) => {
       const y = yy(i);
       svg.append(svgEl("text", { x: 0, y: y + 4, fill: "var(--ink-2)" }, g.label));
@@ -638,6 +748,7 @@ const DATA = /*__DATA__*/null;
     return e;
   }
   const RESULT_LABEL = { win: "Thắng", loss: "Thua", push: "Hòa" };
+  const resultPill = (res) => el("span", { class: "pill " + (res === "win" ? "win" : res === "loss" ? "loss" : ""), text: RESULT_LABEL[res] || res || "–" });
   const pickLabel = (r) => `${r.match} · ${MARKET_LABEL[r.market] || r.market} · ${r.pick} (${num(r.votes)}/${num(r.total_votes)})`;
 
   // one row per play: dot at % of experts on the majority side, coloured by result, dashed line at 75%
@@ -648,7 +759,7 @@ const DATA = /*__DATA__*/null;
     const sorted = rows.slice().sort((a, b) => (b.majority_pct - a.majority_pct) || (a.match < b.match ? -1 : 1));
     const x0 = 290, x1 = 720, y0 = 70, rh = 22, H = y0 + sorted.length * rh + 46;
     const xs = (p) => x0 + (p - 50) / 50 * (x1 - x0), yy = (i) => y0 + i * rh, yEnd = y0 + sorted.length * rh;
-    const svg = svgEl("svg", { viewBox: `0 0 760 ${H}`, role: "img", "aria-label": "Kèo đã qua theo mức đồng thuận", "font-size": "12", style: "width:100%;min-width:620px;height:auto;display:block" });
+    const svg = svgEl("svg", { viewBox: `0 0 760 ${H}`, role: "img", "aria-label": "Kèo đã qua theo mức đồng thuận", "font-size": "13", "font-family": "Inter, system-ui, sans-serif", style: "width:100%;max-width:1040px;min-width:620px;height:auto;display:block;margin:0 auto" });
     const tally = (a) => {
       const k = (x) => a.filter((r) => r.side_result === x).length;
       return `${k("win")} thắng – ${k("loss")} thua` + (k("push") ? ` – ${k("push")} hòa` : "");
@@ -687,8 +798,7 @@ const DATA = /*__DATA__*/null;
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => r.pick },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
-      { label: "Kết quả", value: (r) => RESULT_LABEL[r.side_result] || r.side_result,
-        cls: (r) => (r.side_result === "win" ? "pos" : r.side_result === "loss" ? "neg" : "") },
+      { label: "Kết quả", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
     ];
     for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
       const part = rows.filter((r) => r.day_group === group);
@@ -754,13 +864,12 @@ const DATA = /*__DATA__*/null;
       { label: "Side đa số", value: (r) => r.pick + lineText(r) },
       { label: "Picks", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`, sort: (r) => r.majority_pct },
       { label: "% bet public", num: true, value: (r) => (r.tickets_pct === null ? "–" : num(r.tickets_pct) + "%"), sort: (r) => r.tickets_pct },
-      { label: "Kết quả", value: (r) => RESULT_LABEL[r.side_result] || r.side_result,
-        cls: (r) => (r.side_result === "win" ? "pos" : r.side_result === "loss" ? "neg" : "") },
+      { label: "Kết quả", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
     ], null, { pageSize: 50 });
   }
 
   function render() {
-    upcomingTab(); pastTab(); consensusTab(); expertsTab(); trendTab(); historyTab();
+    kpis(); upcomingTab(); pastTab(); consensusTab(); expertsTab(); trendTab(); historyTab();
   }
 
   function tabs() {
@@ -774,9 +883,9 @@ const DATA = /*__DATA__*/null;
     }));
   }
 
-  header(); filters(); tabs();
-  if (window.Chart) render(); else { upcomingTab(); pastTab(); expertsTab(); historyTab(); }
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => window.Chart && render());
+  if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
+  theme(); header(); filters(); tabs();
+  if (window.Chart) render(); else { kpis(); upcomingTab(); pastTab(); expertsTab(); historyTab(); }
 })();
 </script>
 </body>
