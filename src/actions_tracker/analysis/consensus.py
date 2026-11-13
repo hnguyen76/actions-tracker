@@ -12,6 +12,18 @@ UPCOMING_COLS = CG_COLS + ["hist_win_pct", "hist_n"]
 _FLIP = {"win": "loss", "loss": "win", "push": "push"}
 
 
+def pregame_picks(picks: pd.DataFrame) -> pd.DataFrame:
+    """Only information available by kickoff may contribute to a pregame consensus.
+
+    Missing timestamps are retained so old imports remain usable; explicitly late picks are excluded.
+    """
+    if picks.empty or "created_at" not in picks or "start_time" not in picks:
+        return picks
+    created = pd.to_datetime(picks["created_at"], utc=True, errors="coerce")
+    starts = pd.to_datetime(picks["start_time"], utc=True, errors="coerce")
+    return picks[created.isna() | starts.isna() | (created <= starts)].copy()
+
+
 def bucket_of(pct: float) -> str:
     for lo, hi, name in BUCKETS:
         if lo <= pct < hi:
@@ -20,6 +32,9 @@ def bucket_of(pct: float) -> str:
 
 
 def consensus_games(picks: pd.DataFrame) -> pd.DataFrame:
+    if picks.empty:
+        return pd.DataFrame(columns=CG_COLS)
+    picks = pregame_picks(picks)
     if picks.empty:
         return pd.DataFrame(columns=CG_COLS)
     latest = (picks.sort_values("created_at", kind="stable")
@@ -78,6 +93,7 @@ def upcoming_board(picks: pd.DataFrame, now: str) -> pd.DataFrame:
     status: "majority" (a consensus play), "split" (tie) or "few" (under MIN_EXPERTS experts)."""
     if picks.empty:
         return pd.DataFrame(columns=BOARD_COLS)
+    picks = pregame_picks(picks)
     up = picks[(picks["status"] != "complete") & (picks["start_time"].astype(str) > now)]
     if up.empty:
         return pd.DataFrame(columns=BOARD_COLS)

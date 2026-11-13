@@ -6,7 +6,7 @@ from actions_tracker.grading import COLUMNS
 
 DEFAULTS = {
     "league": "nfl",
-    "created_at": "2026-11-09T12:00:00.000Z",
+    "created_at": "2026-11-01T12:00:00.000Z",
     "start_time": "2026-11-06T01:00:00.000Z",
     "status": "complete",
     "odds": -110,

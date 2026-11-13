@@ -37,3 +37,4 @@ NIGHT_HOUR = 19  # kickoff at or after 19:00 US/Eastern is a night game
 RULE_TARGET_N = 100  # graded plays a rule needs before it is judged
 RULE_PASS = 0.55     # ... and the win rate it must hold; under RULE_FAIL it is dropped
 RULE_FAIL = 0.50
+RULE_CI_FLOOR = 0.5238  # a pass also needs the 95% lower bound above -110 break-even

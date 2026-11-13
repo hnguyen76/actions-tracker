@@ -15,7 +15,7 @@ DECISION_COLS = ["et_date", "start_time", "league", "game_id", "match", "market"
 STAKE = {"pass": 1.0}  # units per play once a rule passed; every other state stakes nothing
 ACTION = {"pass": "bet", "collecting": "paper", "watch": "paper", "fail": "skip"}
 ORDER = {"bet": 0, "paper": 1, "conflict": 2, "skip": 3}
-CONSENSUS_REASON = "Chỉ có consensus của expert — cả mùa theo consensus thắng 48,6%, dưới hòa vốn 52,4%"
+CONSENSUS_REASON = "Chỉ có consensus của expert — dữ liệu hiện tại chưa chứng minh lợi thế để đặt tiền"
 _MARKET = {"spread": "Spread", "total": "Total", "ml": "Moneyline"}
 
 

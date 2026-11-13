@@ -32,6 +32,7 @@ def test_lines_frozen_after_start(tmp_path):
     db.upsert_lines(c, [L | {"game_id": 999}], "2026-11-09T20:00:00.000Z")
     rows = c.execute("select game_id, line from closing_lines").fetchall()
     assert [tuple(r) for r in rows] == [(100, -3.5)]
+    assert c.execute("select count(*) from line_snapshots").fetchone()[0] == 1
 
 
 def test_experts_first_seen_kept(tmp_path):

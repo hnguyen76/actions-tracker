@@ -72,6 +72,9 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .kpi .hint { grid-column: 2; font-size: 13.5px; color: var(--ink-2); }
 .stale { margin: 16px 0 0; padding: 12px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--critical) 50%, transparent);
   color: var(--ink); background: color-mix(in srgb, var(--critical) 10%, var(--surface)); font-size: 15px; }
+.data-health { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; color: var(--ink-2); font-size: 13.5px; }
+.health-item { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 10px; }
+.health-item.warn { border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); color: var(--warning); }
 
 /* tabs + filters toolbar */
 .toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin: 16px 0 0; }
@@ -92,6 +95,11 @@ section.panel { display: none; padding-top: 16px; }
 section.panel.active { display: block; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
 .card h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 10px; }
+.board-details > summary { cursor: pointer; list-style: none; }
+.board-details > summary::-webkit-details-marker { display: none; }
+.board-details > summary h2 { display: inline; }
+.board-details > summary::after { content: "  ▾"; color: var(--muted); }
+.board-details[open] > summary { margin-bottom: 10px; }
 details.howto { margin: -4px 0 12px; color: var(--ink-2); font-size: 15px; }
 details.howto summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 14px; width: max-content; list-style: none; }
 details.howto summary::-webkit-details-marker { display: none; }
@@ -141,6 +149,9 @@ th.sortable:hover { color: var(--ink); }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .rule-name { font-weight: 600; }
 .rule-how { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
+.progress { min-width: 120px; }
+.progress-track { height: 6px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--raised); }
+.progress-fill { height: 100%; border-radius: inherit; background: var(--accent); }
 .pos { color: var(--good); font-weight: 600; } .neg { color: var(--critical); font-weight: 600; }
 .empty { color: var(--muted); padding: 28px 0; text-align: center; font-size: 15px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px 0; color: var(--ink-2); font-size: 14px; }
@@ -172,6 +183,17 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   .chart-box { height: 260px; }
   th, td { padding: 10px 12px; } table { font-size: 14px; }
   select { min-width: 0; }
+  .data-health { gap: 6px; }
+  .health-item { border-radius: 10px; }
+  #decide-table table, #rules-summary table { display: block; }
+  #decide-table thead, #rules-summary thead { display: none; }
+  #decide-table tbody, #rules-summary tbody { display: grid; gap: 10px; }
+  #decide-table tr, #rules-summary tr { display: block; padding: 10px 12px; border: 1px solid var(--grid); border-radius: 12px; }
+  #decide-table td, #rules-summary td { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border: 0; white-space: normal; text-align: right; }
+  #decide-table td::before, #rules-summary td::before { content: attr(data-label); flex: 0 0 34%; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+  #decide-table td.cell-wrap, #rules-summary td.cell-wrap { min-width: 0; max-width: none; }
+  #rules-summary td:first-child { display: block; text-align: left; }
+  #rules-summary td:first-child::before { display: none; }
 }
 </style>
 </head>
@@ -191,6 +213,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
 <div class="wrap">
   <div class="kpis" id="kpis"></div>
   <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ — hãy bấm nút <b>Actions - Cap nhat</b> trên Desktop (hoặc kiểm tra điện thoại chạy tự động).</div>
+  <div class="data-health" id="data-health" aria-label="Chất lượng dữ liệu"></div>
 
   <div class="toolbar">
     <nav class="tabs" role="tablist">
@@ -221,24 +244,24 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <div class="verdict" id="decide-verdict"></div>
       <div class="table-scroll" id="decide-table"></div>
       <details class="howto" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
-      <details class="howto"><summary>Cách hệ thống quyết định</summary><p><b>Đặt</b> chỉ khi kèo khớp một quy tắc đã <b>Đạt</b> bài kiểm chứng (≥ 100 kèo ghi trước giờ đá, thắng ≥ 55%) — mức cược 1 unit. <b>Theo dõi</b> = khớp quy tắc đang kiểm chứng: ghi lại, chưa đặt tiền thật. <b>Bỏ qua</b> = chỉ có consensus của expert (cả mùa theo consensus thắng 48,6%, đánh ngược 51,4%, đều dưới hòa vốn 52,4%), hai quy tắc ngược nhau, hoặc quy tắc đã bị loại. Kèo đổi đến lần cập nhật cuối trước giờ đá — bấm cập nhật gần giờ đá rồi mới quyết.</p></details>
+      <details class="howto"><summary>Cách hệ thống quyết định</summary><p><b>Đặt</b> chỉ khi kèo khớp một quy tắc có ít nhất 100 kết quả ghi trước, thắng ≥ 55% và cận dưới CI 95% vượt mức hòa vốn −110 — mức cược 1 unit. <b>Theo dõi</b> = khớp quy tắc đang kiểm chứng: ghi lại, chưa đặt tiền thật. <b>Bỏ qua</b> = chỉ có consensus của expert, hai quy tắc ngược nhau, hoặc quy tắc đã bị loại. Kèo đổi đến lần cập nhật cuối trước giờ đá — bấm cập nhật gần giờ đá rồi mới quyết.</p></details>
     </div>
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <details class="howto"><summary>Cách đọc</summary><p>Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p></details>
       <div class="table-scroll" id="upcoming-table"></div>
     </div>
-    <div class="card">
-      <h2>Tất cả trận có picks</h2>
+    <details class="card board-details">
+      <summary><h2>Tất cả trận có picks — mở chi tiết</h2></summary>
       <details class="howto"><summary>Cách đọc</summary><p>Mọi kèo sắp đá có ít nhất 1 expert, kể cả khi hai bên bằng nhau (<b>chia đôi</b>) hoặc chưa đủ 3 expert (<b>ít picks</b>) — những kèo này không có ở bảng trên. Số trong tên side = line trung vị các expert bên đó đã lấy.</p></details>
       <div class="table-scroll" id="board-table"></div>
-    </div>
+    </details>
   </section>
 
   <section class="panel" id="tab-rules">
     <div class="card">
       <h2>Quy tắc đang kiểm chứng — kèo ghi trước giờ đá</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Ba quy tắc được chốt ngày 12/11/2026 từ dữ liệu cả mùa và <b>không chỉnh sửa trong lúc kiểm chứng</b>. Mỗi lần cập nhật, hệ thống ghi các kèo sắp đá khớp quy tắc; trạng thái ở lần cập nhật cuối trước giờ đá là kèo chính thức, sau đó đóng băng. <b>Nhìn lại cả mùa</b> = kết quả khi áp quy tắc vào quá khứ (đã biết kết quả, đếm theo số picks trên thẻ) — chỉ để tham khảo. <b>Ghi trước</b> = kết quả thật của các kèo đã ghi trước giờ đá (mỗi expert 1 phiếu; chấm theo line đóng cửa The Odds API, thiếu thì line Action Network lúc ghi; % số bet và % tiền lấy từ trang Public Betting của Action Network).</p><p>Một quy tắc chỉ được đánh giá khi đủ 100 kèo đã chấm: từ 55% = <b>Đạt</b>, dưới 50% = <b>Bỏ</b>. Trước đó chưa phải tín hiệu để đặt tiền.</p></details>
+      <details class="howto"><summary>Cách đọc</summary><p>Ba quy tắc được chốt ngày 12/11/2026 từ dữ liệu cả mùa và <b>không chỉnh sửa trong lúc kiểm chứng</b>. Mỗi lần cập nhật, hệ thống ghi các kèo sắp đá khớp quy tắc; trạng thái ở lần cập nhật cuối trước giờ đá là kèo chính thức, sau đó đóng băng. <b>Nhìn lại cả mùa</b> = kết quả khi áp quy tắc vào quá khứ (đã biết kết quả, đếm theo số picks trên thẻ) — chỉ để tham khảo. <b>Ghi trước</b> = kết quả thật của các kèo đã ghi trước giờ đá. Line lúc ghi và line tham chiếu cuối được giữ riêng.</p><p>Một quy tắc chỉ có thể <b>Đạt</b> khi đủ 100 kèo, win% ≥ 55% và cận dưới CI 95% vượt 52,4%. Trước đó chỉ là paper test.</p></details>
       <div class="table-scroll" id="rules-summary"></div>
     </div>
     <div class="card">
@@ -269,7 +292,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-consensus">
     <div class="card">
       <h2>Win% của side đa số theo mức đồng thuận</h2>
-      <p class="note">Đường nét đứt = hòa vốn ở odds −110 (52,4%). Cột mờ = chưa đủ mẫu (n &lt; 20).</p>
+      <p class="note">Chấm = win%; thanh dọc = CI 95%. Chấm rỗng = chưa đủ mẫu (n &lt; 20). Đường nét đứt là hòa vốn −110 và không áp dụng cho Moneyline.</p>
       <div class="chart-box"><canvas id="consensus-chart" aria-label="Biểu đồ win% consensus"></canvas></div>
     </div>
     <div class="card">
@@ -420,7 +443,7 @@ const DATA = /*__DATA__*/null;
     for (const r of list) {
       const tr = el("tr", {}, ...columns.map((c) => {
         const v = c.value(r);
-        const td = el("td", { class: [c.num ? "num" : "", c.cls ? c.cls(r) : ""].join(" ").trim() });
+        const td = el("td", { class: [c.num ? "num" : "", c.cls ? c.cls(r) : ""].join(" ").trim(), "data-label": c.label });
         if (v instanceof Node) td.append(v); else td.textContent = v;
         return td;
       }));
@@ -460,6 +483,22 @@ const DATA = /*__DATA__*/null;
   const byFilter = (rows) => rows.filter((r) => r.league === state.league && r.market === state.market);
   const rawFilter = (rows) => rows.filter((r) => (state.league === "ALL" || r.league === state.league)
     && (state.market === "ALL" || r.market === state.market));
+  const betProfit = (result, odds) => result === "loss" ? -1 : result === "push" ? 0
+    : odds > 0 ? odds / 100 : 100 / Math.abs(odds || -110);
+
+  function dataHealth() {
+    const host = document.getElementById("data-health"), q = T("Data_Quality")[0] || {};
+    const credits = D.meta && D.meta.odds_api_remaining;
+    const item = (text, warn) => el("span", { class: "health-item" + (warn ? " warn" : ""), text });
+    const coverage = q.actual_close_pct === null || q.actual_close_pct === undefined ? "–" : pct(q.actual_close_pct);
+    host.replaceChildren(
+      item(`Line thị trường: ${coverage} · proxy ${num(q.proxy_line_picks || 0)}`, (q.proxy_line_picks || 0) > 0),
+      item(`Đã loại ${num(q.excluded_late_picks || 0)} picks sau giờ đá`, (q.excluded_late_picks || 0) > 0),
+      item(`Tuổi line giữa: ${q.median_close_age_h === null || q.median_close_age_h === undefined ? "–" : num(q.median_close_age_h, 1) + "h"}`,
+        (q.median_close_age_h || 0) > 3),
+      item(`Odds API: ${credits === null || credits === undefined ? "–" : num(credits)} credits`, false),
+    );
+  }
 
   // headline numbers for the current league/market filter
   function kpis() {
@@ -470,15 +509,20 @@ const DATA = /*__DATA__*/null;
     const w = k("win"), l = k("loss"), pu = k("push");
     const picks = rawFilter(T("Picks"));
     const experts = new Set(picks.map((r) => r.expert_id)).size;
-    const credits = D.meta && D.meta.odds_api_remaining;
+    const rules = rawFilter(T("Rule_Summary"));
+    const passed = rules.filter((r) => r.decision === "pass").length;
+    const paper = rawFilter(T("Decisions")).filter((r) => r.action === "paper" && inRangeAhead(r.start_time)).length;
+    const units = past.reduce((sum, r) => sum + betProfit(r.side_result, r.side_odds), 0);
+    const roi = w + l ? units / (w + l) : null;
     const tile = (label, value, hint) => el("div", { class: "kpi" }, el("div", { class: "label", text: label }),
       el("div", { class: "value", text: value }), el("div", { class: "hint", text: hint }));
     box.replaceChildren(
       tile("Kèo đa số sắp tới", num(up.length), `${num(rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)).length)} kèo có picks`),
-      tile("Consensus đã chấm (live)", w + l ? pct(w / (w + l)) : "–", `${w}-${l}-${pu} · hòa vốn 52,4%`),
+      tile("Consensus đã chấm (live)", w + l ? pct(w / (w + l)) : "–", `${w}-${l}-${pu} · ROI ${signed(roi)}`),
       tile("Picks đã thu", num(picks.length), `${num(experts)} expert`),
-      tile("Credit The Odds API", credits === null || credits === undefined ? "–" : num(credits), "gói free 500/tháng"),
+      tile("Quy tắc đã xác nhận", `${passed}/${rules.length}`, `${paper} kèo paper sắp tới`),
     );
+    dataHealth();
   }
 
   function theme() {
@@ -495,7 +539,7 @@ const DATA = /*__DATA__*/null;
       const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
       apply(next);
       try { localStorage.setItem("theme", next); } catch (e) { /* storage blocked */ }
-      if (window.Chart) render(); else { pastTab(); expertsTab(); }
+      render();
     });
   }
 
@@ -505,16 +549,15 @@ const DATA = /*__DATA__*/null;
     box.replaceChildren();
     for (const s of D.league_status || []) {
       const failed = s.last_error_at && (!s.last_success_at || s.last_error_at > s.last_success_at);
+      const stale = !s.last_success_at || Date.now() - new Date(s.last_success_at).getTime() > 24 * 3600 * 1000;
       const pending = s.ungraded_past_games ? ` · ${s.ungraded_past_games} trận đã qua chưa có tỉ số` : "";
-      box.append(el("span", { class: "chip" + (failed || pending ? " err" : ""),
+      box.append(el("span", { class: "chip" + (failed || pending || stale ? " err" : ""),
         text: `${leagueName(s.league)}: ${failed ? "lỗi " + fmtTime(s.last_error_at) : fmtTime(s.last_success_at)}${pending}`,
         title: failed ? String(s.last_error || "") : "" }));
     }
-    // stale = no league has succeeded in the last 24h (a run that fails everywhere still refreshes generated_at)
-    const successes = (D.league_status || []).map((s) => s.last_success_at).filter(Boolean).sort();
-    const newest = successes.length ? successes[successes.length - 1] : null;
-    const age = newest ? Date.now() - new Date(newest).getTime() : Infinity;
-    document.getElementById("stale").hidden = !(age > 24 * 3600 * 1000);
+    // Any stale league matters: a fresh NBA run must not hide an outdated NFL board.
+    document.getElementById("stale").hidden = !(D.league_status || []).some((s) =>
+      !s.last_success_at || Date.now() - new Date(s.last_success_at).getTime() > 24 * 3600 * 1000);
   }
 
   function filters() {
@@ -569,8 +612,10 @@ const DATA = /*__DATA__*/null;
   // game-day decision: what to bet, how much, and why — for one US/Eastern date at a time
   function decideCard() {
     const all = rawFilter(T("Decisions")).filter((r) => inRangeAhead(r.start_time));
-    const days = [...new Set(all.map((r) => r.et_date))].sort();
-    if (!days.includes(state.day)) state.day = days[0] || null;
+    const board = rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time));
+    const days = [...new Set([...all.map((r) => r.et_date), ...board.map((r) => etDate(r.start_time))])].sort();
+    const today = etDate(Date.now());
+    if (!days.includes(state.day)) state.day = days.includes(today) ? today : days[0] || null;
     const chips = document.getElementById("decide-days");
     chips.replaceChildren(...days.slice(0, 5).map((d) => {
       const b = el("button", { type: "button", class: "day-chip", "aria-pressed": String(d === state.day), text: dayLabel(d) });
@@ -578,6 +623,7 @@ const DATA = /*__DATA__*/null;
       return b;
     }));
     const rows = all.filter((r) => r.et_date === state.day);
+    const boardRows = board.filter((r) => etDate(r.start_time) === state.day);
     const act = rows.filter((r) => r.action !== "skip" || r.rule_ids);
     const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids);
     const bets = act.filter((r) => r.action === "bet"), paper = act.filter((r) => r.action === "paper");
@@ -597,7 +643,9 @@ const DATA = /*__DATA__*/null;
       verdict.append(el("div", { class: "verdict-main", text: "Không đặt tiền thật " + when }),
         el("div", { class: "verdict-sub", text: paper.length
           ? `${paper.length} kèo khớp quy tắc đang kiểm chứng — chỉ theo dõi, chưa quy tắc nào đủ 100 kèo ghi trước để tin. ${skips.length} kèo chỉ có consensus: bỏ qua.`
-          : `Không kèo nào khớp quy tắc. ${skips.length} kèo chỉ có consensus của expert: bỏ qua (không có lợi thế).` }));
+          : skips.length
+            ? `Không kèo nào khớp quy tắc. ${skips.length} kèo chỉ có consensus của expert: bỏ qua vì dữ liệu hiện tại chưa chứng minh lợi thế.`
+            : `${boardRows.length} kèo có picks, chưa kèo nào đạt điều kiện consensus hoặc quy tắc.` }));
     }
     const actionPill = (r) => el("span", { class: "pill " + (ACTION[r.action] || ACTION.skip).cls,
       text: (ACTION[r.action] || ACTION.skip).label + (r.stake_u > 0 ? ` ${num(r.stake_u, 1)}u` : "") });
@@ -651,6 +699,7 @@ const DATA = /*__DATA__*/null;
   const refLinePlugin = {
     id: "refline",
     afterDatasetsDraw(chart, _args, opts) {
+      if (opts && opts.display === false) return;
       const { ctx, chartArea, scales } = chart;
       if (!scales.y) return;
       const y = scales.y.getPixelForValue(BREAKEVEN * 100);
@@ -676,6 +725,25 @@ const DATA = /*__DATA__*/null;
     },
   };
 
+  const ciWhiskerPlugin = {
+    id: "ciWhiskers",
+    afterDatasetsDraw(chart) {
+      const ds = chart.data.datasets[0], meta = chart.getDatasetMeta(0), y = chart.scales.y;
+      if (!ds || !ds.ci || !y) return;
+      const ctx = chart.ctx;
+      ctx.save(); ctx.strokeStyle = css("--s1"); ctx.lineWidth = 2;
+      ds.ci.forEach((ci, i) => {
+        const pt = meta.data[i];
+        if (!pt || !ci || ci[0] === null || ci[1] === null) return;
+        const lo = y.getPixelForValue(ci[0]), hi = y.getPixelForValue(ci[1]);
+        ctx.beginPath(); ctx.moveTo(pt.x, lo); ctx.lineTo(pt.x, hi);
+        ctx.moveTo(pt.x - 6, lo); ctx.lineTo(pt.x + 6, lo);
+        ctx.moveTo(pt.x - 6, hi); ctx.lineTo(pt.x + 6, hi); ctx.stroke();
+      });
+      ctx.restore();
+    },
+  };
+
   function baseOptions() {
     return {
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -697,6 +765,7 @@ const DATA = /*__DATA__*/null;
     if (charts.consensus) charts.consensus.destroy();
     const s1 = css("--s1");
     const opts = baseOptions();
+    opts.plugins.refline = { display: state.market !== "ml" };
     opts.plugins.tooltip.callbacks = {
       title: (items) => "Đồng thuận " + items[0].label + "%",
       label: (item) => {
@@ -705,14 +774,16 @@ const DATA = /*__DATA__*/null;
       },
     };
     charts.consensus = new Chart(ctx, {
-      type: "bar",
+      type: "line",
       data: { labels: BUCKETS, datasets: [{
         label: "Win% side đa số",
         data: BUCKETS.map((b) => (byBucket[b] && byBucket[b].win_pct !== null ? byBucket[b].win_pct * 100 : null)),
-        backgroundColor: BUCKETS.map((b) => (byBucket[b] && byBucket[b].low_sample ? s1 + "66" : s1)),
-        borderRadius: 4, borderSkipped: "start", maxBarThickness: 56,
+        ci: BUCKETS.map((b) => byBucket[b] ? [byBucket[b].ci_low * 100, byBucket[b].ci_high * 100] : null),
+        showLine: false, pointRadius: 7, pointHoverRadius: 9,
+        pointBackgroundColor: BUCKETS.map((b) => (byBucket[b] && byBucket[b].low_sample ? css("--surface") : s1)),
+        pointBorderColor: s1, pointBorderWidth: 2,
       }] },
-      options: opts, plugins: [refLinePlugin],
+      options: opts, plugins: [refLinePlugin, ciWhiskerPlugin],
     });
     renderTable("consensus-table", rows.slice().sort((a, b) => BUCKETS.indexOf(a.bucket) - BUCKETS.indexOf(b.bucket)), [
       { label: "Đồng thuận", value: (r) => r.bucket + "%" },
@@ -934,6 +1005,7 @@ const DATA = /*__DATA__*/null;
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => r.pick },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
+      { label: "Nguồn line", value: (r) => r.market === "ml" ? "Moneyline" : r.line_source === "odds_api_close" ? "Thị trường" : "Proxy expert" },
       { label: "Kết quả", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
     ];
     for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
@@ -956,7 +1028,9 @@ const DATA = /*__DATA__*/null;
       { label: "CI 95%", num: true, value: (r) => (r.ci_low === null ? "–" : `${pct(r.ci_low)} – ${pct(r.ci_high)}`), sort: (r) => r.ci_low },
       { label: "ROI", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi), sort: (r) => r.roi },
       { label: "Đang chờ", num: true, value: (r) => num(r.pending), sort: (r) => r.pending },
-      { label: "Tiến độ", num: true, value: (r) => `${num(r.n)}/${num(r.target_n)}`, sort: (r) => r.n },
+      { label: "Tiến độ", num: true, value: (r) => el("div", { class: "progress" },
+          el("span", { text: `${num(r.n)}/${num(r.target_n)}` }),
+          el("div", { class: "progress-track" }, el("div", { class: "progress-fill", style: `width:${Math.min(100, 100 * r.n / r.target_n)}%` }))), sort: (r) => r.n },
       { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (DECISION[r.decision] || ["", "dim"])[1], text: (DECISION[r.decision] || [r.decision])[0] }), sort: (r) => r.decision },
     ]);
 
@@ -967,8 +1041,9 @@ const DATA = /*__DATA__*/null;
       const k = `${r.game_id}|${r.market}`;
       sides.set(k, (sides.get(k) || new Set()).add(r.bet_side));
     }
-    const bet = (r) => {
-      const ln = r.line === null || r.market === "ml" ? "" : " " + (r.market === "spread" && r.line > 0 ? "+" : "") + num(r.line, 1);
+    const bet = (r, field = "entry_line") => {
+      const line = r[field];
+      const ln = line === null || r.market === "ml" ? "" : " " + (r.market === "spread" && line > 0 ? "+" : "") + num(line, 1);
       const span = el("span", { text: r.pick + ln });
       if (sides.get(`${r.game_id}|${r.market}`).size > 1) span.append(el("span", { class: "badge", text: "2 quy tắc ngược nhau" }));
       return span;
@@ -979,7 +1054,7 @@ const DATA = /*__DATA__*/null;
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => r.match },
       { label: "Quy tắc", value: shortName },
-      { label: "Đặt", value: bet, sort: (r) => r.pick },
+      { label: "Line lúc ghi", value: (r) => bet(r, "entry_line"), sort: (r) => r.pick },
       { label: "Căn cứ", value: (r) => r.basis || "–" },
       { label: "Ghi lúc", value: (r) => fmtTime(r.logged_at), sort: (r) => r.logged_at },
     ], null, { pageSize: 50 });
@@ -988,7 +1063,8 @@ const DATA = /*__DATA__*/null;
       { label: "Nhóm ngày", value: (r) => GROUP_LABEL[r.day_group] || r.day_group },
       { label: "Trận", value: (r) => r.match },
       { label: "Quy tắc", value: shortName },
-      { label: "Đặt", value: bet, sort: (r) => r.pick },
+      { label: "Line lúc ghi", value: (r) => bet(r, "entry_line"), sort: (r) => r.pick },
+      { label: "Line tham chiếu cuối", value: (r) => bet(r, "line") },
       { label: "Căn cứ", value: (r) => r.basis || "–" },
       { label: "Kết quả", value: (r) => resultPill(r.result), sort: (r) => r.result },
       { label: "Units", num: true, value: (r) => (r.units === null ? "–" : (r.units > 0 ? "+" : "") + num(r.units, 2)), cls: (r) => roiCls(r.units), sort: (r) => r.units },
@@ -1055,7 +1131,11 @@ const DATA = /*__DATA__*/null;
   }
 
   function render() {
-    kpis(); upcomingTab(); rulesTab(); pastTab(); consensusTab(); expertsTab(); trendTab(); historyTab();
+    kpis();
+    const active = document.querySelector("nav.tabs button[aria-selected='true']");
+    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, consensus: consensusTab,
+      experts: expertsTab, trend: trendTab, history: historyTab };
+    (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();
   }
 
   function tabs() {
@@ -1065,13 +1145,13 @@ const DATA = /*__DATA__*/null;
       document.querySelectorAll("section.panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + b.dataset.tab));
       // the time-range filter only applies to Upcoming and Trend; hide it elsewhere so all-time numbers are not misread
       document.getElementById("range-wrap").hidden = !["upcoming", "past", "trend"].includes(b.dataset.tab);
-      Object.values(charts).forEach((c) => c && c.resize());
+      render();
     }));
   }
 
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
   theme(); header(); filters(); tabs();
-  if (window.Chart) render(); else { kpis(); upcomingTab(); rulesTab(); pastTab(); expertsTab(); historyTab(); }
+  render();
 })();
 </script>
 </body>

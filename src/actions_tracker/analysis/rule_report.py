@@ -5,12 +5,12 @@ import sqlite3
 import pandas as pd
 
 from actions_tracker.analysis.stats import SUMMARY_KEYS, american_profit, summarize
-from actions_tracker.config import RULE_FAIL, RULE_PASS, RULE_TARGET_N, TZ
+from actions_tracker.config import RULE_CI_FLOOR, RULE_FAIL, RULE_PASS, RULE_TARGET_N, TZ
 from actions_tracker.grading import grade_side
 from actions_tracker.rules import RULES
 
 PLAY_COLS = ["rule_id", "rule_name", "league", "game_id", "start_time", "et_date", "day_group", "match", "market",
-             "bet_side", "pick", "line", "odds", "line_source", "basis", "first_logged_at", "logged_at",
+             "bet_side", "pick", "entry_line", "entry_odds", "line", "odds", "line_source", "basis", "first_logged_at", "logged_at",
              "status", "result", "units"]
 SUMMARY_COLS = (["rule_id", "name", "how", "league", "market", "hist_record", "hist_win_pct", "hist_n"]
                 + SUMMARY_KEYS + ["pending", "target_n", "decision"])
@@ -45,6 +45,7 @@ def rule_plays(conn: sqlite3.Connection) -> pd.DataFrame:
             "day_group": "T2-6" if local.day_of_week <= 4 else "T7-CN",
             "match": f"{r['away_abbr']}@{r['home_abbr']}", "market": r["market"], "bet_side": side,
             "pick": r["home_abbr"] if side == "home" else r["away_abbr"] if side == "away" else side.title(),
+            "entry_line": r["line"], "entry_odds": r["odds"],
             "line": line, "odds": odds, "line_source": source, "basis": r["basis"],
             "first_logged_at": r["first_logged_at"], "logged_at": r["logged_at"],
             "status": "graded" if result else "pending", "result": result,
@@ -65,7 +66,8 @@ def rule_summary(plays: pd.DataFrame) -> pd.DataFrame:
         if s["n"] < RULE_TARGET_N:
             decision = "collecting"
         else:
-            decision = "pass" if s["win_pct"] >= RULE_PASS else "fail" if s["win_pct"] < RULE_FAIL else "watch"
+            decision = ("pass" if s["win_pct"] >= RULE_PASS and s["ci_low"] > RULE_CI_FLOOR
+                        else "fail" if s["win_pct"] < RULE_FAIL else "watch")
         rows.append({
             "rule_id": rule["id"], "name": rule["name"], "how": rule["how"], "league": rule["league"],
             "market": rule["market"], "hist_record": f"{rule['hist_wins']}-{rule['hist_losses']}",

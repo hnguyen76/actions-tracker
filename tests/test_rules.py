@@ -2,6 +2,7 @@
 
 import pathlib
 
+import pandas as pd
 import pytest
 
 from actions_tracker import db
@@ -138,3 +139,12 @@ def test_report_grades_at_closing_line_and_summarises(tmp_path):
     r = s.set_index("rule_id").loc["ncaaf_total_day_fade"]
     assert (r.wins, r.losses, r.pending, r.decision) == (1, 0, 0, "collecting")
     assert s.set_index("rule_id").loc["ncaaf_total_money"].n == 0
+
+
+def test_rule_pass_requires_confidence_interval_above_break_even():
+    rid = "ncaaf_total_day_fade"
+    plays = pd.DataFrame([{"rule_id": rid, "status": "graded", "result": "win" if i < wins else "loss", "odds": -110}
+                          for wins in [55] for i in range(100)])
+    assert rule_summary(plays).set_index("rule_id").loc[rid].decision == "watch"
+    plays["result"] = ["win" if i < 70 else "loss" for i in range(100)]
+    assert rule_summary(plays).set_index("rule_id").loc[rid].decision == "pass"

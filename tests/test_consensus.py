@@ -30,6 +30,13 @@ def test_latest_pick_per_expert_counts_once():
     assert (r.votes, r.total_votes) == (2, 3)
 
 
+def test_consensus_excludes_picks_created_after_kickoff():
+    rows = votes(1, ["home", "home", "away", "away"])
+    rows[0]["created_at"] = "2026-11-20T01:00:01.000Z"
+    rows[2]["created_at"] = "2026-11-20T01:00:02.000Z"
+    assert consensus_games(make_picks(rows)).empty  # the remaining pregame votes are tied 1-1
+
+
 def test_summary_follow_and_fade():
     df = make_picks(votes(1, ["home"] * 3, "win") + votes(2, ["home"] * 3, "loss") + votes(3, ["home"] * 3, "win"))
     s = consensus_summary(consensus_games(df))

@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS closing_lines(
     game_id INTEGER, market TEXT, side TEXT, line REAL, odds INTEGER,
     tickets_pct REAL, money_pct REAL, captured_at TEXT,
     PRIMARY KEY(game_id, market, side));
+CREATE TABLE IF NOT EXISTS line_snapshots(
+    game_id INTEGER, market TEXT, side TEXT, line REAL, odds INTEGER,
+    tickets_pct REAL, money_pct REAL, captured_at TEXT,
+    PRIMARY KEY(game_id, market, side, captured_at));
 CREATE TABLE IF NOT EXISTS league_status(
     league TEXT PRIMARY KEY, last_success_at TEXT, last_error TEXT, last_error_at TEXT);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
@@ -125,6 +129,9 @@ def upsert_picks(conn: sqlite3.Connection, rows: list[dict], updated_at: str) ->
 def upsert_lines(conn: sqlite3.Connection, rows: list[dict], captured_at: str) -> None:
     """Store line + public % only while the game has not started, so the last write is the closing line."""
     cols = LINE_COLS + ["captured_at"]
+    values = _values(rows, LINE_COLS, captured_at)
+    eligible = [v for v in values if conn.execute(
+        "SELECT 1 FROM games WHERE id = ? AND start_time > ?", (v[0], captured_at)).fetchone()]
     conn.executemany(
         f"""INSERT INTO closing_lines({', '.join(cols)})
             SELECT {', '.join('?' * len(cols))}
@@ -132,7 +139,12 @@ def upsert_lines(conn: sqlite3.Connection, rows: list[dict], captured_at: str) -
             ON CONFLICT(game_id, market, side) DO UPDATE SET
               line=excluded.line, odds=excluded.odds, tickets_pct=excluded.tickets_pct,
               money_pct=excluded.money_pct, captured_at=excluded.captured_at""",
-        [v + (v[0], captured_at) for v in _values(rows, LINE_COLS, captured_at)],
+        [v + (v[0], captured_at) for v in values],
+    )
+    conn.executemany(
+        f"INSERT OR REPLACE INTO line_snapshots({', '.join(cols)}) "
+        f"VALUES ({', '.join('?' * len(cols))})",
+        eligible,
     )
     conn.commit()
 
