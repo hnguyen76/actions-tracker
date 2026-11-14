@@ -413,6 +413,8 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <div class="card">
       <h2>NFL — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
       <div class="kpi-mini" id="season-kpi-nfl"></div>
+      <h3 class="decide-sub">Độ nhạy theo số picks</h3>
+      <div class="table-scroll" id="season-sens-nfl"></div>
       <h3 class="decide-sub">Theo tuần</h3>
       <div class="table-scroll" id="season-weeks-nfl"></div>
       <h3 class="decide-sub">Từng kèo</h3>
@@ -422,6 +424,8 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <div class="card">
       <h2>NCAAF — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
       <div class="kpi-mini" id="season-kpi-ncaaf"></div>
+      <h3 class="decide-sub">Độ nhạy theo số picks</h3>
+      <div class="table-scroll" id="season-sens-ncaaf"></div>
       <h3 class="decide-sub">Theo tuần</h3>
       <div class="table-scroll" id="season-weeks-ncaaf"></div>
       <h3 class="decide-sub">Từng kèo</h3>
@@ -1355,6 +1359,15 @@ const DATA = /*__DATA__*/null;
           el("div", { class: "v", text: r && r.n ? pct(r.win_pct) : "–" }),
           el("div", { class: "s", text: r ? `${wl(r)} · ROI ${signed(r.roi)}` : "" }));
       }));
+      const SN = T("My_Method_Sensitivity").filter((r) => r.league === lg);
+      const sens = (k, dg) => SN.find((r) => Number(r.min_picks) === k && r.day_group === dg);
+      renderTable("season-sens-" + lg, [5, 8, 9, 10].map((k) => ({ k, a: sens(k, "T2-6"), b: sens(k, "T7-CN"), c: sens(k, "ALL") })), [
+        { label: "Số picks", value: (r) => `≥ ${r.k} picks`, sort: (r) => r.k },
+        { label: "Thứ 2–6 · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
+        { label: "Thứ 7–CN · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
+        { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },
+        { label: "ROI", num: true, value: (r) => (r.c && r.c.n ? signed(r.c.roi) : "–"), cls: (r) => roiCls(r.c && r.c.roi), sort: (r) => (r.c ? r.c.roi : 0) },
+      ]);
       const weeks = [...new Set(S.filter((r) => r.league === lg && r.week !== "ALL").map((r) => Number(r.week)))].sort((a, b) => b - a);
       renderTable("season-weeks-" + lg, weeks.map((w) => ({ week: w, a: get(w, "T2-6"), b: get(w, "T7-CN"), c: get(w, "ALL") })), [
         { label: "Tuần", value: (r) => "Tuần " + r.week, sort: (r) => r.week },

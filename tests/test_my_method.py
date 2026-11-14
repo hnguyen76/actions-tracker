@@ -3,7 +3,8 @@
 import pandas as pd
 
 from actions_tracker.analysis.my_method import (PLAY_COLS, SEASON_COLS, SUMMARY_COLS, my_method_plays,
-                                                my_method_summary, season_plays, season_summary)
+                                                my_method_summary, season_plays, season_sensitivity,
+                                                season_summary)
 
 
 def _cg(rows):
@@ -82,3 +83,18 @@ def test_season_uses_history_then_live_games_not_in_it():
     assert by.loc[4, "week"] == 11 and pd.isna(by.loc[4, "result"])
     summ = season_summary(s).set_index(["league", "week", "day_group"])
     assert (summ.loc[("nfl", "ALL", "ALL"), "wins"], summ.loc[("ncaaf", 11, "T7-CN"), "losses"]) == (1, 1)
+
+
+
+def test_sensitivity_by_pick_threshold():
+    plays = pd.DataFrame([
+        dict(league="ncaaf", day_group="T7-CN", total_votes=5, result="win", odds=-110),
+        dict(league="ncaaf", day_group="T7-CN", total_votes=9, result="loss", odds=-110),
+        dict(league="ncaaf", day_group="T2-6", total_votes=12, result="win", odds=-110),
+        dict(league="ncaaf", day_group="T2-6", total_votes=12, result=None, odds=-110),   # pending -> ignored
+    ])
+    s = season_sensitivity(plays).set_index(["league", "min_picks", "day_group"])
+    assert (s.loc[("ncaaf", 5, "ALL"), "wins"], s.loc[("ncaaf", 5, "ALL"), "losses"]) == (2, 1)
+    assert (s.loc[("ncaaf", 9, "ALL"), "wins"], s.loc[("ncaaf", 9, "ALL"), "losses"]) == (1, 1)
+    assert (s.loc[("ncaaf", 10, "ALL"), "n"], s.loc[("ncaaf", 10, "T2-6"), "wins"]) == (1, 1)
+    assert s.loc[("nfl", 8, "ALL"), "n"] == 0
