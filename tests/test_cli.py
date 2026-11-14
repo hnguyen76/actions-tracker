@@ -247,3 +247,19 @@ def test_public_page_failure_keeps_picks_and_flags_league(tmp_path):
     assert _run(tmp_path, f, ["ncaaf"], FakeOddsApi()) == 1
     c = sqlite3.connect(tmp_path / "a.db")
     assert c.execute("select count(*) from picks").fetchone()[0] > 0
+
+
+def test_alert_big_totals_lists_only_totals_with_five_experts(capsys):
+    import pandas as pd
+    from actions_tracker.cli import _alert_big_totals
+    board = pd.DataFrame([
+        dict(game_id=1, league="ncaaf", market="total", start_time="2026-11-15T00:00:00.000Z", away_abbr="A",
+             home_abbr="B", a_side="over", a_votes=4, b_side="under", b_votes=1, total_votes=5),
+        dict(game_id=2, league="ncaaf", market="total", start_time="2026-11-15T00:00:00.000Z", away_abbr="C",
+             home_abbr="D", a_side="over", a_votes=4, b_side="under", b_votes=0, total_votes=4),
+        dict(game_id=3, league="nfl", market="spread", start_time="2026-11-15T00:00:00.000Z", away_abbr="E",
+             home_abbr="F", a_side="away", a_votes=9, b_side="home", b_votes=0, total_votes=9),
+    ])
+    lines = _alert_big_totals(board)
+    assert len(lines) == 1 and "A@B (over 4 / under 1)" in lines[0]
+    assert "TOTAL >= 5" in capsys.readouterr().out

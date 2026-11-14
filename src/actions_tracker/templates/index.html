@@ -640,8 +640,11 @@ const DATA = /*__DATA__*/null;
     const actAll = rows.filter((r) => r.action !== "skip" || r.rule_ids);
     // totals are shown only with at least TOTAL_MIN_EXPERTS experts on them (display filter; the rule test still logs all)
     const totalsLow = actAll.filter((r) => r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS);
-    const act = actAll.filter((r) => !(r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS));
-    const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids);
+    // a total with >= TOTAL_MIN_EXPERTS experts is always listed in the Total section, even with no rule behind it
+    const bigTotal = (r) => r.market === "total" && nExp(r) >= TOTAL_MIN_EXPERTS;
+    const act = rows.filter((r) => ((r.action !== "skip" || r.rule_ids) && !(r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS))
+      || (r.action === "skip" && !r.rule_ids && bigTotal(r)));
+    const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids && !bigTotal(r));
     const bets = act.filter((r) => r.action === "bet"), paper = act.filter((r) => r.action === "paper");
     document.getElementById("decide-title").textContent = state.day ? "Quyết định — " + dayLabel(state.day) : "Quyết định";
     const verdict = document.getElementById("decide-verdict");
@@ -683,7 +686,7 @@ const DATA = /*__DATA__*/null;
       if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
     section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
-    section("total", `Không có kèo total nào khớp quy tắc mà có từ ${TOTAL_MIN_EXPERTS} expert trở lên.`);
+    section("total", `Chưa có kèo total nào có từ ${TOTAL_MIN_EXPERTS} expert trở lên — có là hiện ở đây.`);
     section("ml", "");
     const note = document.getElementById("decide-total-note");
     note.hidden = !totalsLow.length;

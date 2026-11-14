@@ -122,6 +122,23 @@ class _NoPublic(Exception):
     """This league's rules need no public-betting splits."""
 
 
+TOTAL_ALERT_EXPERTS = 5  # the user wants to hear about every upcoming total with at least this many experts
+
+
+def _alert_big_totals(board) -> list[str]:
+    """Print one line per upcoming total that at least TOTAL_ALERT_EXPERTS experts picked."""
+    if board is None or board.empty:
+        return []
+    big = board[(board["market"] == "total") & (board["total_votes"] >= TOTAL_ALERT_EXPERTS)]
+    lines = []
+    for r in big.sort_values("start_time").itertuples():
+        sides = f"{r.a_side} {r.a_votes} / {r.b_side} {r.b_votes}"
+        lines.append(f"[{r.league}] TOTAL >= {TOTAL_ALERT_EXPERTS} expert: {r.away_abbr}@{r.home_abbr} ({sides}) - {r.start_time}")
+    for line in lines:
+        print(line)
+    return lines
+
+
 def _collect_rules(conn, fetcher, league: str, now: str) -> list[Exception]:
     """Public splits for the leagues that have rules, then log the plays the rules select before kickoff."""
     errors: list[Exception] = []
@@ -260,6 +277,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
     remaining = db.get_meta(conn, "odds_api_remaining")
     meta = {"odds_api_remaining": int(remaining) if remaining is not None else None}
     build_site(tables, status, site_dir, report_path, now, meta)
+    _alert_big_totals(tables.get("Upcoming_Board"))
     total = conn.execute("SELECT count(*) FROM picks").fetchone()[0]
     print(f"Tong picks trong DB: {total}. Excel: {report_path}. Dashboard: {site_dir / 'index.html'}")
     conn.close()
