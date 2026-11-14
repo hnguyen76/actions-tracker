@@ -280,9 +280,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h2>Cách của bạn — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
       <details class="howto"><summary>Cách đọc</summary><p>Kèo <b>spread</b> NFL và NCAAF có <b>từ 5 picks trở lên</b> và một bên nhiều hơn: trận <b>Thứ 2–6</b> (giờ miền Đông) đặt bên đám đông chọn; trận <b>Thứ 7–CN</b> đặt bên còn lại. <b>Nhìn lại cả mùa</b> = áp cách này vào dữ liệu tuần 1 đến nay (đếm số picks trên thẻ By Game, đã biết kết quả). <b>Live</b> = kèo hệ thống thấy trước giờ đá (mỗi expert một phiếu), chấm theo line đóng cửa. NCAAF cũng đang được kiểm chứng như quy tắc 4 ở bảng dưới; chưa đủ 100 kèo thì chỉ theo dõi, chưa đặt tiền thật.</p></details>
       <div class="table-scroll" id="mine-summary"></div>
-      <h3 class="decide-sub">Theo dõi thêm: Thứ 7–CN tách theo đồng thuận</h3>
-      <p class="decide-note">Biến thể (từ 14/11, chỉ theo dõi): cuối tuần, nếu <b>tất cả</b> expert cùng một bên (3/3, 5/5, 9/9…) thì <b>theo</b> đám đông; nếu có người chọn ngược (8/9, 4/5…) thì <b>đánh ngược</b> như cũ. Thứ 2–6 giữ nguyên.</p>
-      <div class="table-scroll" id="mine-variant"></div>
       <h3 class="decide-sub">Các kèo theo cách này</h3>
       <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="mine-plays"></div>
@@ -1143,14 +1140,6 @@ const DATA = /*__DATA__*/null;
       { label: "Đang chờ", num: true, value: (r) => num(r.pending), sort: (r) => r.pending },
     ], null, { pageSize: 20 });
     const fmtLine = (v) => (v === null || v === undefined ? "" : " " + (v > 0 ? "+" : "") + String(v).replace(".", ","));
-    const VAR_LABEL = { unanimous: "Đồng thuận (n/n) · theo", mixed: "Không đồng thuận · đánh ngược" };
-    renderTable("mine-variant", T("My_Method_Variant").filter((r) => state.league === "ALL" || r.league === state.league), [
-      { label: "Giải", value: (r) => leagueName(r.league), cls: (r) => (r.league === "ALL" ? "strong" : "") },
-      { label: "Thứ 7–CN", value: (r) => VAR_LABEL[r.group] || r.group },
-      { label: "Nhìn lại cả mùa", num: true, value: (r) => (r.hist_n ? `${rec(r.hist_wins, r.hist_losses, r.hist_pushes)} · ${pct(r.hist_win_pct)}` : "–"), sort: (r) => r.hist_win_pct },
-      { label: "Live (W-L-P)", num: true, value: (r) => (r.n + r.pushes ? `${rec(r.wins, r.losses, r.pushes)} · ${pct(r.win_pct)}` : "chưa có"), sort: (r) => r.win_pct },
-      { label: "Đang chờ", num: true, value: (r) => num(r.pending), sort: (r) => r.pending },
-    ]);
     renderTable("mine-plays", T("My_Method").filter(lg), [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
@@ -1158,10 +1147,6 @@ const DATA = /*__DATA__*/null;
       { label: "Cách đánh", value: (r) => (r.method === "follow" ? "Theo (T2–6)" : "Ngược (T7–CN)") },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
       { label: "Kết quả", value: (r) => (r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
-      { label: "Đồng thuận", value: (r) => (r.unanimous ? "Có" : "–"), sort: (r) => (r.unanimous ? 1 : 0) },
-      { label: "Biến thể", value: (r) => (r.alt_pick === r.pick ? el("span", { class: "muted", text: "giống" })
-          : el("span", {}, el("b", { text: r.alt_pick + fmtLine(r.alt_line) }), " ",
-              r.alt_result ? resultPill(r.alt_result) : el("span", { class: "pill info", text: "Chờ" }))) },
     ], null, withHot({ pageSize: 25 }));
   }
 

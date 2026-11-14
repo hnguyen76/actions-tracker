@@ -28,8 +28,8 @@ def test_build_tables_empty_db_without_public(tmp_path):
                       "Expert_Form", "Expert_Form_Now",
                       "History_Plays", "History_Summary", "History_Weekly",
                       "Upcoming_Board", "Rule_Summary", "Rule_Plays", "Expert_CLV", "Decisions", "Data_Quality",
-                      "My_Method", "My_Method_Summary", "My_Method_Variant"}
-    assert all(df.empty for name, df in t.items() if name not in {"Rule_Summary", "Data_Quality", "My_Method_Summary", "My_Method_Variant"})
+                      "My_Method", "My_Method_Summary"}
+    assert all(df.empty for name, df in t.items() if name not in {"Rule_Summary", "Data_Quality", "My_Method_Summary"})
     assert len(t["My_Method_Summary"]) == 9 and (t["My_Method_Summary"].n == 0).all()
     assert t["Data_Quality"].iloc[0].excluded_late_picks == 0
     assert len(t["Rule_Summary"]) == len(RULES) and (t["Rule_Summary"].n == 0).all()  # one row per rule, no plays yet

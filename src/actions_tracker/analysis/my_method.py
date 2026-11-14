@@ -14,11 +14,9 @@ from actions_tracker.config import TZ
 MIN_PICKS = 5
 LEAGUES = ("nfl", "ncaaf")
 PLAY_COLS = ["game_id", "league", "start_time", "et_date", "day_group", "match", "crowd", "votes", "total_votes",
-             "method", "bet_side", "pick", "line", "odds", "status", "result",
-             "unanimous", "alt_pick", "alt_line", "alt_result"]
+             "method", "bet_side", "pick", "line", "odds", "status", "result"]
 SUMMARY_COLS = (["league", "day_group", "method", "hist_wins", "hist_losses", "hist_pushes", "hist_win_pct", "hist_n"]
                 + SUMMARY_KEYS + ["pending"])
-VARIANT_COLS = ["league", "group", "how", "hist_wins", "hist_losses", "hist_pushes", "hist_win_pct", "hist_n"]     + SUMMARY_KEYS + ["pending"]
 _FLIP = {"win": "loss", "loss": "win", "push": "push"}
 _OTHER = {"home": "away", "away": "home"}
 
@@ -58,11 +56,6 @@ def my_method_plays(cg: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
         team = lambda s: r.home_abbr if s == "home" else r.away_abbr  # noqa: E731
         res = r.side_result if isinstance(r.side_result, str) else None
         result = res if weekday or res is None else _FLIP.get(res, res)
-        # variant (tracked since 2026-11-14): on Sat-Sun a unanimous crowd (n/n) is followed instead of faded
-        unanimous = int(r.votes) == int(r.total_votes)
-        alt_follow = weekday or unanimous
-        alt_bet = r.side if alt_follow else _OTHER[r.side]
-        alt_result = res if alt_follow or res is None else _FLIP.get(res, res)
         rows.append({
             "game_id": int(r.game_id), "league": r.league, "start_time": r.start_time,
             "et_date": local.strftime("%Y-%m-%d"), "day_group": "T2-6" if weekday else "T7-CN",
@@ -71,8 +64,6 @@ def my_method_plays(cg: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
             "pick": team(bet), "line": _bet_line(picks, r.game_id, bet),
             "odds": r.side_odds if weekday else r.opp_odds,
             "status": "graded" if result else "pending", "result": result,
-            "unanimous": unanimous, "alt_pick": team(alt_bet),
-            "alt_line": _bet_line(picks, r.game_id, alt_bet) if alt_bet != bet else None, "alt_result": alt_result,
         })
     out = pd.DataFrame(rows, columns=PLAY_COLS)
     return out.sort_values("start_time", ascending=False, kind="stable").reset_index(drop=True).astype(object)
@@ -112,34 +103,3 @@ def my_method_summary(plays: pd.DataFrame, sides: pd.DataFrame) -> pd.DataFrame:
                          "hist_win_pct": hw / (hw + hl) if hw + hl else None, "hist_n": hw + hl, **s,
                          "pending": int((mine["status"] == "pending").sum()) if len(mine) else 0})
     return pd.DataFrame(rows, columns=SUMMARY_COLS)
-
-
-def _hist_variant(sides: pd.DataFrame, league: str, unanimous: bool) -> tuple[int, int, int]:
-    """Season look-back of the variant on Sat-Sun: unanimous -> follow, otherwise -> fade."""
-    if sides.empty:
-        return 0, 0, 0
-    s = sides[(sides["market"] == "spread") & (sides["picks"] > sides["opp_picks"]) & (sides["day_group"] == "T7-CN")
-              & (sides["picks"] + sides["opp_picks"] >= MIN_PICKS) & sides["result"].notna()
-              & ((sides["opp_picks"] == 0) == unanimous)]
-    s = s[s["league"] == league] if league != "ALL" else s[s["league"].isin(LEAGUES)]
-    res = s["result"] if unanimous else s["result"].map(_FLIP)
-    return int((res == "win").sum()), int((res == "loss").sum()), int((res == "push").sum())
-
-
-def variant_summary(plays: pd.DataFrame, sides: pd.DataFrame) -> pd.DataFrame:
-    """Sat-Sun split by unanimity: all experts on one side (follow) vs a mixed crowd (fade)."""
-    rows = []
-    for league in (*LEAGUES, "ALL"):
-        for unanimous in (True, False):
-            mine = plays if plays.empty else plays[((plays["league"] == league) | (league == "ALL"))
-                                                   & (plays["day_group"] == "T7-CN")
-                                                   & (plays["unanimous"] == unanimous)]
-            graded = mine[mine["alt_result"].notna()] if len(mine) else mine
-            s = summarize(list(graded["alt_result"]) if len(graded) else [], [None] * len(graded))
-            hw, hl, hp = _hist_variant(sides, league, unanimous)
-            rows.append({"league": league, "group": "unanimous" if unanimous else "mixed",
-                         "how": "follow" if unanimous else "fade",
-                         "hist_wins": hw, "hist_losses": hl, "hist_pushes": hp,
-                         "hist_win_pct": hw / (hw + hl) if hw + hl else None, "hist_n": hw + hl, **s,
-                         "pending": int(mine["alt_result"].isna().sum()) if len(mine) else 0})
-    return pd.DataFrame(rows, columns=VARIANT_COLS)

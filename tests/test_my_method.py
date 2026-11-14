@@ -2,8 +2,7 @@
 
 import pandas as pd
 
-from actions_tracker.analysis.my_method import (PLAY_COLS, SUMMARY_COLS, VARIANT_COLS, my_method_plays,
-                                                my_method_summary, variant_summary)
+from actions_tracker.analysis.my_method import PLAY_COLS, SUMMARY_COLS, my_method_plays, my_method_summary
 
 
 def _cg(rows):
@@ -56,27 +55,3 @@ def test_summary_live_and_season_lookback():
     assert (r.loc[("ncaaf", "T2-6"), "hist_wins"], r.loc[("ncaaf", "T7-CN"), "hist_losses"]) == (1, 1)
     assert (r.loc[("ALL", "ALL"), "wins"], r.loc[("ALL", "ALL"), "losses"], r.loc[("ALL", "ALL"), "pending"]) == (1, 1, 1)
     assert r.loc[("nfl", "T2-6"), "method"] == "follow" and r.loc[("nfl", "T7-CN"), "method"] == "fade"
-
-
-
-def test_variant_follows_a_unanimous_weekend_crowd():
-    cg = _cg([
-        # Sat, 6 of 6 on the away side -> base fades (home, loses), variant follows (away, wins)
-        dict(game_id=7, league="ncaaf", start_time="2026-11-14T17:00:00.000Z", side="away", votes=6, total_votes=6,
-             side_result="win"),
-        # Sat, 6 of 7 -> both fade
-        dict(game_id=8, league="ncaaf", start_time="2026-11-14T17:00:00.000Z", side="home", votes=6, total_votes=7,
-             side_result="loss"),
-    ])
-    p = my_method_plays(cg, pd.DataFrame(columns=["game_id", "market", "pick_side", "line", "close_line"])).set_index("game_id")
-    assert (p.loc[7, "unanimous"], p.loc[7, "pick"], p.loc[7, "alt_pick"], p.loc[7, "result"], p.loc[7, "alt_result"])         == (True, "HOM", "AWY", "loss", "win")
-    assert (p.loc[8, "unanimous"], p.loc[8, "alt_pick"], p.loc[8, "alt_result"]) == (False, "AWY", "win")
-    sides = pd.DataFrame([
-        dict(league="ncaaf", market="spread", day_group="T7-CN", picks=6, opp_picks=0, result="win"),   # follow -> win
-        dict(league="ncaaf", market="spread", day_group="T7-CN", picks=6, opp_picks=1, result="win"),   # fade -> loss
-    ])
-    v = variant_summary(my_method_plays(cg, pd.DataFrame(columns=["game_id", "market", "pick_side", "line", "close_line"])), sides)
-    assert list(v.columns) == VARIANT_COLS and len(v) == 6
-    r = v.set_index(["league", "group"])
-    assert (r.loc[("ncaaf", "unanimous"), "hist_wins"], r.loc[("ncaaf", "unanimous"), "wins"]) == (1, 1)
-    assert (r.loc[("ncaaf", "mixed"), "hist_losses"], r.loc[("ncaaf", "mixed"), "wins"]) == (1, 1)
