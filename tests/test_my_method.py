@@ -86,15 +86,15 @@ def test_season_uses_history_then_live_games_not_in_it():
 
 
 
-def test_sensitivity_by_pick_threshold():
+def test_sensitivity_by_pick_threshold_and_crowd_type():
     plays = pd.DataFrame([
-        dict(league="ncaaf", day_group="T7-CN", total_votes=5, result="win", odds=-110),
-        dict(league="ncaaf", day_group="T7-CN", total_votes=9, result="loss", odds=-110),
-        dict(league="ncaaf", day_group="T2-6", total_votes=12, result="win", odds=-110),
-        dict(league="ncaaf", day_group="T2-6", total_votes=12, result=None, odds=-110),   # pending -> ignored
+        dict(league="ncaaf", day_group="T7-CN", votes=5, total_votes=5, result="win", odds=-110),     # unanimous
+        dict(league="ncaaf", day_group="T7-CN", votes=8, total_votes=9, result="loss", odds=-110),    # mixed
+        dict(league="ncaaf", day_group="T2-6", votes=12, total_votes=12, result="win", odds=-110),
+        dict(league="ncaaf", day_group="T2-6", votes=12, total_votes=12, result=None, odds=-110),     # pending
     ])
-    s = season_sensitivity(plays).set_index(["league", "min_picks", "day_group"])
-    assert (s.loc[("ncaaf", 5, "ALL"), "wins"], s.loc[("ncaaf", 5, "ALL"), "losses"]) == (2, 1)
-    assert (s.loc[("ncaaf", 9, "ALL"), "wins"], s.loc[("ncaaf", 9, "ALL"), "losses"]) == (1, 1)
-    assert (s.loc[("ncaaf", 10, "ALL"), "n"], s.loc[("ncaaf", 10, "T2-6"), "wins"]) == (1, 1)
-    assert s.loc[("nfl", 8, "ALL"), "n"] == 0
+    s = season_sensitivity(plays).set_index(["league", "min_picks", "crowd_type", "day_group"])
+    assert (s.loc[("ncaaf", 5, "ALL", "ALL"), "wins"], s.loc[("ncaaf", 5, "ALL", "ALL"), "losses"]) == (2, 1)
+    assert (s.loc[("ncaaf", 5, "unanimous", "ALL"), "wins"], s.loc[("ncaaf", 5, "mixed", "ALL"), "losses"]) == (2, 1)
+    assert (s.loc[("ncaaf", 9, "mixed", "T7-CN"), "losses"], s.loc[("ncaaf", 10, "unanimous", "T2-6"), "wins"]) == (1, 1)
+    assert s.loc[("nfl", 8, "ALL", "ALL"), "n"] == 0

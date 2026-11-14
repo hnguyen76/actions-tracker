@@ -1360,9 +1360,14 @@ const DATA = /*__DATA__*/null;
           el("div", { class: "s", text: r ? `${wl(r)} · ROI ${signed(r.roi)}` : "" }));
       }));
       const SN = T("My_Method_Sensitivity").filter((r) => r.league === lg);
-      const sens = (k, dg) => SN.find((r) => Number(r.min_picks) === k && r.day_group === dg);
-      renderTable("season-sens-" + lg, [5, 8, 9, 10].map((k) => ({ k, a: sens(k, "T2-6"), b: sens(k, "T7-CN"), c: sens(k, "ALL") })), [
-        { label: "Số picks", value: (r) => `≥ ${r.k} picks`, sort: (r) => r.k },
+      const sens = (k, ct, dg) => SN.find((r) => Number(r.min_picks) === k && r.crowd_type === ct && r.day_group === dg);
+      const CT = { ALL: "Tất cả", unanimous: "Đồng thuận (n/n)", mixed: "Không đồng thuận" };
+      const sensRows = [];
+      for (const k of [5, 8, 9, 10]) for (const ct of ["ALL", "unanimous", "mixed"])
+        sensRows.push({ k, ct, a: sens(k, ct, "T2-6"), b: sens(k, ct, "T7-CN"), c: sens(k, ct, "ALL") });
+      renderTable("season-sens-" + lg, sensRows, [
+        { label: "Số picks", value: (r) => (r.ct === "ALL" ? `≥ ${r.k} picks` : ""), cls: (r) => (r.ct === "ALL" ? "strong" : ""), sort: (r) => r.k },
+        { label: "Đám đông", value: (r) => CT[r.ct], cls: (r) => (r.ct === "ALL" ? "strong" : ""), sort: (r) => r.ct },
         { label: "Thứ 2–6 · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
         { label: "Thứ 7–CN · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
         { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },

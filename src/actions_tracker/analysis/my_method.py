@@ -168,18 +168,22 @@ def season_summary(plays: pd.DataFrame) -> pd.DataFrame:
 
 
 SENSITIVITY_THRESHOLDS = (5, 8, 9, 10)
-SENSITIVITY_COLS = ["league", "min_picks", "day_group"] + SUMMARY_KEYS
+SENSITIVITY_COLS = ["league", "min_picks", "crowd_type", "day_group"] + SUMMARY_KEYS
 
 
 def season_sensitivity(plays: pd.DataFrame) -> pd.DataFrame:
-    """The same method with a higher pick threshold: >= 5 / 8 / 9 / 10 picks on the market."""
+    """The same method with a higher pick threshold (>= 5 / 8 / 9 / 10 picks on the market), also split by
+    crowd type: unanimous (every pick on one side, 5/5) vs mixed (someone took the other side, 8/9)."""
     rows = []
     for league in LEAGUES:
         mine = plays[(plays["league"] == league) & plays["result"].notna()] if len(plays) else plays
         for k in SENSITIVITY_THRESHOLDS:
             sel = mine[pd.to_numeric(mine["total_votes"]) >= k] if len(mine) else mine
-            for dg in ("T2-6", "T7-CN", "ALL"):
-                g = sel if dg == "ALL" else (sel[sel["day_group"] == dg] if len(sel) else sel)
-                rows.append({"league": league, "min_picks": k, "day_group": dg,
-                             **summarize(list(g["result"]) if len(g) else [], list(g["odds"]) if len(g) else [])})
+            unan = (pd.to_numeric(sel["votes"]) == pd.to_numeric(sel["total_votes"])) if len(sel) else None
+            for crowd in ("ALL", "unanimous", "mixed"):
+                c = sel if crowd == "ALL" or not len(sel) else (sel[unan] if crowd == "unanimous" else sel[~unan])
+                for dg in ("T2-6", "T7-CN", "ALL"):
+                    g = c if dg == "ALL" else (c[c["day_group"] == dg] if len(c) else c)
+                    rows.append({"league": league, "min_picks": k, "crowd_type": crowd, "day_group": dg,
+                                 **summarize(list(g["result"]) if len(g) else [], list(g["odds"]) if len(g) else [])})
     return pd.DataFrame(rows, columns=SENSITIVITY_COLS)
