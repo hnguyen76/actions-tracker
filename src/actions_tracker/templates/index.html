@@ -233,6 +233,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
+    <button role="tab" data-tab="nba" aria-selected="false">NBA ≥ 7 picks</button>
   </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
@@ -377,6 +378,19 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h2>Danh sách kèo</h2>
       <div class="filters" style="margin-top:0"><label>Tuần<select id="hist-week"></select></label></div>
       <div class="table-scroll" id="hist-plays"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-nba">
+    <div class="card">
+      <h2>NBA — kèo sắp đá có từ 7 picks trở lên</h2>
+      <details class="howto"><summary>Cách đọc</summary><p>Chỉ NBA, chỉ kèo (spread, total, moneyline) có <b>tổng từ 7 picks trở lên</b> — mỗi expert một phiếu, lấy pick cuối trước giờ đá. Không theo bộ lọc Giải/Loại kèo ở trên. Kèo đã đá được chấm theo line đóng cửa (The Odds API), thiếu thì dùng median line của expert.</p></details>
+      <div class="table-scroll" id="nba-up"></div>
+    </div>
+    <div class="card">
+      <h2>NBA — kèo đã chấm có từ 7 picks</h2>
+      <div class="verdict" id="nba-sum"></div>
+      <div class="table-scroll" id="nba-past"></div>
     </div>
   </section>
 
@@ -1217,11 +1231,46 @@ const DATA = /*__DATA__*/null;
     ], null, { pageSize: 50 });
   }
 
+  const NBA_MIN_PICKS = 7;
+  function nbaTab() {
+    const nowIso = new Date().toISOString();
+    const up = T("Upcoming_Board").filter((r) => r.league === "nba" && Number(r.total_votes) >= NBA_MIN_PICKS
+      && String(r.start_time) > nowIso);
+    renderTable("nba-up", up, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${r.away_abbr || "?"} @ ${r.home_abbr || "?"}` },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Bên 1", value: (r) => boardSide(r, "a") },
+      { label: "Bên 2", value: (r) => boardSide(r, "b") },
+      { label: "Picks", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
+    ], null, HOT);
+    if (!up.length) document.getElementById("nba-up").replaceChildren(el("div", { class: "empty",
+      text: `Chưa có kèo NBA sắp đá nào có từ ${NBA_MIN_PICKS} picks. Hiện mỗi kèo NBA thường chỉ có 2–4 expert — có là hiện ở đây.` }));
+    const past = T("Past_Plays").filter((r) => r.league === "nba" && Number(r.total_votes) >= NBA_MIN_PICKS);
+    const w = past.filter((r) => r.side_result === "win").length, l = past.filter((r) => r.side_result === "loss").length,
+      pu = past.filter((r) => r.side_result === "push").length;
+    const sum = document.getElementById("nba-sum");
+    sum.className = "verdict";
+    sum.replaceChildren(el("div", { class: "verdict-main", text: past.length
+        ? `Theo đa số: ${w}-${l}-${pu} · ${w + l ? pct(w / (w + l)) : "–"}` : "Chưa có kèo nào đã chấm" }),
+      el("div", { class: "verdict-sub", text: past.length
+        ? `${past.length} kèo NBA có từ ${NBA_MIN_PICKS} picks. Hòa vốn ở −110 là 52,4%; dưới 20 kèo là chưa đủ mẫu.`
+        : `Kèo NBA có từ ${NBA_MIN_PICKS} picks sẽ được chấm ở đây sau khi đá xong.` }));
+    renderTable("nba-past", past, [
+      { label: "Ngày", value: (r) => r.et_date, sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Đa số chọn", value: (r) => `${r.pick} (${num(r.votes)}/${num(r.total_votes)})` },
+      { label: "Kết quả đa số", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
+    ], null, withHot({ pageSize: 25 }));
+    if (!past.length) document.getElementById("nba-past").replaceChildren();
+  }
+
   function render() {
     kpis();
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
     const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, consensus: consensusTab,
-      experts: expertsTab, trend: trendTab, history: historyTab };
+      experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();
   }
 
