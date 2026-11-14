@@ -634,7 +634,15 @@ const DATA = /*__DATA__*/null;
     return span;
   }
 
-  const BOARD_STATUS = { majority: "Đa số (bảng trên)", split: "Chia đôi", few: "Ít picks (< 3)" };
+  const BOARD_STATUS = { majority: "Có đa số", split: "Chia đều", few: "Ít picks (< 3)" };
+  // status of a game x market from the upcoming board (rows of other tables only carry game_id + market)
+  let boardStatus = null;
+  const statusOf = (r) => {
+    if (!boardStatus) boardStatus = new Map(T("Upcoming_Board").map((x) => [`${x.game_id}|${x.market}`, x.status]));
+    return BOARD_STATUS[r.status] ? r.status : boardStatus.get(`${r.game_id}|${r.market}`) || (r.votes ? "majority" : "few");
+  };
+  const statusPill = (r) => { const st = statusOf(r); return el("span", { class: "pill " + (st === "majority" ? "info" : "dim"), text: BOARD_STATUS[st] || st }); };
+  const STATUS_COL = { label: "Trạng thái", value: statusPill, sort: (r) => statusOf(r) };
   // "WAS +2,5: 3" = side, the experts' median line on that side, number of experts
   function boardSide(r, which) {
     const side = r[which + "_side"], votes = r[which + "_votes"], line = r[which + "_line"];
@@ -720,6 +728,7 @@ const DATA = /*__DATA__*/null;
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
       { label: "Expert", value: (r) => nExp(r), sort: (r) => nExp(r) },
+      STATUS_COL,
       { label: "Quyết định", value: actionPill, sort: (r) => r.action },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", cls: () => "cell-wrap", value: (r) => el("div", {}, el("div", { text: r.reason }),
@@ -748,6 +757,7 @@ const DATA = /*__DATA__*/null;
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Expert", value: (r) => r.pick },
+      STATUS_COL,
     ], null, HOT);
   }
 
@@ -771,6 +781,7 @@ const DATA = /*__DATA__*/null;
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => sideName(r) },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
+      STATUS_COL,
       { label: "Lịch sử (live)", num: true, value: (r) => histCell(r.hist_win_pct, r.hist_n), sort: (r) => r.hist_win_pct },
       { label: "Lịch sử mùa", num: true, value: (r) => histCell(r.season_win_pct, r.season_n, GROUP_LABEL[r.day_group]), sort: (r) => r.season_win_pct },
     ], null, HOT);
@@ -1278,7 +1289,7 @@ const DATA = /*__DATA__*/null;
       { label: "Bên 1", value: (r) => boardSide(r, "a") },
       { label: "Bên 2", value: (r) => boardSide(r, "b") },
       { label: "Picks", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
-      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: ({ majority: "Có đa số", split: "Chia đều", few: "Ít picks (< 3)" })[r.status] || r.status }), sort: (r) => r.status },
+      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: BOARD_STATUS[r.status] || r.status }), sort: (r) => r.status },
     ], null, withHot({ pageSize: 30 }));
     if (!all.length) document.getElementById("nba-all").replaceChildren(el("div", { class: "empty", text: "Chưa có trận NBA sắp đá nào có picks." }));
   }
