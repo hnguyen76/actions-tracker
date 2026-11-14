@@ -1,7 +1,8 @@
 """Frozen betting rules, logged before kickoff and graded after (forward test / paper trading).
 
-The three rules were chosen on 2026-11-12 from the season history (NCAAF weeks 1-10) and must not be tuned
-while they are being tested. Each run re-evaluates the upcoming games; the last evaluation before a game
+The first three rules were chosen on 2026-11-12 from the season history (NCAAF weeks 1-10), the fourth
+(the user's weekday/weekend spread idea) on 2026-11-14 from NCAAF weeks 1-11; none may be tuned while it is
+being tested. Each run re-evaluates the upcoming games; the last evaluation before a game
 starts is the one that counts (same policy as closing lines). History used pick counts from the By-Game
 cards; live uses one vote per expert, so the forward test is also a check that the rule survives that change.
 """
@@ -27,7 +28,13 @@ RULES = [
      "name": "NCAAF spread: đánh ngược consensus đội khách underdog",
      "how": "Đa số expert (≥ 3) chọn spread đội khách và đội khách là underdog → đặt đội nhà (favorite).",
      "hist_wins": 74, "hist_losses": 54},
+    {"id": "ncaaf_spread_daygroup", "league": "ncaaf", "market": "spread",
+     "name": "NCAAF spread: Thứ 2–6 theo đa số, Thứ 7–CN đánh ngược",
+     "how": "Kèo spread có ≥ 5 expert và một bên nhiều hơn: trận Thứ 2–6 (giờ miền Đông) → đặt bên đa số; "
+            "trận Thứ 7–CN → đặt bên còn lại.",
+     "hist_wins": 143, "hist_losses": 122},
 ]
+DAYGROUP_MIN_VOTES = 5  # rule 4 needs at least this many experts on the spread
 RULE_LEAGUES = sorted({r["league"] for r in RULES})
 
 
@@ -74,7 +81,17 @@ def evaluate(conn: sqlite3.Connection, now: str) -> list[dict]:
                 add("ncaaf_total_day_fade", r.game_id, "total", bet,
                     line if line is not None else expert_line(r.game_id, "total"),
                     f"consensus {r.side} {votes} · đá {hour}h ET")
-        elif r.market == "spread" and r.side == "away":
+        if r.market == "spread" and r.total_votes >= DAYGROUP_MIN_VOTES:
+            weekday = pd.Timestamp(game["start_time"]).tz_convert(TZ).day_of_week <= 4
+            bet = r.side if weekday else opposite(r.side)
+            line = split(r.game_id, "spread", bet, "line")
+            if line is None:
+                maj = expert_line(r.game_id, "spread", r.side)
+                line = None if maj is None else (maj if weekday else -maj)
+            team = game["home_abbr"] if r.side == "home" else game["away_abbr"]
+            add("ncaaf_spread_daygroup", r.game_id, "spread", bet, line,
+                f"đa số {team} {votes} · {'Thứ 2–6: theo' if weekday else 'Thứ 7–CN: đánh ngược'}")
+        if r.market == "spread" and r.side == "away":
             away_line = split(r.game_id, "spread", "away", "line")
             if away_line is None:
                 away_line = expert_line(r.game_id, "spread", "away")

@@ -89,7 +89,8 @@ def test_rules_match_expected_plays(tmp_path):
     assert (got[("ncaaf_spread_away_dog_fade", 1)]["bet_side"], got[("ncaaf_spread_away_dog_fade", 1)]["line"]) \
         == ("home", -7.0)
     assert got[("ncaaf_total_money", 2)]["bet_side"] == "under"
-    assert {r["id"] for r in RULES} == {"ncaaf_total_day_fade", "ncaaf_total_money", "ncaaf_spread_away_dog_fade"}
+    assert {r["id"] for r in RULES} == {"ncaaf_total_day_fade", "ncaaf_total_money", "ncaaf_spread_away_dog_fade",
+                                        "ncaaf_spread_daygroup"}
 
 
 def test_no_play_for_tie_few_experts_or_away_favourite(tmp_path):
@@ -148,3 +149,21 @@ def test_rule_pass_requires_confidence_interval_above_break_even():
     assert rule_summary(plays).set_index("rule_id").loc[rid].decision == "watch"
     plays["result"] = ["win" if i < 70 else "loss" for i in range(100)]
     assert rule_summary(plays).set_index("rule_id").loc[rid].decision == "pass"
+
+
+def test_daygroup_rule_follows_on_weekdays_and_fades_on_weekends(tmp_path):
+    c = _conn(tmp_path)
+    fri = dict(id=4, league="ncaaf", start_time="2026-11-14T00:30:00.000Z", home_abbr="FHM", away_abbr="FAW")  # Fri 19:30 ET
+    db.upsert_games(c, [fri], "t")
+    # Saturday game 1: 4 of 5 experts on the home favourite -> fade to the away side at the public line
+    _picks(c, 1, "spread", ["home", "home", "home", "home", "away"], line={"home": -3.5, "away": 3.5})
+    # Friday game 4: 4 of 5 on the away side -> follow (no public line: the experts' median is used)
+    _picks(c, 4, "spread", ["away", "away", "away", "away", "home"], line={"away": -2.5, "home": 2.5})
+    # Saturday game 2: only 4 experts -> rule 4 does not apply
+    _picks(c, 2, "spread", ["home", "home", "home", "away"], line={"home": -1.5, "away": 1.5})
+    db.upsert_public(c, [_split(1, "spread", "away", 4.0, 40, 40), _split(1, "spread", "home", -4.0, 60, 60)], NOW)
+    got = {p["game_id"]: p for p in evaluate(c, NOW) if p["rule_id"] == "ncaaf_spread_daygroup"}
+    assert set(got) == {1, 4}
+    assert (got[1]["bet_side"], got[1]["line"]) == ("away", 4.0)
+    assert (got[4]["bet_side"], got[4]["line"]) == ("away", -2.5)
+    assert "Thứ 7–CN" in got[1]["basis"] and "Thứ 2–6" in got[4]["basis"]
