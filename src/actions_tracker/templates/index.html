@@ -642,6 +642,14 @@ const DATA = /*__DATA__*/null;
     return BOARD_STATUS[r.status] ? r.status : boardStatus.get(`${r.game_id}|${r.market}`) || (r.votes ? "majority" : "few");
   };
   const statusPill = (r) => { const st = statusOf(r); return el("span", { class: "pill " + (st === "majority" ? "info" : "dim"), text: BOARD_STATUS[st] || st }); };
+  // "8/9" = experts on the bigger side / experts on the market (from the upcoming board)
+  let boardRow = null;
+  const boardOf = (r) => {
+    if (!boardRow) boardRow = new Map(T("Upcoming_Board").map((x) => [`${x.game_id}|${x.market}`, x]));
+    return boardRow.get(`${r.game_id}|${r.market}`);
+  };
+  const crowdCount = (r) => { const b = boardOf(r); return b ? `${num(Math.max(b.a_votes, b.b_votes))}/${num(b.total_votes)}` : "–"; };
+  const crowdShare = (r) => { const b = boardOf(r); return b && b.total_votes ? Math.max(b.a_votes, b.b_votes) / b.total_votes : -1; };
   const STATUS_COL = { label: "Trạng thái", value: statusPill, sort: (r) => statusOf(r) };
   // "WAS +2,5: 3" = side, the experts' median line on that side, number of experts
   function boardSide(r, which) {
@@ -729,10 +737,8 @@ const DATA = /*__DATA__*/null;
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
       { label: "Expert", value: (r) => nExp(r), sort: (r) => nExp(r) },
       STATUS_COL,
-      { label: "Quyết định", value: actionPill, sort: (r) => r.action },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
-      { label: "Vì sao", cls: () => "cell-wrap", value: (r) => el("div", {}, el("div", { text: r.reason }),
-          r.evidence ? el("div", { class: "rule-how", text: r.evidence }) : null) },
+      { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
     ];
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
