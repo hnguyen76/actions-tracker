@@ -392,6 +392,11 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <div class="verdict" id="nba-sum"></div>
       <div class="table-scroll" id="nba-past"></div>
     </div>
+    <div class="card">
+      <h2>NBA — tất cả trận sắp đá có picks</h2>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
+      <div class="table-scroll" id="nba-all"></div>
+    </div>
   </section>
 
   <footer>Picks và % public (NCAAF): Action Network (trang công khai, tự thu thập). Tỉ số và line dữ liệu live: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
@@ -1264,6 +1269,18 @@ const DATA = /*__DATA__*/null;
       { label: "Kết quả đa số", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
     ], null, withHot({ pageSize: 25 }));
     if (!past.length) document.getElementById("nba-past").replaceChildren();
+    const all = T("Upcoming_Board").filter((r) => r.league === "nba" && String(r.start_time) > nowIso)
+      .sort((a, b) => (a.start_time < b.start_time ? -1 : a.start_time > b.start_time ? 1 : String(a.market).localeCompare(b.market)));
+    renderTable("nba-all", all, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${r.away_abbr || "?"} @ ${r.home_abbr || "?"}` },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Bên 1", value: (r) => boardSide(r, "a") },
+      { label: "Bên 2", value: (r) => boardSide(r, "b") },
+      { label: "Picks", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
+      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: ({ majority: "Có đa số", split: "Chia đều", few: "Ít picks (< 3)" })[r.status] || r.status }), sort: (r) => r.status },
+    ], null, withHot({ pageSize: 30 }));
+    if (!all.length) document.getElementById("nba-all").replaceChildren(el("div", { class: "empty", text: "Chưa có trận NBA sắp đá nào có picks." }));
   }
 
   function render() {
