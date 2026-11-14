@@ -1,0 +1,105 @@
+"""Telegram alert before kickoff: which games are due, what the message says, sent once."""
+
+import pandas as pd
+
+from actions_tracker import alerts, db
+from actions_tracker.cli import alert, telegram_setup
+
+NOW = "2026-11-14T23:00:00.000Z"          # Sat 18:00 ET
+SOON = "2026-11-14T23:15:00.000Z"         # 18:15 ET -> due
+LATER = "2026-11-15T00:30:00.000Z"        # 19:30 ET -> not yet
+
+
+def _db(tmp_path):
+    c = db.connect(tmp_path / "a.db")
+    db.upsert_games(c, [dict(id=1, league="ncaaf", start_time=SOON, home_abbr="UK", away_abbr="FLA"),
+                        dict(id=2, league="ncaaf", start_time=SOON, home_abbr="UCF", away_abbr="ASU"),
+                        dict(id=3, league="ncaaf", start_time=LATER, home_abbr="LSU", away_abbr="TEX"),
+                        dict(id=4, league="nfl", start_time=SOON, home_abbr="NOP", away_abbr="NOK")], "t")
+    db.upsert_picks(c, [dict(id=10 + g, expert_id=1, game_id=g, league="ncaaf", market="spread", pick_side="home",
+                             created_at="2026-11-14T10:00:00.000Z") for g in (1, 2, 3)], "t")
+    return c
+
+
+def _tables():
+    decisions = pd.DataFrame([
+        dict(game_id=1, market="spread", action="paper", pick="UK -3", stake_u=0.0,
+             reason="NCAAF spread: Thứ 2–6 theo đa số, Thứ 7–CN đánh ngược: đa số FLA 3/5"),
+        dict(game_id=2, market="total", action="paper", pick="Under 46,5", stake_u=0.0, reason="NCAAF total"),
+        dict(game_id=2, market="spread", action="skip", pick="Đa số chọn UCF (4/5)", stake_u=0.0, reason="x"),
+    ])
+    board = pd.DataFrame([dict(game_id=1, market="spread", total_votes=5), dict(game_id=2, market="total", total_votes=3),
+                          dict(game_id=2, market="spread", total_votes=5)])
+    return {"Decisions": decisions, "Upcoming_Board": board}
+
+
+def test_due_games_only_soon_with_picks_and_not_sent(tmp_path):
+    c = _db(tmp_path)
+    assert [g["id"] for g in alerts.due_games(c, NOW)] == [1, 2]   # game 3 is later, game 4 has no picks
+    alerts.mark_sent(c, [1], NOW)
+    assert [g["id"] for g in alerts.due_games(c, NOW)] == [2]
+
+
+def test_message_lists_games_and_hides_small_totals(tmp_path):
+    c = _db(tmp_path)
+    [msg] = alerts.build_messages(alerts.due_games(c, NOW), _tables(), NOW)
+    assert "18:15 ET Thứ 7 14/11" in msg and "còn 15 phút" in msg and "2 trận" in msg
+    assert "NCAAF · FLA @ UK" in msg and "theo dõi, chưa đặt tiền — <b>UK -3</b> · 5 expert" in msg
+    assert "Under 46,5" not in msg                       # total with 3 experts is hidden, like on the dashboard
+    assert "bỏ qua — Đa số chọn UCF (4/5)" in msg
+    assert "Không đặt tiền thật" in msg
+
+
+def test_long_slot_is_split_under_the_telegram_limit(tmp_path):
+    games = [dict(id=i, league="ncaaf", start_time=SOON, home_abbr=f"H{i}", away_abbr=f"A{i}") for i in range(80)]
+    decisions = pd.DataFrame([dict(game_id=i, market="spread", action="paper", pick=f"H{i} -3", stake_u=0.0,
+                                   reason="x" * 150) for i in range(80)])
+    msgs = alerts.build_messages(games, {"Decisions": decisions, "Upcoming_Board": pd.DataFrame()}, NOW)
+    assert len(msgs) > 1 and all(len(m) <= 4096 for m in msgs) and "(tiếp)" in msgs[1]
+
+
+class _Resp:
+    def __init__(self, code=200, data=None):
+        self.status_code, self.text, self._data = code, "", data or {}
+
+    def json(self):
+        return self._data
+
+
+def test_alert_sends_once_then_stays_quiet(tmp_path, monkeypatch):
+    c = _db(tmp_path)
+    c.close()
+    sent, runs = [], []
+    monkeypatch.setattr("actions_tracker.cli.run", lambda *a, **k: runs.append(k) or 0)
+    monkeypatch.setattr("actions_tracker.cli.build_tables", lambda *a: _tables())
+    post = lambda url, **k: sent.append((url, k["data"])) or _Resp()  # noqa: E731
+    args = (tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["ncaaf"], None, lambda: NOW, None)
+    assert alert(*args, ("TOKEN", "42"), post=post) == 0
+    assert runs == [{"budget": True}] and len(sent) == 1 and sent[0][1]["chat_id"] == "42"
+    assert alert(*args, ("TOKEN", "42"), post=post) == 0      # already announced -> no new message, no collection
+    assert len(sent) == 1 and len(runs) == 1
+
+
+def test_alert_without_telegram_config_does_not_mark_sent(tmp_path, capsys):
+    _db(tmp_path).close()
+    args = (tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["ncaaf"], None, lambda: NOW, None)
+    assert alert(*args, (None, None)) == 6
+    assert "telegram-setup" in capsys.readouterr().out
+    assert len(alerts.due_games(db.connect(tmp_path / "a.db"), NOW)) == 2
+
+
+def test_telegram_failure_keeps_games_due(tmp_path, monkeypatch):
+    _db(tmp_path).close()
+    monkeypatch.setattr("actions_tracker.cli.run", lambda *a, **k: 0)
+    monkeypatch.setattr("actions_tracker.cli.build_tables", lambda *a: _tables())
+    args = (tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["ncaaf"], None, lambda: NOW, None)
+    assert alert(*args, ("TOKEN", "42"), post=lambda url, **k: _Resp(401)) == 6
+    assert len(alerts.due_games(db.connect(tmp_path / "a.db"), NOW)) == 2
+
+
+def test_telegram_setup_saves_chat_id_and_sends_test(tmp_path):
+    (tmp_path / alerts.TOKEN_FILE).write_text("TOKEN\n", "utf-8")
+    sent = []
+    get = lambda url, **k: _Resp(data={"result": [{"message": {"chat": {"id": 777}}}]})  # noqa: E731
+    assert telegram_setup(tmp_path, get=get, post=lambda url, **k: sent.append(k["data"]) or _Resp()) == 0
+    assert (tmp_path / alerts.CHAT_FILE).read_text("utf-8") == "777" and sent[0]["chat_id"] == "777"

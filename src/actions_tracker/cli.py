@@ -294,6 +294,65 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
     return 0
 
 
+def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now_fn, odds_api,
+          telegram: tuple[str | None, str | None], post=None) -> int:
+    """Announce games that start soon on Telegram. Exit codes: 0 sent or nothing due, 6 Telegram not set up
+    or sending failed (games stay un-announced and are retried on the next run while they have not started)."""
+    from actions_tracker import alerts
+    conn = db.connect(db_path)
+    due = alerts.due_games(conn, now_fn())
+    conn.close()
+    if not due:
+        print("Khong co tran nao sap da can bao.")
+        return 0
+    token, chat = telegram
+    if not token or not chat:
+        print("CANH BAO: chua cau hinh Telegram (.telegram_bot_token / .telegram_chat_id) - "
+              "chay `python -m actions_tracker telegram-setup`.")
+        return 6
+    run(db_path, report_path, site_dir, leagues, fetcher, now_fn(), odds_api, budget=True)  # fresh data first
+    conn = db.connect(db_path)
+    now = now_fn()
+    due = alerts.due_games(conn, now)
+    if not due:
+        conn.close()
+        return 0
+    tables = build_tables(conn, now, Path(db_path).parent / "history")
+    try:
+        for text in alerts.build_messages(due, tables, now):
+            alerts.send_telegram(token, chat, text, **({"post": post} if post else {}))
+    except alerts.TelegramError as e:
+        print(f"LOI Telegram: {e}")
+        conn.close()
+        return 6
+    alerts.mark_sent(conn, [g["id"] for g in due], now)
+    conn.close()
+    print(f"Da gui Telegram: {len(due)} tran.")
+    return 0
+
+
+def telegram_setup(root: Path, get=None, post=None) -> int:
+    from actions_tracker import alerts
+    token, _ = alerts.load_telegram(root)
+    if not token:
+        print(f"Chua co token: tao bot voi @BotFather tren Telegram, dan token vao file {alerts.TOKEN_FILE} "
+              "trong thu muc repo, roi chay lai lenh nay.")
+        return 6
+    try:
+        chat = alerts.find_chat_id(token, **({"get": get} if get else {}))
+        if not chat:
+            print("Chua thay tin nhan nao gui toi bot: mo bot tren Telegram, bam Start (hoac gui 1 tin), roi chay lai.")
+            return 6
+        (Path(root) / alerts.CHAT_FILE).write_text(chat, "utf-8")
+        alerts.send_telegram(token, chat, "✅ Actions Expert Tracker đã kết nối. Bạn sẽ nhận danh sách kèo "
+                             "khoảng 15 phút trước mỗi giờ bóng lăn.", **({"post": post} if post else {}))
+    except alerts.TelegramError as e:
+        print(f"LOI Telegram: {e}")
+        return 6
+    print("Da ket noi Telegram va gui tin nhan thu.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="actions_tracker")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -305,13 +364,25 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--budget", action="store_true",
                    help="hourly schedule: fetch lines only before kickoffs and scores sparingly (saves credits)")
     r.add_argument("--offline", help="folder with {league}_picks.html and odds_{league}_{scores|odds}.json")
+    a = sub.add_parser("alert", help="send a Telegram message ~15 minutes before kickoff (run every 5 minutes)")
+    a.add_argument("--leagues", default=",".join(k for k, on in LEAGUES.items() if on))
+    a.add_argument("--db", default="data/actions.db")
+    a.add_argument("--report", default="reports/actions_report.xlsx")
+    a.add_argument("--site", default="site")
+    sub.add_parser("telegram-setup", help="find the chat id after you pressed Start in the bot, send a test message")
     args = ap.parse_args(argv)
+    if args.cmd == "telegram-setup":
+        return telegram_setup(Path.cwd())
     leagues = [x.strip() for x in args.leagues.split(",") if x.strip()]
-    if args.offline:
+    if getattr(args, "offline", None):
         fetcher, api = OfflineFetcher(Path(args.offline)), OfflineOddsApi(Path(args.offline))
     else:
         key = load_key(Path.cwd())
         fetcher, api = Fetcher(), (OddsApi(key) if key else None)
+    if args.cmd == "alert":
+        from actions_tracker.alerts import load_telegram
+        return alert(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now, api,
+                     load_telegram(Path.cwd()))
     return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget)
 
 
