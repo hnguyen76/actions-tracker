@@ -242,7 +242,7 @@ def _ungraded_past_games(conn, league: str, now: str) -> int:
 
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,
-        odds_api=None, budget: bool = False) -> int:
+        odds_api=None, budget: bool = False, telegram: tuple | None = None) -> int:
     """Exit codes: 0 ok, 1 every league failed, 2 page structure changed, 3 unexpected error,
     4 Excel file open, 5 no The Odds API key."""
     conn = db.connect(db_path)
@@ -278,6 +278,14 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
     meta = {"odds_api_remaining": int(remaining) if remaining is not None else None}
     build_site(tables, status, site_dir, report_path, now, meta)
     _alert_big_totals(tables.get("Upcoming_Board"))
+    if telegram:
+        from actions_tracker import alerts
+        try:
+            n = alerts.notify_rising(conn, tables.get("Upcoming_Board"), now, telegram)
+            if n:
+                print(f"Da bao Telegram: {n} keo vua len >= {alerts.RISE_PICKS} picks.")
+        except alerts.TelegramError as e:
+            print(f"LOI Telegram: {e}")
     total = conn.execute("SELECT count(*) FROM picks").fetchone()[0]
     print(f"Tong picks trong DB: {total}. Excel: {report_path}. Dashboard: {site_dir / 'index.html'}")
     conn.close()
@@ -310,7 +318,8 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
         print("CANH BAO: chua cau hinh Telegram (.telegram_bot_token / .telegram_chat_id) - "
               "chay `python -m actions_tracker telegram-setup`.")
         return 6
-    run(db_path, report_path, site_dir, leagues, fetcher, now_fn(), odds_api, budget=True)  # fresh data first
+    run(db_path, report_path, site_dir, leagues, fetcher, now_fn(), odds_api, budget=True,
+        telegram=telegram)  # fresh data first
     conn = db.connect(db_path)
     now = now_fn()
     due = alerts.due_games(conn, now)
@@ -383,7 +392,10 @@ def main(argv: list[str] | None = None) -> int:
         from actions_tracker.alerts import load_telegram
         return alert(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now, api,
                      load_telegram(Path.cwd()))
-    return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget)
+    from actions_tracker.alerts import load_telegram
+    tg = None if getattr(args, "offline", None) else load_telegram(Path.cwd())
+    return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget,
+               telegram=tg)
 
 
 if __name__ == "__main__":

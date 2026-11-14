@@ -150,3 +150,88 @@ def find_chat_id(token: str, get=requests.get) -> str | None:
     chats = [u.get("message", {}).get("chat", {}).get("id") for u in r.json().get("result", [])]
     chats = [c for c in chats if c is not None]
     return str(chats[-1]) if chats else None
+
+
+# --- a market just reached RISE_PICKS experts --------------------------------------------------------------
+RISE_PICKS = 5
+_RISE_SCHEMA = ("CREATE TABLE IF NOT EXISTS pick_rise_alerts(game_id INTEGER, market TEXT, threshold INTEGER, "
+                "votes TEXT, sent_at TEXT, PRIMARY KEY(game_id, market, threshold))")
+_SIDE = {"home": None, "away": None, "over": "Over", "under": "Under"}
+
+
+def rising_markets(conn: sqlite3.Connection, board: pd.DataFrame, now: str, threshold: int = RISE_PICKS) -> list[dict]:
+    """Upcoming game x market that now has >= threshold experts and was not reported yet."""
+    conn.execute(_RISE_SCHEMA)
+    if board is None or board.empty:
+        return []
+    seen = {(r[0], r[1]) for r in conn.execute("SELECT game_id, market FROM pick_rise_alerts WHERE threshold = ?",
+                                                (threshold,))}
+    up = board[(board["total_votes"] >= threshold) & (board["start_time"].astype(str) > now)]
+    return [r for r in up.to_dict("records") if (int(r["game_id"]), r["market"]) not in seen]
+
+
+def mark_rising(conn: sqlite3.Connection, rows: list[dict], now: str, threshold: int = RISE_PICKS) -> None:
+    conn.execute(_RISE_SCHEMA)
+    conn.executemany("INSERT OR IGNORE INTO pick_rise_alerts(game_id, market, threshold, votes, sent_at) "
+                     "VALUES (?, ?, ?, ?, ?)",
+                     [(int(r["game_id"]), r["market"], threshold, f"{r['a_votes']}-{r['b_votes']}", now) for r in rows])
+    conn.commit()
+
+
+def _side(r: dict, k: str) -> str:
+    side = r[f"{k}_side"]
+    name = r["home_abbr"] if side == "home" else r["away_abbr"] if side == "away" else _SIDE.get(side) or side
+    line = r.get(f"{k}_line")
+    if line is None or pd.isna(line) or r["market"] == "ml":
+        return f"{name} {int(r[f'{k}_votes'])}"
+    ln = f"+{line:g}" if r["market"] == "spread" and line > 0 else f"{line:g}"
+    return f"{name} {ln.replace('.', ',')} {int(r[f'{k}_votes'])}"
+
+
+def rising_messages(rows: list[dict], threshold: int = RISE_PICKS) -> list[str]:
+    head = f"📈 <b>Kèo vừa lên ≥ {threshold} picks</b> · {len(rows)} kèo"
+    blocks = []
+    for r in sorted(rows, key=lambda r: (r["start_time"], r["league"], r["market"])):
+        local = _local(r["start_time"])
+        blocks.append(
+            f"<b>{_LEAGUE.get(r['league'], r['league'].upper())} · {html.escape(r['away_abbr'])} @ "
+            f"{html.escape(r['home_abbr'])}</b> — {local:%H:%M} {_DAY[local.day_of_week]} {local:%d/%m}\n"
+            f"{_MARKET.get(r['market'], r['market'])}: {html.escape(_side(r, 'a'))} · {html.escape(_side(r, 'b'))} "
+            f"({int(r['total_votes'])} picks)")
+    messages, chunk = [], [head]
+    for block in blocks:
+        if len("\n\n".join(chunk + [block, DASHBOARD])) > TG_LIMIT and len(chunk) > 1:
+            messages.append("\n\n".join(chunk))
+            chunk = [head + " (tiếp)"]
+        chunk.append(block)
+    messages.append("\n\n".join(chunk + [DASHBOARD]))
+    return messages
+
+
+def notify_rising(conn: sqlite3.Connection, board: pd.DataFrame, now: str, telegram: tuple[str | None, str | None],
+                  post=requests.post) -> int:
+    """Send the markets that just reached RISE_PICKS experts. The first run only records what is already there
+    (no flood of old markets). Returns how many markets were reported."""
+    token, chat = telegram
+    if not token or not chat:
+        return 0
+    conn.execute(_RISE_SCHEMA)
+    first = conn.execute("SELECT count(*) FROM pick_rise_alerts").fetchone()[0] == 0 and \
+        db_meta(conn, "pick_rise_started") is None
+    rows = rising_markets(conn, board, now)
+    if first:
+        mark_rising(conn, rows, now)
+        conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('pick_rise_started', ?)", (now,))
+        conn.commit()
+        return 0
+    if not rows:
+        return 0
+    for text in rising_messages(rows):
+        send_telegram(token, chat, text, post=post)
+    mark_rising(conn, rows, now)
+    return len(rows)
+
+
+def db_meta(conn: sqlite3.Connection, key: str):
+    row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None

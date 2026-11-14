@@ -70,7 +70,7 @@ def test_alert_sends_once_then_stays_quiet(tmp_path, monkeypatch):
     c = _db(tmp_path)
     c.close()
     sent, runs = [], []
-    monkeypatch.setattr("actions_tracker.cli.run", lambda *a, **k: runs.append(k) or 0)
+    monkeypatch.setattr("actions_tracker.cli.run", lambda *a, **k: runs.append(k.get('budget') and {'budget': True}) or 0)
     monkeypatch.setattr("actions_tracker.cli.build_tables", lambda *a: _tables())
     post = lambda url, **k: sent.append((url, k["data"])) or _Resp()  # noqa: E731
     args = (tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["ncaaf"], None, lambda: NOW, None)
@@ -103,3 +103,24 @@ def test_telegram_setup_saves_chat_id_and_sends_test(tmp_path):
     get = lambda url, **k: _Resp(data={"result": [{"message": {"chat": {"id": 777}}}]})  # noqa: E731
     assert telegram_setup(tmp_path, get=get, post=lambda url, **k: sent.append(k["data"]) or _Resp()) == 0
     assert (tmp_path / alerts.CHAT_FILE).read_text("utf-8") == "777" and sent[0]["chat_id"] == "777"
+
+
+
+def _board(votes_by_game):
+    return pd.DataFrame([dict(game_id=g, league="ncaaf", market="spread", start_time=SOON, away_abbr="AW", home_abbr="HM",
+                              a_side="away", a_votes=v - 1, a_line=3.5, b_side="home", b_votes=1, b_line=-3.5,
+                              total_votes=v, status="majority") for g, v in votes_by_game.items()])
+
+
+def test_rising_markets_first_run_records_then_reports_new_ones(tmp_path):
+    c = _db(tmp_path)
+    sent = []
+    post = lambda url, **k: sent.append(k["data"]["text"]) or _Resp()  # noqa: E731
+    # first run: game 1 already has 6 picks -> recorded silently, no message
+    assert alerts.notify_rising(c, _board({1: 6, 2: 3}), NOW, ("T", "42"), post=post) == 0 and sent == []
+    # game 2 grows from 3 to 5 picks -> one message; game 1 is not repeated
+    assert alerts.notify_rising(c, _board({1: 7, 2: 5}), NOW, ("T", "42"), post=post) == 1
+    assert len(sent) == 1 and "Kèo vừa lên ≥ 5 picks" in sent[0] and "AW +3,5 4 · HM -3,5 1 (5 picks)" in sent[0]
+    # nothing new -> quiet; without Telegram config -> nothing at all
+    assert alerts.notify_rising(c, _board({1: 7, 2: 6}), NOW, ("T", "42"), post=post) == 0 and len(sent) == 1
+    assert alerts.notify_rising(c, _board({3: 9}), NOW, (None, None), post=post) == 0
