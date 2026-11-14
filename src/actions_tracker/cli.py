@@ -18,7 +18,7 @@ from actions_tracker.fetch import FetchError, Fetcher, fetch_bygame, fetch_picks
 from actions_tracker.matching import match_events
 from actions_tracker.odds_api import OddsApi, OddsApiError, load_key, parse_lines, parse_scores
 from actions_tracker.parse import ParseError, parse_bygame_page, parse_picks_page, parse_public_page
-from actions_tracker.rules import RULE_LEAGUES, sync_rule_plays
+from actions_tracker.rules import PUBLIC_LEAGUES, RULE_LEAGUES, sync_rule_plays
 
 MIN_CREDITS_FOR_ODDS = 30
 SCORE_DELAY_H = 3     # a game is worth asking a score for 3h after kickoff
@@ -118,14 +118,22 @@ def _collect_picks(conn, fetcher, league: str, now: str) -> list[Exception]:
     return errors
 
 
+class _NoPublic(Exception):
+    """This league's rules need no public-betting splits."""
+
+
 def _collect_rules(conn, fetcher, league: str, now: str) -> list[Exception]:
     """Public splits for the leagues that have rules, then log the plays the rules select before kickoff."""
     errors: list[Exception] = []
     try:
+        if league not in PUBLIC_LEAGUES:
+            raise _NoPublic
         games, splits = parse_public_page(fetch_public(fetcher, league), league)
         db.upsert_games(conn, games, now)
         db.upsert_public(conn, splits, now)
         print(f"[{league}] public: tran={len(games)} dong={len(splits)}")
+    except _NoPublic:
+        pass
     except Exception as e:  # noqa: BLE001 - rules still run on the last stored splits
         errors.append(e)
     try:

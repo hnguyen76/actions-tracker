@@ -90,7 +90,7 @@ def test_rules_match_expected_plays(tmp_path):
         == ("home", -7.0)
     assert got[("ncaaf_total_money", 2)]["bet_side"] == "under"
     assert {r["id"] for r in RULES} == {"ncaaf_total_day_fade", "ncaaf_total_money", "ncaaf_spread_away_dog_fade",
-                                        "ncaaf_spread_daygroup"}
+                                        "ncaaf_spread_daygroup", "nfl_spread_heavy_follow"}
 
 
 def test_no_play_for_tie_few_experts_or_away_favourite(tmp_path):
@@ -167,3 +167,17 @@ def test_daygroup_rule_follows_on_weekdays_and_fades_on_weekends(tmp_path):
     assert (got[1]["bet_side"], got[1]["line"]) == ("away", 4.0)
     assert (got[4]["bet_side"], got[4]["line"]) == ("away", -2.5)
     assert "Thứ 7–CN" in got[1]["basis"] and "Thứ 2–6" in got[4]["basis"]
+
+
+def test_nfl_heavy_rule_needs_ten_experts_on_one_side(tmp_path):
+    c = _conn(tmp_path)
+    _picks(c, 3, "spread", ["away"] * 10 + ["home"] * 2, line={"away": 3.5, "home": -3.5}, league="nfl")
+    got = [p for p in evaluate(c, NOW) if p["rule_id"] == "nfl_spread_heavy_follow"]
+    assert [(p["game_id"], p["bet_side"], p["line"]) for p in got] == [(3, "away", 3.5)]
+    assert "NFA 10/12" in got[0]["basis"]
+
+
+def test_nfl_heavy_rule_skips_nine(tmp_path):
+    c = _conn(tmp_path)
+    _picks(c, 3, "spread", ["home"] * 9, line={"home": -3.5}, league="nfl")
+    assert [p for p in evaluate(c, NOW) if p["rule_id"] == "nfl_spread_heavy_follow"] == []

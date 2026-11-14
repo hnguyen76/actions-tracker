@@ -1,8 +1,8 @@
 """Frozen betting rules, logged before kickoff and graded after (forward test / paper trading).
 
 The first three rules were chosen on 2026-11-12 from the season history (NCAAF weeks 1-10), the fourth
-(the user's weekday/weekend spread idea) on 2026-11-14 from NCAAF weeks 1-11; none may be tuned while it is
-being tested. Each run re-evaluates the upcoming games; the last evaluation before a game
+(the user's weekday/weekend spread idea) and the fifth (NFL: ten or more picks on one spread side) on
+2026-11-14 from NCAAF weeks 1-11 / NFL weeks 1-10; none may be tuned while it is being tested. Each run re-evaluates the upcoming games; the last evaluation before a game
 starts is the one that counts (same policy as closing lines). History used pick counts from the By-Game
 cards; live uses one vote per expert, so the forward test is also a check that the rule survives that change.
 """
@@ -33,9 +33,15 @@ RULES = [
      "how": "Kèo spread có ≥ 5 expert và một bên nhiều hơn: trận Thứ 2–6 (giờ miền Đông) → đặt bên đa số; "
             "trận Thứ 7–CN → đặt bên còn lại.",
      "hist_wins": 143, "hist_losses": 122},
+    {"id": "nfl_spread_heavy_follow", "league": "nfl", "market": "spread",
+     "name": "NFL spread: theo đa số khi ≥ 10 expert một phía",
+     "how": "Kèo spread NFL có từ 10 expert trở lên cùng chọn một bên (và nhiều hơn bên kia) → đặt bên đó.",
+     "hist_wins": 19, "hist_losses": 13},
 ]
 DAYGROUP_MIN_VOTES = 5  # rule 4 needs at least this many experts on the spread
+NFL_HEAVY_VOTES = 10    # rule 5 needs at least this many experts on the majority spread side
 RULE_LEAGUES = sorted({r["league"] for r in RULES})
+PUBLIC_LEAGUES = {"ncaaf"}  # public-betting page is read only for these (exception approved 2026-11-12)
 
 
 def _num(v):
@@ -70,9 +76,13 @@ def evaluate(conn: sqlite3.Connection, now: str) -> list[dict]:
 
     for r in cg.itertuples():
         game = games[r.game_id]
+        votes = f"{r.votes}/{r.total_votes}"
+        if game["league"] == "nfl" and r.market == "spread" and r.votes >= NFL_HEAVY_VOTES:
+            team = game["home_abbr"] if r.side == "home" else game["away_abbr"]
+            add("nfl_spread_heavy_follow", r.game_id, "spread", r.side, expert_line(r.game_id, "spread", r.side),
+                f"đa số {team} {votes}")
         if game["league"] != "ncaaf":
             continue
-        votes = f"{r.votes}/{r.total_votes}"
         if r.market == "total":
             hour = pd.Timestamp(game["start_time"]).tz_convert(TZ).hour
             if hour < NIGHT_HOUR:
