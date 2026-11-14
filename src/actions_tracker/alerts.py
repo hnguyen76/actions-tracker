@@ -69,14 +69,13 @@ def _game_lines(game: dict, decisions: pd.DataFrame, experts: dict) -> tuple[lis
         pick = html.escape(str(r.pick))
         if r.action == "bet":
             bets += 1
-            head = f"✅ <b>{market}: ĐẶT {r.stake_u:g}u — {pick}</b>"
+            lines.append(f"✅ {market}: <b>{pick}</b> · {n} expert · ĐẶT {r.stake_u:g}u")
         elif r.action == "paper":
-            head = f"📝 {market}: theo dõi, chưa đặt tiền — <b>{pick}</b>"
+            lines.append(f"📝 {market}: {pick} · {n} expert")
         elif r.action == "conflict":
-            head = f"⚠️ {market}: bỏ qua — hai quy tắc ngược nhau ({pick})"
+            lines.append(f"⚠️ {market}: {pick} · {n} expert · hai quy tắc ngược nhau, bỏ qua")
         else:
-            head = f"▫️ {market}: bỏ qua — {pick}"
-        lines.append(f"{head} · {n} expert")
+            lines.append(f"▫️ {market}: {pick} · {n} expert · bỏ qua")
         if r.action in ("bet", "paper") and r.reason:
             reason = str(r.reason)
             lines.append(f"    <i>{html.escape(reason if len(reason) <= 160 else reason[:157] + '…')}</i>")
@@ -105,9 +104,7 @@ def build_messages(games: list[dict], tables: dict, now: str) -> list[str]:
             blocks.append("\n".join([title, *lines]))
         head = (f"⏰ <b>{local:%H:%M} ET {_DAY[local.day_of_week]} {local:%d/%m}</b> — còn {mins} phút · "
                 f"{len(blocks)} trận")
-        verdict = (f"✅ Đặt {bets} kèo (quy tắc đã đạt kiểm chứng)." if bets else
-                   "Không đặt tiền thật: chưa quy tắc nào đủ 100 kèo kiểm chứng — kèo 📝 chỉ để theo dõi.")
-        foot = f"{verdict}\n{DASHBOARD}"
+        foot = DASHBOARD
         chunk = [head]
         for block in blocks:
             if len("\n\n".join(chunk + [block, foot])) > TG_LIMIT and len(chunk) > 1:

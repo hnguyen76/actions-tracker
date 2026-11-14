@@ -44,10 +44,10 @@ def test_message_lists_games_and_hides_small_totals(tmp_path):
     c = _db(tmp_path)
     [msg] = alerts.build_messages(alerts.due_games(c, NOW), _tables(), NOW)
     assert "18:15 ET Thứ 7 14/11" in msg and "còn 15 phút" in msg and "2 trận" in msg
-    assert "NCAAF · FLA @ UK" in msg and "theo dõi, chưa đặt tiền — <b>UK -3</b> · 5 expert" in msg
+    assert "NCAAF · FLA @ UK" in msg and "📝 Spread: UK -3 · 5 expert\n" in msg
     assert "Under 46,5" not in msg                       # total with 3 experts is hidden, like on the dashboard
-    assert "bỏ qua — Đa số chọn UCF (4/5)" in msg
-    assert "Không đặt tiền thật" in msg
+    assert "▫️ Spread: Đa số chọn UCF (4/5) · 5 expert · bỏ qua" in msg
+    assert msg.endswith("\n\n" + alerts.DASHBOARD) and "Không đặt tiền thật" not in msg
 
 
 def test_long_slot_is_split_under_the_telegram_limit(tmp_path):
