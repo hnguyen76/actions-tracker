@@ -153,6 +153,10 @@ td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .rule-name { font-weight: 600; }
 .card.mine { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 td.strong { font-weight: 700; }
+tr.hot > td { background: color-mix(in srgb, var(--warning) 16%, transparent); }
+tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
+.hot-legend { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); margin: 4px 0 10px; }
+.hot-legend i { width: 14px; height: 14px; border-radius: 4px; background: color-mix(in srgb, var(--warning) 35%, transparent); box-shadow: inset 3px 0 0 var(--warning); }
 .rule-how { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
 .progress { min-width: 120px; }
 .progress-track { height: 6px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--raised); }
@@ -247,6 +251,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
         <div class="day-chips" id="decide-days"></div>
       </div>
       <div class="verdict" id="decide-verdict"></div>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <h3 class="decide-sub" id="decide-h-spread">Spread</h3>
       <div class="table-scroll" id="decide-table-spread"></div>
       <h3 class="decide-sub" id="decide-h-total">Total</h3>
@@ -275,6 +280,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <details class="howto"><summary>Cách đọc</summary><p>Kèo <b>spread</b> NFL và NCAAF có <b>từ 5 picks trở lên</b> và một bên nhiều hơn: trận <b>Thứ 2–6</b> (giờ miền Đông) đặt bên đám đông chọn; trận <b>Thứ 7–CN</b> đặt bên còn lại. <b>Nhìn lại cả mùa</b> = áp cách này vào dữ liệu tuần 1 đến nay (đếm số picks trên thẻ By Game, đã biết kết quả). <b>Live</b> = kèo hệ thống thấy trước giờ đá (mỗi expert một phiếu), chấm theo line đóng cửa. NCAAF cũng đang được kiểm chứng như quy tắc 4 ở bảng dưới; chưa đủ 100 kèo thì chỉ theo dõi, chưa đặt tiền thật.</p></details>
       <div class="table-scroll" id="mine-summary"></div>
       <h3 class="decide-sub">Các kèo theo cách này</h3>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="mine-plays"></div>
     </div>
     <div class="card">
@@ -284,6 +290,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card">
       <h2>Kèo đang chờ kết quả</h2>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="rules-pending"></div>
     </div>
     <div class="card">
@@ -465,8 +472,10 @@ const DATA = /*__DATA__*/null;
         if (v instanceof Node) td.append(v); else td.textContent = v;
         return td;
       }));
+      const hot = opts && opts.rowClass ? opts.rowClass(r) : "";
+      if (hot) tr.classList.add(hot);
       if (onRow) {
-        tr.className = "clickable" + (state.expert === r.expert_id ? " selected" : "");
+        tr.className = "clickable" + (state.expert === r.expert_id ? " selected" : "") + (hot ? " " + hot : "");
         tr.tabIndex = 0;
         tr.addEventListener("click", () => onRow(r));
         tr.addEventListener("keydown", (e) => { if (e.key === "Enter") onRow(r); });
@@ -617,6 +626,17 @@ const DATA = /*__DATA__*/null;
   }
 
   const TOTAL_MIN_EXPERTS = 5;
+  const HOT_PICKS = 8;  // rows with at least this many picks on the market are highlighted
+  let pickCount = null;
+  const picksOn = (r) => {
+    if (!pickCount) {
+      pickCount = new Map();
+      for (const t of ["Past_Plays", "Upcoming_Board"]) for (const x of T(t)) pickCount.set(`${x.game_id}|${x.market}`, Number(x.total_votes) || 0);
+    }
+    return r.total_votes !== undefined && r.total_votes !== null ? Number(r.total_votes) : pickCount.get(`${r.game_id}|${r.market}`) || 0;
+  };
+  const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS ? "hot" : "") };
+  const withHot = (opts) => Object.assign({}, opts || {}, HOT);
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -691,7 +711,7 @@ const DATA = /*__DATA__*/null;
       const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
       h.replaceChildren(MARKET_LABEL[market] || market, el("span", { class: "count", text: `${list.length} kèo` }));
       if (market === "ml") { h.hidden = host.hidden = !list.length; }
-      renderTable("decide-table-" + market, list, cols);
+      renderTable("decide-table-" + market, list, cols, null, HOT);
       if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
     section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
@@ -709,7 +729,7 @@ const DATA = /*__DATA__*/null;
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Expert", value: (r) => r.pick },
-    ]);
+    ], null, HOT);
   }
 
   function upcomingTab() {
@@ -723,7 +743,7 @@ const DATA = /*__DATA__*/null;
       { label: "Bên 2", value: (r) => boardSide(r, "b") },
       { label: "Expert", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
       { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: BOARD_STATUS[r.status] || r.status }), sort: (r) => r.status },
-    ]);
+    ], null, HOT);
     const rows = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
     renderTable("upcoming-table", rows, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time) },
@@ -734,7 +754,7 @@ const DATA = /*__DATA__*/null;
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
       { label: "Lịch sử (live)", num: true, value: (r) => histCell(r.hist_win_pct, r.hist_n), sort: (r) => r.hist_win_pct },
       { label: "Lịch sử mùa", num: true, value: (r) => histCell(r.season_win_pct, r.season_n, GROUP_LABEL[r.day_group]), sort: (r) => r.season_win_pct },
-    ]);
+    ], null, HOT);
   }
 
   // dashed break-even line + optional end-of-line direct labels
@@ -1081,7 +1101,7 @@ const DATA = /*__DATA__*/null;
       { label: "Cách đánh", value: (r) => (r.method === "follow" ? "Theo (T2–6)" : "Ngược (T7–CN)") },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
       { label: "Kết quả", value: (r) => (r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
-    ], null, { pageSize: 25 });
+    ], null, withHot({ pageSize: 25 }));
   }
 
   function rulesTab() {
@@ -1124,7 +1144,7 @@ const DATA = /*__DATA__*/null;
       { label: "Line lúc ghi", value: (r) => bet(r, "entry_line"), sort: (r) => r.pick },
       { label: "Căn cứ", value: (r) => r.basis || "–" },
       { label: "Ghi lúc", value: (r) => fmtTime(r.logged_at), sort: (r) => r.logged_at },
-    ], null, { pageSize: 50 });
+    ], null, withHot({ pageSize: 50 }));
     renderTable("rules-graded", plays.filter((r) => r.status === "graded"), [
       { label: "Ngày", value: (r) => r.et_date },
       { label: "Nhóm ngày", value: (r) => GROUP_LABEL[r.day_group] || r.day_group },
@@ -1135,7 +1155,7 @@ const DATA = /*__DATA__*/null;
       { label: "Căn cứ", value: (r) => r.basis || "–" },
       { label: "Kết quả", value: (r) => resultPill(r.result), sort: (r) => r.result },
       { label: "Units", num: true, value: (r) => (r.units === null ? "–" : (r.units > 0 ? "+" : "") + num(r.units, 2)), cls: (r) => roiCls(r.units), sort: (r) => r.units },
-    ], null, { pageSize: 50 });
+    ], null, withHot({ pageSize: 50 }));
   }
   const wlp = (r) => (r && r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)} · ${pct(r.win_pct)}` : "–");
 
