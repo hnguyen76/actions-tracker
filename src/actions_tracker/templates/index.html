@@ -151,6 +151,8 @@ th.sortable:hover { color: var(--ink); }
 #decide-skips { margin-top: 12px; }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .rule-name { font-weight: 600; }
+.card.mine { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+td.strong { font-weight: 700; }
 .rule-how { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
 .progress { min-width: 120px; }
 .progress-track { height: 6px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: var(--raised); }
@@ -268,6 +270,13 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   </section>
 
   <section class="panel" id="tab-rules">
+    <div class="card mine">
+      <h2>Cách của bạn — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
+      <details class="howto"><summary>Cách đọc</summary><p>Kèo <b>spread</b> NFL và NCAAF có <b>từ 5 picks trở lên</b> và một bên nhiều hơn: trận <b>Thứ 2–6</b> (giờ miền Đông) đặt bên đám đông chọn; trận <b>Thứ 7–CN</b> đặt bên còn lại. <b>Nhìn lại cả mùa</b> = áp cách này vào dữ liệu tuần 1 đến nay (đếm số picks trên thẻ By Game, đã biết kết quả). <b>Live</b> = kèo hệ thống thấy trước giờ đá (mỗi expert một phiếu), chấm theo line đóng cửa. NCAAF cũng đang được kiểm chứng như quy tắc 4 ở bảng dưới; chưa đủ 100 kèo thì chỉ theo dõi, chưa đặt tiền thật.</p></details>
+      <div class="table-scroll" id="mine-summary"></div>
+      <h3 class="decide-sub">Các kèo theo cách này</h3>
+      <div class="table-scroll" id="mine-plays"></div>
+    </div>
     <div class="card">
       <h2>Quy tắc đang kiểm chứng — kèo ghi trước giờ đá</h2>
       <details class="howto"><summary>Cách đọc</summary><p>Ba quy tắc đầu được chốt ngày 12/11/2026, quy tắc 4 (NCAAF spread Thứ 2–6 theo đa số / Thứ 7–CN đánh ngược) và quy tắc 5 (NFL spread theo đa số khi ≥ 10 expert một phía) ngày 14/11/2026, đều từ dữ liệu cả mùa, và <b>không chỉnh sửa trong lúc kiểm chứng</b>. Mỗi lần cập nhật, hệ thống ghi các kèo sắp đá khớp quy tắc; trạng thái ở lần cập nhật cuối trước giờ đá là kèo chính thức, sau đó đóng băng. <b>Nhìn lại cả mùa</b> = kết quả khi áp quy tắc vào quá khứ (đã biết kết quả, đếm theo số picks trên thẻ) — chỉ để tham khảo. <b>Ghi trước</b> = kết quả thật của các kèo đã ghi trước giờ đá. Line lúc ghi và line tham chiếu cuối được giữ riêng.</p><p>Một quy tắc chỉ có thể <b>Đạt</b> khi đủ 100 kèo, win% ≥ 55% và cận dưới CI 95% vượt 52,4%. Trước đó chỉ là paper test.</p></details>
@@ -1051,7 +1060,32 @@ const DATA = /*__DATA__*/null;
   const GROUP_LABEL = { "T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN", ALL: "Cả tuần" };
   const DECISION = { collecting: ["Đang ghi", "info"], pass: ["Đạt", "win"], fail: ["Bỏ", "loss"], watch: ["Theo dõi tiếp", "dim"] };
 
+  const DG_LABEL = { "T2-6": "Thứ 2–6 · theo đám đông", "T7-CN": "Thứ 7–CN · đánh ngược", ALL: "Cả tuần" };
+  function mineCard() {
+    const lg = (r) => state.league === "ALL" || r.league === state.league || r.league === "ALL";
+    const sum = T("My_Method_Summary").filter((r) => (state.league === "ALL" ? true : r.league === state.league));
+    const rec = (w, l, p) => `${num(w)}-${num(l)}-${num(p)}`;
+    renderTable("mine-summary", sum, [
+      { label: "Giải", value: (r) => leagueName(r.league), cls: (r) => (r.day_group === "ALL" ? "strong" : "") },
+      { label: "Nhóm ngày", value: (r) => DG_LABEL[r.day_group] || r.day_group, cls: (r) => (r.day_group === "ALL" ? "strong" : "") },
+      { label: "Nhìn lại cả mùa", num: true, value: (r) => (r.hist_n ? `${rec(r.hist_wins, r.hist_losses, r.hist_pushes)} · ${pct(r.hist_win_pct)}` : "–"), sort: (r) => r.hist_win_pct },
+      { label: "Live (W-L-P)", num: true, value: (r) => (r.n + r.pushes ? `${rec(r.wins, r.losses, r.pushes)} · ${pct(r.win_pct)}` : "chưa có"), sort: (r) => r.win_pct },
+      { label: "ROI live", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi), sort: (r) => r.roi },
+      { label: "Đang chờ", num: true, value: (r) => num(r.pending), sort: (r) => r.pending },
+    ], null, { pageSize: 20 });
+    const fmtLine = (v) => (v === null || v === undefined ? "" : " " + (v > 0 ? "+" : "") + String(v).replace(".", ","));
+    renderTable("mine-plays", T("My_Method").filter(lg), [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
+      { label: "Đám đông", value: (r) => `${r.crowd} ${r.votes}/${r.total_votes}`, sort: (r) => r.votes / r.total_votes },
+      { label: "Cách đánh", value: (r) => (r.method === "follow" ? "Theo (T2–6)" : "Ngược (T7–CN)") },
+      { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
+      { label: "Kết quả", value: (r) => (r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
+    ], null, { pageSize: 25 });
+  }
+
   function rulesTab() {
+    mineCard();
     const inFilter = (r) => (state.league === "ALL" || r.league === state.league) && (state.market === "ALL" || r.market === state.market);
     renderTable("rules-summary", T("Rule_Summary").filter(inFilter), [
       { label: "Quy tắc", cls: () => "cell-wrap", sort: (r) => r.name,
