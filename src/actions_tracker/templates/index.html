@@ -151,6 +151,11 @@ th.sortable:hover { color: var(--ink); }
 #decide-skips { margin-top: 12px; }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .rule-name { font-weight: 600; }
+.kpi-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 6px 0 4px; }
+.kpi-mini .k { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.kpi-mini .k .t { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.kpi-mini .k .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.kpi-mini .k .s { font-size: 14px; color: var(--ink-2); }
 .card.mine { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 td.strong { font-weight: 700; }
 tr.hot > td { background: color-mix(in srgb, var(--warning) 16%, transparent); }
@@ -234,6 +239,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
     <button role="tab" data-tab="nba" aria-selected="false">NBA ≥ 7 picks</button>
+    <button role="tab" data-tab="season" aria-selected="false">Cách của bạn · cả mùa</button>
   </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
@@ -396,6 +402,31 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h2>NBA — tất cả trận sắp đá có picks</h2>
       <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="nba-all"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-season">
+    <div class="card">
+      <h2>Cách của bạn áp vào cả mùa — tuần 1 đến nay</h2>
+      <details class="howto"><summary>Cách đọc</summary><p>Kèo <b>spread</b> có <b>từ 5 picks trở lên</b> và một bên nhiều hơn. Trận <b>Thứ 2–6</b> (giờ miền Đông) đặt bên đám đông; trận <b>Thứ 7–CN</b> đặt bên còn lại — kể cả khi tất cả expert cùng một bên. Chấm theo line đóng cửa. <b>Nguồn "lịch sử"</b> = số picks trên thẻ By Game của từng tuần (một expert có thể được đếm nhiều lần), tỉ số và line từ scoreboard Action Network; <b>"live"</b> = kèo hệ thống ghi trước giờ đá (mỗi expert một phiếu) cho các trận chưa có trong dữ liệu lịch sử. Đây là nhìn lại khi đã biết kết quả — không phải bằng chứng sẽ thắng tiếp. Hòa vốn ở −110 là 52,4%.</p></details>
+    </div>
+    <div class="card">
+      <h2>NFL — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
+      <div class="kpi-mini" id="season-kpi-nfl"></div>
+      <h3 class="decide-sub">Theo tuần</h3>
+      <div class="table-scroll" id="season-weeks-nfl"></div>
+      <h3 class="decide-sub">Từng kèo</h3>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
+      <div class="table-scroll" id="season-plays-nfl"></div>
+    </div>
+    <div class="card">
+      <h2>NCAAF — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
+      <div class="kpi-mini" id="season-kpi-ncaaf"></div>
+      <h3 class="decide-sub">Theo tuần</h3>
+      <div class="table-scroll" id="season-weeks-ncaaf"></div>
+      <h3 class="decide-sub">Từng kèo</h3>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
+      <div class="table-scroll" id="season-plays-ncaaf"></div>
     </div>
   </section>
 
@@ -1310,11 +1341,48 @@ const DATA = /*__DATA__*/null;
     if (!all.length) document.getElementById("nba-all").replaceChildren(el("div", { class: "empty", text: "Chưa có trận NBA sắp đá nào có picks." }));
   }
 
+  function seasonTab() {
+    const S = T("My_Method_Season_Summary"), P = T("My_Method_Season");
+    const wl = (r) => (r && r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}` : "–");
+    const cell = (r) => (r && r.n + r.pushes ? `${wl(r)} · ${pct(r.win_pct)}` : "–");
+    const fmtLine = (v) => (v === null || v === undefined ? "" : " " + (v > 0 ? "+" : "") + String(v).replace(".", ","));
+    const DG = { "T2-6": "Thứ 2–6 · theo", "T7-CN": "Thứ 7–CN · ngược", ALL: "Cả tuần" };
+    for (const lg of ["nfl", "ncaaf"]) {
+      const get = (week, dg) => S.find((r) => r.league === lg && String(r.week) === String(week) && r.day_group === dg);
+      document.getElementById("season-kpi-" + lg).replaceChildren(...["ALL", "T2-6", "T7-CN"].map((dg) => {
+        const r = get("ALL", dg);
+        return el("div", { class: "k" }, el("div", { class: "t", text: dg === "ALL" ? "Cả mùa" : DG[dg] }),
+          el("div", { class: "v", text: r && r.n ? pct(r.win_pct) : "–" }),
+          el("div", { class: "s", text: r ? `${wl(r)} · ROI ${signed(r.roi)}` : "" }));
+      }));
+      const weeks = [...new Set(S.filter((r) => r.league === lg && r.week !== "ALL").map((r) => Number(r.week)))].sort((a, b) => b - a);
+      renderTable("season-weeks-" + lg, weeks.map((w) => ({ week: w, a: get(w, "T2-6"), b: get(w, "T7-CN"), c: get(w, "ALL") })), [
+        { label: "Tuần", value: (r) => "Tuần " + r.week, sort: (r) => r.week },
+        { label: "Thứ 2–6 · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
+        { label: "Thứ 7–CN · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
+        { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },
+        { label: "Units", num: true, value: (r) => (r.c && r.c.n ? (r.c.units > 0 ? "+" : "") + num(r.c.units, 2) : "–"), cls: (r) => roiCls(r.c && r.c.units), sort: (r) => (r.c ? r.c.units : 0) },
+      ]);
+      renderTable("season-plays-" + lg, P.filter((r) => r.league === lg), [
+        { label: "Tuần", value: (r) => (r.week === null || r.week === undefined ? "–" : r.week), sort: (r) => Number(r.week) || 0 },
+        { label: "Ngày", value: (r) => r.et_date },
+        { label: "Nhóm", value: (r) => (r.day_group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN") },
+        { label: "Trận", value: (r) => r.match.replace("@", " @ ") },
+        { label: "Tỉ số", value: (r) => r.score || "–" },
+        { label: "Đám đông", value: (r) => `${r.crowd} ${r.votes}/${r.total_votes}`, sort: (r) => r.votes / r.total_votes },
+        { label: "Cách", value: (r) => (r.method === "follow" ? "Theo" : "Ngược") },
+        { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
+        { label: "Kết quả", value: (r) => (r.result ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
+        { label: "Nguồn", value: (r) => (r.source === "live" ? "live" : "lịch sử") },
+      ], null, withHot({ pageSize: 50 }));
+    }
+  }
+
   function render() {
     kpis();
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
     const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, consensus: consensusTab,
-      experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab };
+      experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();
   }
 

@@ -2,7 +2,8 @@
 
 import pandas as pd
 
-from actions_tracker.analysis.my_method import PLAY_COLS, SUMMARY_COLS, my_method_plays, my_method_summary
+from actions_tracker.analysis.my_method import (PLAY_COLS, SEASON_COLS, SUMMARY_COLS, my_method_plays,
+                                                my_method_summary, season_plays, season_summary)
 
 
 def _cg(rows):
@@ -55,3 +56,29 @@ def test_summary_live_and_season_lookback():
     assert (r.loc[("ncaaf", "T2-6"), "hist_wins"], r.loc[("ncaaf", "T7-CN"), "hist_losses"]) == (1, 1)
     assert (r.loc[("ALL", "ALL"), "wins"], r.loc[("ALL", "ALL"), "losses"], r.loc[("ALL", "ALL"), "pending"]) == (1, 1, 1)
     assert r.loc[("nfl", "T2-6"), "method"] == "follow" and r.loc[("nfl", "T7-CN"), "method"] == "fade"
+
+
+
+def test_season_uses_history_then_live_games_not_in_it():
+    sides = pd.DataFrame([
+        # Thu (week 10): 6 of 7 on the away side -> follow -> away covered
+        dict(league="nfl", week=10, game_id=1, et_date="2026-11-12", day_group="T2-6", away="WAS", home="NYG",
+             away_score=24, home_score=20, market="spread", side="away", picks=6, opp_picks=1, line=1.5, odds=-110,
+             opp_odds=-110, result="win"),
+        # Sat: 5 of 5 on home -> fade (bet away at +3) -> home covered, so we lose
+        dict(league="ncaaf", week=11, game_id=2, et_date="2026-11-14", day_group="T7-CN", away="WF", home="SMU",
+             away_score=7, home_score=49, market="spread", side="home", picks=5, opp_picks=0, line=-3.0, odds=-110,
+             opp_odds=-105, result="win"),
+        dict(league="ncaaf", week=11, game_id=3, et_date="2026-11-14", day_group="T7-CN", away="A", home="B",
+             away_score=1, home_score=2, market="spread", side="home", picks=3, opp_picks=1, line=-3.0, odds=-110,
+             opp_odds=-110, result="win"),                                     # < 5 picks -> left out
+    ])
+    live = my_method_plays(CG, PICKS)        # games 1 (also in history -> skipped), 2, 4 (live only)
+    s = season_plays(sides, live, {4: {"week": 11, "away_score": None, "home_score": None}})
+    assert list(s.columns) == SEASON_COLS
+    by = s.set_index("game_id")
+    assert set(by.index) == {1, 2, 4} and by.loc[1, "source"] == "history" and by.loc[4, "source"] == "live"
+    assert (by.loc[2, "pick"], by.loc[2, "line"], by.loc[2, "result"], by.loc[2, "score"]) == ("WF", 3.0, "loss", "7-49")
+    assert by.loc[4, "week"] == 11 and pd.isna(by.loc[4, "result"])
+    summ = season_summary(s).set_index(["league", "week", "day_group"])
+    assert (summ.loc[("nfl", "ALL", "ALL"), "wins"], summ.loc[("ncaaf", 11, "T7-CN"), "losses"]) == (1, 1)

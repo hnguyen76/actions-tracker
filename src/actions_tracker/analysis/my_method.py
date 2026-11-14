@@ -103,3 +103,65 @@ def my_method_summary(plays: pd.DataFrame, sides: pd.DataFrame) -> pd.DataFrame:
                          "hist_win_pct": hw / (hw + hl) if hw + hl else None, "hist_n": hw + hl, **s,
                          "pending": int((mine["status"] == "pending").sum()) if len(mine) else 0})
     return pd.DataFrame(rows, columns=SUMMARY_COLS)
+
+
+# --- the whole season: history (By-Game cards, weeks 1..) + live games not in the history files -------------
+SEASON_COLS = ["league", "week", "game_id", "start_time", "et_date", "day_group", "match", "score", "crowd", "votes",
+               "total_votes", "method", "pick", "line", "odds", "result", "source"]
+SEASON_SUMMARY_COLS = ["league", "week", "day_group"] + SUMMARY_KEYS
+
+
+def season_plays(sides: pd.DataFrame, live: pd.DataFrame, games: dict) -> pd.DataFrame:
+    """games: {game_id: {"week": .., "away_score": .., "home_score": ..}} from the database, for live rows."""
+    rows = []
+    seen = set()
+    if not sides.empty:
+        s = sides[(sides["market"] == "spread") & sides["league"].isin(LEAGUES) & (sides["picks"] > sides["opp_picks"])
+                  & (sides["picks"] + sides["opp_picks"] >= MIN_PICKS)]
+        for r in s.itertuples():
+            weekday = r.day_group == "T2-6"
+            crowd = r.home if r.side == "home" else r.away
+            pick = crowd if weekday else (r.away if r.side == "home" else r.home)
+            line = _num(r.line)
+            res = r.result if isinstance(r.result, str) else None
+            seen.add(int(r.game_id))
+            rows.append({
+                "league": r.league, "week": int(r.week), "game_id": int(r.game_id), "start_time": None,
+                "et_date": r.et_date, "day_group": r.day_group, "match": f"{r.away}@{r.home}",
+                "score": f"{int(r.away_score)}-{int(r.home_score)}" if pd.notna(r.away_score) else None,
+                "crowd": crowd, "votes": int(r.picks), "total_votes": int(r.picks + r.opp_picks),
+                "method": "follow" if weekday else "fade", "pick": pick,
+                "line": line if weekday or line is None else -line,
+                "odds": r.odds if weekday else r.opp_odds,
+                "result": res if weekday or res is None else _FLIP.get(res, res), "source": "history"})
+    if not live.empty:
+        for r in live.itertuples():
+            if int(r.game_id) in seen:
+                continue
+            g = games.get(int(r.game_id), {})
+            score = f"{int(g['away_score'])}-{int(g['home_score'])}"                 if g.get("away_score") is not None and g.get("home_score") is not None else None
+            rows.append({
+                "league": r.league, "week": g.get("week"), "game_id": int(r.game_id),
+                "start_time": r.start_time, "et_date": r.et_date, "day_group": r.day_group, "match": r.match,
+                "score": score, "crowd": r.crowd, "votes": int(r.votes), "total_votes": int(r.total_votes),
+                "method": r.method, "pick": r.pick, "line": r.line, "odds": r.odds,
+                "result": r.result if isinstance(r.result, str) else None, "source": "live"})
+    out = pd.DataFrame(rows, columns=SEASON_COLS)
+    return out.sort_values(["league", "et_date", "game_id"], ascending=[True, False, True], kind="stable") \
+        .reset_index(drop=True).astype(object)
+
+
+def season_summary(plays: pd.DataFrame) -> pd.DataFrame:
+    """Per league: ALL weeks and every week, each split T2-6 / T7-CN / ALL."""
+    rows = []
+    for league in LEAGUES:
+        mine = plays[plays["league"] == league] if len(plays) else plays
+        weeks = sorted({int(w) for w in mine["week"] if w is not None and not pd.isna(w)}) if len(mine) else []
+        for week in ["ALL", *weeks]:
+            wk = mine if week == "ALL" else mine[mine["week"] == week]
+            for dg in ("T2-6", "T7-CN", "ALL"):
+                g = wk if dg == "ALL" else wk[wk["day_group"] == dg]
+                g = g[g["result"].notna()] if len(g) else g
+                rows.append({"league": league, "week": week, "day_group": dg,
+                             **summarize(list(g["result"]) if len(g) else [], list(g["odds"]) if len(g) else [])})
+    return pd.DataFrame(rows, columns=SEASON_SUMMARY_COLS)
