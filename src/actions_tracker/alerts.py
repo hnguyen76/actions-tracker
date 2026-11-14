@@ -154,6 +154,7 @@ def find_chat_id(token: str, get=requests.get) -> str | None:
 
 # --- a market just reached RISE_PICKS experts --------------------------------------------------------------
 RISE_PICKS = 5
+HEAVY_PICKS = 10  # every rising-picks message also lists all upcoming markets with at least this many picks
 _RISE_SCHEMA = ("CREATE TABLE IF NOT EXISTS pick_rise_alerts(game_id INTEGER, market TEXT, threshold INTEGER, "
                 "votes TEXT, sent_at TEXT, PRIMARY KEY(game_id, market, threshold))")
 _SIDE = {"home": None, "away": None, "over": "Over", "under": "Under"}
@@ -188,16 +189,25 @@ def _side(r: dict, k: str) -> str:
     return f"{name} {ln.replace('.', ',')} {int(r[f'{k}_votes'])}"
 
 
-def rising_messages(rows: list[dict], threshold: int = RISE_PICKS) -> list[str]:
-    head = f"📈 <b>Kèo vừa lên ≥ {threshold} picks</b> · {len(rows)} kèo"
-    blocks = []
-    for r in sorted(rows, key=lambda r: (r["start_time"], r["league"], r["market"])):
-        local = _local(r["start_time"])
-        blocks.append(
-            f"<b>{_LEAGUE.get(r['league'], r['league'].upper())} · {html.escape(r['away_abbr'])} @ "
+def _market_block(r: dict) -> str:
+    local = _local(r["start_time"])
+    return (f"<b>{_LEAGUE.get(r['league'], r['league'].upper())} · {html.escape(r['away_abbr'])} @ "
             f"{html.escape(r['home_abbr'])}</b> — {local:%H:%M} {_DAY[local.day_of_week]} {local:%d/%m}\n"
             f"{_MARKET.get(r['market'], r['market'])}: {html.escape(_side(r, 'a'))} · {html.escape(_side(r, 'b'))} "
             f"({int(r['total_votes'])} picks)")
+
+
+def _by_time(rows: list[dict]) -> list[dict]:
+    return sorted(rows, key=lambda r: (r["start_time"], r["league"], r["market"]))
+
+
+def rising_messages(rows: list[dict], threshold: int = RISE_PICKS, heavy: list[dict] | None = None) -> list[str]:
+    head = f"📈 <b>Kèo vừa lên ≥ {threshold} picks</b> · {len(rows)} kèo"
+    blocks = [_market_block(r) for r in _by_time(rows)]
+    if heavy is not None:
+        blocks.append(f"🔥 <b>Kèo đang ≥ {HEAVY_PICKS} picks</b> · {len(heavy)} kèo"
+                      + ("" if heavy else "\nChưa có kèo nào."))
+        blocks += [_market_block(r) for r in _by_time(heavy)]
     messages, chunk = [], [head]
     for block in blocks:
         if len("\n\n".join(chunk + [block, DASHBOARD])) > TG_LIMIT and len(chunk) > 1:
@@ -226,7 +236,9 @@ def notify_rising(conn: sqlite3.Connection, board: pd.DataFrame, now: str, teleg
         return 0
     if not rows:
         return 0
-    for text in rising_messages(rows):
+    heavy = [] if board is None or board.empty else board[
+        (board["total_votes"] >= HEAVY_PICKS) & (board["start_time"].astype(str) > now)].to_dict("records")
+    for text in rising_messages(rows, heavy=heavy):
         send_telegram(token, chat, text, post=post)
     mark_rising(conn, rows, now)
     return len(rows)

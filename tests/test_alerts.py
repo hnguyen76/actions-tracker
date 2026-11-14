@@ -121,6 +121,14 @@ def test_rising_markets_first_run_records_then_reports_new_ones(tmp_path):
     # game 2 grows from 3 to 5 picks -> one message; game 1 is not repeated
     assert alerts.notify_rising(c, _board({1: 7, 2: 5}), NOW, ("T", "42"), post=post) == 1
     assert len(sent) == 1 and "Kèo vừa lên ≥ 5 picks" in sent[0] and "AW +3,5 4 · HM -3,5 1 (5 picks)" in sent[0]
+    assert "Kèo đang ≥ 10 picks</b> · 0 kèo" in sent[0]  # the 10+ summary rides along (none here)
     # nothing new -> quiet; without Telegram config -> nothing at all
     assert alerts.notify_rising(c, _board({1: 7, 2: 6}), NOW, ("T", "42"), post=post) == 0 and len(sent) == 1
     assert alerts.notify_rising(c, _board({3: 9}), NOW, (None, None), post=post) == 0
+
+
+
+def test_rising_message_lists_heavy_markets():
+    rows = _board({1: 5, 2: 12}).to_dict("records")
+    [msg] = alerts.rising_messages(rows[:1], heavy=rows[1:])
+    assert msg.index("Kèo vừa lên") < msg.index("Kèo đang ≥ 10 picks</b> · 1 kèo") < msg.index("(12 picks)")
