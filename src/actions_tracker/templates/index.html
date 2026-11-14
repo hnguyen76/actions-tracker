@@ -145,6 +145,9 @@ th.sortable:hover { color: var(--ink); }
 .verdict.hold { border-left: 4px solid var(--warning); }
 .verdict-main { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
 .verdict-sub { color: var(--ink-2); font-size: 15px; margin-top: 4px; }
+.decide-sub { font-size: 17px; font-weight: 700; margin: 18px 0 8px; display: flex; align-items: baseline; gap: 10px; }
+.decide-sub .count { font-size: 14px; font-weight: 500; color: var(--muted); }
+.decide-note { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
 #decide-skips { margin-top: 12px; }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .rule-name { font-weight: 600; }
@@ -242,7 +245,13 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
         <div class="day-chips" id="decide-days"></div>
       </div>
       <div class="verdict" id="decide-verdict"></div>
-      <div class="table-scroll" id="decide-table"></div>
+      <h3 class="decide-sub" id="decide-h-spread">Spread</h3>
+      <div class="table-scroll" id="decide-table-spread"></div>
+      <h3 class="decide-sub" id="decide-h-total">Total</h3>
+      <div class="table-scroll" id="decide-table-total"></div>
+      <p class="decide-note" id="decide-total-note" hidden></p>
+      <h3 class="decide-sub" id="decide-h-ml" hidden>Moneyline</h3>
+      <div class="table-scroll" id="decide-table-ml" hidden></div>
       <details class="howto" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
       <details class="howto"><summary>Cách hệ thống quyết định</summary><p><b>Đặt</b> chỉ khi kèo khớp một quy tắc có ít nhất 100 kết quả ghi trước, thắng ≥ 55% và cận dưới CI 95% vượt mức hòa vốn −110 — mức cược 1 unit. <b>Theo dõi</b> = khớp quy tắc đang kiểm chứng: ghi lại, chưa đặt tiền thật. <b>Bỏ qua</b> = chỉ có consensus của expert, hai quy tắc ngược nhau, hoặc quy tắc đã bị loại. Kèo đổi đến lần cập nhật cuối trước giờ đá — bấm cập nhật gần giờ đá rồi mới quyết.</p></details>
     </div>
@@ -598,6 +607,7 @@ const DATA = /*__DATA__*/null;
     return `${name}${ln}: ${num(votes)}`;
   }
 
+  const TOTAL_MIN_EXPERTS = 5;
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -624,7 +634,13 @@ const DATA = /*__DATA__*/null;
     }));
     const rows = all.filter((r) => r.et_date === state.day);
     const boardRows = board.filter((r) => etDate(r.start_time) === state.day);
-    const act = rows.filter((r) => r.action !== "skip" || r.rule_ids);
+    // experts with a pick on that game x market (the board counts every expert, also on split markets)
+    const experts = new Map(board.map((r) => [`${r.game_id}|${r.market}`, Number(r.total_votes) || 0]));
+    const nExp = (r) => experts.get(`${r.game_id}|${r.market}`) || 0;
+    const actAll = rows.filter((r) => r.action !== "skip" || r.rule_ids);
+    // totals are shown only with at least TOTAL_MIN_EXPERTS experts on them (display filter; the rule test still logs all)
+    const totalsLow = actAll.filter((r) => r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS);
+    const act = actAll.filter((r) => !(r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS));
     const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids);
     const bets = act.filter((r) => r.action === "bet"), paper = act.filter((r) => r.action === "paper");
     document.getElementById("decide-title").textContent = state.day ? "Quyết định — " + dayLabel(state.day) : "Quyết định";
@@ -649,16 +665,30 @@ const DATA = /*__DATA__*/null;
     }
     const actionPill = (r) => el("span", { class: "pill " + (ACTION[r.action] || ACTION.skip).cls,
       text: (ACTION[r.action] || ACTION.skip).label + (r.stake_u > 0 ? ` ${num(r.stake_u, 1)}u` : "") });
-    renderTable("decide-table", act, [
+    const cols = [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
-      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Expert", value: (r) => nExp(r), sort: (r) => nExp(r) },
       { label: "Quyết định", value: actionPill, sort: (r) => r.action },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", cls: () => "cell-wrap", value: (r) => el("div", {}, el("div", { text: r.reason }),
           r.evidence ? el("div", { class: "rule-how", text: r.evidence }) : null) },
-    ]);
-    if (!act.length) document.getElementById("decide-table").replaceChildren(el("div", { class: "empty", text: "Không có kèo nào khớp quy tắc ngày này." }));
+    ];
+    const section = (market, emptyText) => {
+      const list = act.filter((r) => r.market === market);
+      const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
+      h.replaceChildren(MARKET_LABEL[market] || market, el("span", { class: "count", text: `${list.length} kèo` }));
+      if (market === "ml") { h.hidden = host.hidden = !list.length; }
+      renderTable("decide-table-" + market, list, cols);
+      if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
+    };
+    section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
+    section("total", `Không có kèo total nào khớp quy tắc mà có từ ${TOTAL_MIN_EXPERTS} expert trở lên.`);
+    section("ml", "");
+    const note = document.getElementById("decide-total-note");
+    note.hidden = !totalsLow.length;
+    note.textContent = `Ẩn ${totalsLow.length} kèo total khớp quy tắc nhưng có dưới ${TOTAL_MIN_EXPERTS} expert (vẫn được ghi để kiểm chứng): `
+      + totalsLow.map((r) => `${r.match} ${r.pick}`).join(", ") + ".";
     const sk = document.getElementById("decide-skips");
     sk.hidden = !skips.length;
     sk.querySelector("summary").textContent = `${skips.length} kèo chỉ có consensus — bỏ qua`;
