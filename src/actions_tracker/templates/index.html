@@ -156,6 +156,10 @@ td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
 .kpi-mini .k .t { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .kpi-mini .k .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
 .kpi-mini .k .s { font-size: 14px; color: var(--ink-2); }
+.pbar { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.pbar .track { position: relative; flex: 1; height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.pbar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 99px; }
+.pbar .be { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); left: 52.38%; }
 .card.mine { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 td.strong { font-weight: 700; }
 tr.hot > td { background: color-mix(in srgb, var(--warning) 16%, transparent); }
@@ -240,6 +244,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
     <button role="tab" data-tab="nba" aria-selected="false">NBA ≥ 7 picks</button>
     <button role="tab" data-tab="season" aria-selected="false">Cách của bạn · cả mùa</button>
+    <button role="tab" data-tab="forecast" aria-selected="false">Dự báo</button>
   </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
@@ -431,6 +436,24 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h3 class="decide-sub">Từng kèo</h3>
       <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="season-plays-ncaaf"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-forecast">
+    <div class="card decide">
+      <h2>Dự báo theo cách của bạn — kiểm tra trước khi tin</h2>
+      <details class="howto"><summary>Cách dự báo</summary><p>Mỗi kèo của cách bạn (spread, ≥ 5 picks; Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược) được xếp vào một <b>tình huống</b>: giải × nhóm ngày × đồng thuận (n/n) hay không × số picks (5–7, 8–9, 10+). Xác suất thắng = tỉ lệ thắng trong quá khứ của tình huống cụ thể nhất có ≥ 20 kèo, <b>kéo về 50%</b> bằng 20 kèo 50/50 để mẫu nhỏ không trông quá đẹp. <b>EV</b> = lời/lỗ kỳ vọng cho 1 unit ở odds hiện có. <b>Kiểm tra</b> (walk-forward): dự báo từng tuần chỉ bằng các tuần trước đó rồi chấm — nếu kèo dự báo "trên hòa vốn" không thắng trên 52,4% thì dự báo chưa có giá trị. Lịch sử đếm số picks trên thẻ By Game; live đếm mỗi expert một phiếu, nên nhóm số picks của kèo live thường thấp hơn.</p></details>
+      <div class="verdict" id="fc-verdict"></div>
+      <div class="table-scroll" id="fc-backtest"></div>
+    </div>
+    <div class="card">
+      <h2>Kèo sắp đá — xác suất thắng ước tính</h2>
+      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
+      <div class="table-scroll" id="fc-up"></div>
+    </div>
+    <div class="card">
+      <h2>Các tình huống trong quá khứ</h2>
+      <div class="table-scroll" id="fc-cells"></div>
     </div>
   </section>
 
@@ -1396,11 +1419,62 @@ const DATA = /*__DATA__*/null;
     }
   }
 
+  function forecastTab() {
+    const B = T("Forecast_Backtest");
+    const LG = { ALL: "Tất cả", nfl: "NFL", ncaaf: "NCAAF" };
+    const bet = B.find((r) => r.league === "ALL" && r.p_bucket.startsWith("Trên"));
+    const v = document.getElementById("fc-verdict");
+    const good = bet && bet.n >= 50 && bet.win_pct >= 0.5238;
+    v.className = "verdict " + (good ? "go" : "hold");
+    v.replaceChildren(
+      el("div", { class: "verdict-main", text: !bet || !bet.n ? "Chưa đủ dữ liệu để kiểm tra dự báo"
+        : good ? `Dự báo có ích: kèo dự báo trên hòa vốn đi ${bet.wins}-${bet.losses} (${pct(bet.win_pct)})`
+        : `Dự báo CHƯA đáng tin: kèo dự báo trên hòa vốn chỉ đi ${bet.wins}-${bet.losses} (${pct(bet.win_pct)})` }),
+      el("div", { class: "verdict-sub", text: "Kiểm tra: dự báo từng tuần chỉ bằng dữ liệu các tuần trước rồi chấm kết quả thật. "
+        + (good ? "Vẫn chỉ là nhìn lại — tiếp tục theo dõi trên kèo mới." : "Tình huống thắng nhiều trong quá khứ không thắng nhiều hơn ở tuần sau — % bên dưới chỉ mô tả quá khứ, đừng dùng để đặt tiền.") }));
+    renderTable("fc-backtest", B, [
+      { label: "Giải", value: (r) => LG[r.league] || r.league, cls: (r) => (r.league === "ALL" ? "strong" : "") },
+      { label: "Dự báo lúc đó", value: (r) => r.p_bucket, cls: (r) => (r.p_bucket.startsWith("Trên") ? "strong" : "") },
+      { label: "Kết quả thật", num: true, value: (r) => (r.n ? `${num(r.wins)}-${num(r.losses)} · ${pct(r.win_pct)}` : "–"), cls: (r) => (r.n ? (r.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => r.win_pct },
+      { label: "Dự báo TB", num: true, value: (r) => pct(r.avg_p), sort: (r) => r.avg_p },
+      { label: "Units", num: true, value: (r) => (r.n ? (r.units > 0 ? "+" : "") + num(r.units, 2) : "–"), cls: (r) => roiCls(r.units), sort: (r) => r.units },
+    ]);
+    const fmtLine = (x) => (x === null || x === undefined ? "" : " " + (x > 0 ? "+" : "") + String(x).replace(".", ","));
+    const pbar = (r) => {
+      const col = r.p_win >= 0.5238 ? "var(--win)" : "var(--loss)";
+      return el("div", { class: "pbar" }, el("div", { class: "track" },
+        el("div", { class: "fill", style: `width:${Math.round(r.p_win * 100)}%;background:${col}` }), el("div", { class: "be" })),
+        el("b", { text: pct(r.p_win) }));
+    };
+    renderTable("fc-up", T("Forecast").filter((r) => state.league === "ALL" || r.league === state.league), [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match.replace("@", " @ ")}` },
+      { label: "Đám đông", value: (r) => `${r.crowd} ${r.votes}/${r.total_votes}`, sort: (r) => r.votes / r.total_votes },
+      { label: "Cách", value: (r) => (r.method === "follow" ? "Theo" : "Ngược") },
+      { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
+      { label: "Xác suất thắng", value: pbar, sort: (r) => r.p_win },
+      { label: "EV / 1u", num: true, value: (r) => (r.ev_u > 0 ? "+" : "") + num(r.ev_u, 2), cls: (r) => roiCls(r.ev_u), sort: (r) => r.ev_u },
+      { label: "Dựa trên", cls: () => "cell-wrap", value: (r) => `${r.basis} (${num(r.basis_n)} kèo)` },
+    ], null, HOT);
+    if (!T("Forecast").length) document.getElementById("fc-up").replaceChildren(el("div", { class: "empty", text: "Chưa có kèo sắp đá nào theo cách của bạn (spread, ≥ 5 picks)." }));
+    const CT = { unanimous: "Đồng thuận", mixed: "Không đồng thuận" };
+    renderTable("fc-cells", T("Forecast_Cells").filter((r) => state.league === "ALL" || r.league === state.league), [
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Nhóm ngày", value: (r) => (r.day_group === "T2-6" ? "Thứ 2–6 · theo" : "Thứ 7–CN · ngược") },
+      { label: "Đám đông", value: (r) => CT[r.crowd_type] || r.crowd_type },
+      { label: "Picks", value: (r) => r.bucket },
+      { label: "Quá khứ", num: true, value: (r) => `${num(r.wins)}-${num(r.losses)} · ${pct(r.raw_pct)}`, cls: (r) => (r.n < 20 ? "muted" : ""), sort: (r) => r.raw_pct },
+      { label: "Sau khi kéo về 50%", num: true, value: (r) => pct(r.p_win), sort: (r) => r.p_win },
+      { label: "Số kèo", num: true, value: (r) => num(r.n), sort: (r) => r.n },
+    ]);
+  }
+
   function render() {
     kpis();
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
     const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, consensus: consensusTab,
-      experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab };
+      experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
+      forecast: forecastTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();
   }
 
