@@ -634,12 +634,22 @@ const DATA = /*__DATA__*/null;
     return span;
   }
 
-  const BOARD_STATUS = { majority: "Có đa số", split: "Chia đều", few: "Ít picks (< 3)" };
+  // "Có đa số" = every expert on the same side (3/3, 4/4, 5/5 ...); 8/9 is "Không đồng thuận"
+  const BOARD_STATUS = { majority: "Có đa số", mixed: "Không đồng thuận", split: "Chia đều", few: "Ít picks (< 3)" };
   // status of a game x market from the upcoming board (rows of other tables only carry game_id + market)
   let boardStatus = null;
+  const statusOfCounts = (a, b) => {
+    a = Number(a) || 0; b = Number(b) || 0;
+    if (a + b < 3) return "few";
+    if (a === b) return "split";
+    return Math.min(a, b) === 0 ? "majority" : "mixed";
+  };
   const statusOf = (r) => {
-    if (!boardStatus) boardStatus = new Map(T("Upcoming_Board").map((x) => [`${x.game_id}|${x.market}`, x.status]));
-    return BOARD_STATUS[r.status] ? r.status : boardStatus.get(`${r.game_id}|${r.market}`) || (r.votes ? "majority" : "few");
+    if (r.a_votes !== undefined) return statusOfCounts(r.a_votes, r.b_votes);   // a row of the upcoming board
+    if (!boardStatus) boardStatus = new Map(T("Upcoming_Board").map((x) => [`${x.game_id}|${x.market}`, statusOfCounts(x.a_votes, x.b_votes)]));
+    const st = boardStatus.get(`${r.game_id}|${r.market}`);
+    if (st) return st;
+    return r.votes !== undefined ? statusOfCounts(r.votes, Number(r.total_votes) - Number(r.votes)) : "few";
   };
   const statusPill = (r) => { const st = statusOf(r); return el("span", { class: "pill " + (st === "majority" ? "info" : "dim"), text: BOARD_STATUS[st] || st }); };
   // "8/9" = experts on the bigger side / experts on the market (from the upcoming board)
@@ -777,7 +787,7 @@ const DATA = /*__DATA__*/null;
       { label: "Bên 1", value: (r) => boardSide(r, "a") },
       { label: "Bên 2", value: (r) => boardSide(r, "b") },
       { label: "Expert", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
-      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: BOARD_STATUS[r.status] || r.status }), sort: (r) => r.status },
+      STATUS_COL,
     ], null, HOT);
     const rows = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
     renderTable("upcoming-table", rows, [
@@ -1295,7 +1305,7 @@ const DATA = /*__DATA__*/null;
       { label: "Bên 1", value: (r) => boardSide(r, "a") },
       { label: "Bên 2", value: (r) => boardSide(r, "b") },
       { label: "Picks", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
-      { label: "Trạng thái", value: (r) => el("span", { class: "pill " + (r.status === "majority" ? "info" : "dim"), text: BOARD_STATUS[r.status] || r.status }), sort: (r) => r.status },
+      STATUS_COL,
     ], null, withHot({ pageSize: 30 }));
     if (!all.length) document.getElementById("nba-all").replaceChildren(el("div", { class: "empty", text: "Chưa có trận NBA sắp đá nào có picks." }));
   }
