@@ -307,7 +307,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card" id="inplay-card" hidden>
       <h2>Đang đá &amp; chờ kết quả</h2>
-      <p class="decide-note">Kèo của bạn và các quy tắc ở trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live và tỉ số cuối: ESPN — trận xong là chấm ngay.</p>
+      <p class="decide-note">Kèo theo cách của bạn ở các trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live và tỉ số cuối: ESPN — trận xong là chấm ngay.</p>
       <div class="table-scroll" id="inplay-table"></div>
     </div>
     <div class="card">
@@ -908,7 +908,7 @@ const DATA = /*__DATA__*/null;
   }
 
   function inPlayCard() {
-    const rows = rawFilter(T("In_Play"));
+    const rows = rawFilter(T("In_Play")).filter((r) => r.source === "Cách của bạn");  // only the user's method
     document.getElementById("inplay-card").hidden = !rows.length;
     const NOW = { win: { t: "Đang thắng", c: "win" }, loss: { t: "Đang thua", c: "loss" }, push: { t: "Đang hòa", c: "" } };
     const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
@@ -916,7 +916,7 @@ const DATA = /*__DATA__*/null;
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match.replace("@", " @ ")}` },
       SCORE_COL,
-      { label: "Nguồn", cls: () => "cell-wrap", value: (r) => String(r.source).replace(/^NCAAF /, "") + (r.crowd ? ` · đám đông ${r.crowd}` : "") },
+      { label: "Đám đông", value: (r) => r.crowd || "–" },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line, r.market) }) },
       { label: "Hiện tại", value: (r) => { const n = NOW[r.now]; return n ? el("span", { class: "pill " + n.c, text: n.t }) : el("span", { class: "muted", text: "–" }); }, sort: (r) => r.now || "" },
