@@ -16,7 +16,9 @@ keeping established betting terms in English (spread, total, moneyline, favorite
 ## Git workflow
 
 - Start from the latest `origin/main` and make code changes on a separate branch.
-- Create a pull request for review. Never push code directly to `main` or `gh-pages`.
+- Create a pull request for every change. After the required checks pass and GitHub reports the PR mergeable,
+  merge Codex-created PRs and delete their head branches automatically unless the owner explicitly asks to
+  leave a PR open for review. Never push code directly to `main` or `gh-pages`.
 - Keep commits focused. Do not include unrelated local or generated files.
 - The phone writes frequently to `main`. Refresh from `origin/main` before finalizing a pull request.
 - If a conflict involves `data/actions.db`, preserve the phone's newest version; never replace it with the
