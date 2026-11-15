@@ -88,3 +88,58 @@ test('offline, malformed data, missing teams and missing scores fail safely', as
     assert.equal(result.scores.length,0);
   }
 });
+
+const halfSummary = (id='401873053', wallclock='2026-11-15T16:05:48Z') => ({header:{id,competitions:[{status:{period:2,type:{name:'STATUS_HALFTIME'}}}]},drives:{current:{plays:[{
+  type:{id:'65',text:'End of Half'},period:{number:2},clock:{displayValue:'0:00'},wallclock,
+}]}}});
+const halfNow=Date.parse('2026-11-15T16:12:00Z');
+test('halftime ETA uses explicit end-of-half time plus verified league baseline', () => {
+  assert.equal(api.halftimeEnd(halfSummary(),game,'401873053',halfNow),'2026-11-15T16:18:48.000Z');
+  assert.equal(api.halftimeEnd(halfSummary(),{...game,league:'ncaaf'},'401873053',halfNow),'2026-11-15T16:25:48.000Z');
+  assert.equal(api.halftimeEnd(halfSummary(),{...game,league:'nba'},'401873053',halfNow),null);
+});
+test('halftime ETA is absent without the explicit second-quarter end marker', () => {
+  for (const field of ['wallclock','type','period','clock']) {
+    const body=halfSummary(); delete body.drives.current.plays[0][field];
+    assert.equal(api.halftimeEnd(body,game,'401873053',halfNow),null);
+  }
+  for (const stamp of ['bad','2026-11-15T16:30:00Z','2026-11-15T13:00:00Z']) {
+    assert.equal(api.halftimeEnd(halfSummary('401873053',stamp),game,'401873053',halfNow),null);
+  }
+});
+test('wrong game, final half or already resumed game cannot produce a halftime ETA', () => {
+  assert.equal(api.halftimeEnd(halfSummary('other'),game,'401873053',halfNow),null);
+  const body=halfSummary(); body.drives.current.plays[0].period.number=4;
+  assert.equal(api.halftimeEnd(body,game,'401873053',halfNow),null);
+  body.drives.current.plays[0].period.number=2; body.header.competitions[0].status.period=3;
+  assert.equal(api.halftimeEnd(body,game,'401873053',halfNow),null);
+});
+test('duplicate corrected markers use latest timestamp, never the page opening time', () => {
+  const body=halfSummary(); body.drives.previous=[{plays:[{...body.drives.current.plays[0],wallclock:'2026-11-15T16:06:00Z'}]}];
+  assert.equal(api.halftimeEnd(body,game,'401873053',halfNow),'2026-11-15T16:19:00.000Z');
+});
+test('regular season halftime fetch is cached per event across score polls', async () => {
+  const raw=event(), start=new Date(Date.now()-90*60000).toISOString(), ended=new Date(Date.now()-3*60000).toISOString();
+  raw.id='401873054';raw.date=start;raw.season={type:2};raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
+  raw.status.displayClock='0:00';
+  const target={...game,start_time:start,espn_event_id:raw.id},calls=[];
+  const mock=async url=>{calls.push(url);return {ok:true,json:async()=>url.includes('/summary?')?halfSummary(raw.id,ended):{events:[raw]}};};
+  const first=await api.fetchGames([target],mock),second=await api.fetchGames([target],mock);
+  assert.equal(calls.filter(x=>x.includes('/summary?')).length,1);
+  assert.equal(first.scores[0].situation.halftime_ends_at,second.scores[0].situation.halftime_ends_at);
+  assert.equal(first.scores[0].situation.is_halftime,true);
+  assert.equal(first.failed.length,0);
+});
+test('missing summary does not hide the score or invent a fresh halftime start', async () => {
+  const raw=event();raw.id='401873055';raw.season={type:2};raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
+  const result=await api.fetchGames([game],async url=>url.includes('/summary?')?{ok:false,status:503}:{ok:true,json:async()=>({events:[raw]})});
+  assert.equal(result.scores[0].away_score,3);
+  assert.equal(result.scores[0].situation.halftime_ends_at,null);
+  assert.equal(result.failed.length,0);
+});
+test('postseason has no generic halftime estimate or summary request', async () => {
+  const raw=event();raw.season={type:3};raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
+  const calls=[];const result=await api.fetchGames([game],async url=>{calls.push(url);return {ok:true,json:async()=>({events:[raw]})};});
+  assert.equal(calls.length,1);
+  assert.equal(result.scores[0].situation.halftime_ends_at,undefined);
+});

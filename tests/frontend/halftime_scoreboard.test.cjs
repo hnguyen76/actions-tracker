@@ -1,0 +1,104 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const source = fs.readFileSync(path.resolve(__dirname, '../../src/actions_tracker/templates/static/scoreboard.js'), 'utf8');
+const BASE = Date.parse('2026-11-15T16:10:00Z');
+
+function harness() {
+  let now = BASE, nextTimer = 0;
+  const timers = new Map(), listeners = new Map();
+  class Element {
+    constructor(tag) { this.tagName = tag; this.className = ''; this.dataset = {}; this.attributes = {}; this.children = []; this.parentNode = null; this.hidden = false; this.ownText = ''; }
+    set textContent(v) { this.ownText = String(v); this.children = []; }
+    get textContent() { return this.ownText + this.children.map(x => x.textContent).join(''); }
+    get classList() { return { add: (...names) => { this.className = [...new Set(this.className.split(/\s+/).filter(Boolean).concat(names))].join(' '); } }; }
+    setAttribute(k, v) { this.attributes[k] = String(v); }
+    append(...items) { for (const item of items) { item.parentNode = this; this.children.push(item); } }
+    replaceChildren(...items) { for (const old of this.children) old.parentNode = null; this.children = []; this.ownText = ''; this.append(...items); }
+    get isConnected() { return this === doc.root || !!this.parentNode?.isConnected; }
+    getClientRects() { for (let p = this; p; p = p.parentNode) if (p.hidden) return []; return this.isConnected ? [{}] : []; }
+  }
+  const walk = (node) => [node, ...node.children.flatMap(walk)];
+  const doc = {
+    hidden: false,
+    createElement: tag => new Element(tag),
+    addEventListener: (event, fn) => { const a = listeners.get(event) || []; a.push(fn); listeners.set(event, a); },
+    querySelectorAll: () => walk(doc.root).filter(n => n.className.split(/\s+/).includes('asb-halftime') && n.dataset.halftimeEndsAt),
+  };
+  doc.root = new Element('root');
+  const host = new Element('div'); doc.root.append(host);
+  class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
+  const context = vm.createContext({ document: doc, Date: ClockDate, setInterval: (fn, ms) => { assert.equal(ms, 1000); timers.set(++nextTimer, fn); return nextTimer; }, clearInterval: id => timers.delete(id) });
+  context.window = context;
+  vm.runInContext(source, context);
+  return {
+    api: context.ActionsScoreboard, doc, host, timers,
+    nodes: cls => walk(doc.root).filter(n => n.className.split(/\s+/).includes(cls)),
+    advance: ms => { now += ms; for (const fn of [...timers.values()]) fn(); },
+    hide: hidden => { doc.hidden = hidden; for (const fn of listeners.get('visibilitychange') || []) fn(); },
+  };
+}
+const game = (extra = {}) => ({ game_id: 1, league: 'nfl', state: 'live', detail: 'Halftime', away_abbr: 'NE', home_abbr: 'DET', away_score: 3, home_score: 21,
+  situation: { is_halftime: true, period: 2, clock: '0:00', halftime_ends_at: new Date(BASE + 532000).toISOString(), possession: 'home', possession_text: 'NE 8', down_distance: '2nd & 2' }, ...extra });
+
+test('estimate is visibly labeled and derives remaining time from the absolute deadline', () => {
+  const h = harness(); h.api.render(h.host, [game()]);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:52');
+  assert.equal(h.nodes('asb-clock')[0].attributes['aria-live'], 'off');
+  assert.equal(h.nodes('asb-possession').length, 0);
+  assert.equal(h.nodes('asb-situation').length, 0);
+  h.advance(5500);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:47');
+  assert.equal(h.timers.size, 1);
+});
+test('expired estimate waits for official third-quarter status and stops its ticker', () => {
+  const h = harness(); h.api.render(h.host, [game()]); h.advance(532000);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · chờ hiệp 3');
+  assert.equal(h.timers.size, 0);
+  h.advance(60000);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · chờ hiệp 3');
+});
+test('hidden pages pause and resume immediately from wall-clock time', () => {
+  const h = harness(); h.api.render(h.host, [game()]); h.hide(true);
+  assert.equal(h.timers.size, 0); h.advance(30000);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:52');
+  h.hide(false);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:22');
+  assert.equal(h.timers.size, 1);
+});
+test('rerenders share one ticker and removing cards clears the ticker', () => {
+  const h = harness(); h.api.render(h.host, [game()]); const old = h.nodes('asb-clock')[0];
+  for (let i = 0; i < 4; i++) h.api.render(h.host, [game()]);
+  assert.equal(h.timers.size, 1); assert.equal(old.isConnected, false);
+  h.api.render(h.host, []); assert.equal(h.timers.size, 0);
+});
+test('ordinary game clock, final and third-quarter status never become a countdown', () => {
+  const h = harness();
+  h.api.render(h.host, [game({ detail: '5:47 - 2nd', situation: { period: 2, clock: '5:47', halftime_ends_at: new Date(BASE + 10000).toISOString() } })]);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:47 · Hiệp 2'); h.advance(5000);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:47 · Hiệp 2'); assert.equal(h.timers.size, 0);
+  h.api.render(h.host, [game({ situation: { ...game().situation, period: 3, clock: '15:00' } })]);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '15:00 · Hiệp 3'); assert.equal(h.timers.size, 0);
+  h.api.render(h.host, [game({ state: 'final' })]);
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Hết trận · chờ chấm'); assert.equal(h.timers.size, 0);
+});
+test('invalid or missing estimates retain the official halftime label without a ticker', () => {
+  const h = harness();
+  for (const end of [null, '', 'invalid']) {
+    h.api.render(h.host, [game({ situation: { ...game().situation, halftime_ends_at: end } })]);
+    assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime'); assert.equal(h.timers.size, 0);
+  }
+});
+test('only visible countdown nodes run a ticker', () => {
+  const h = harness(); h.doc.root.hidden = true; h.api.render(h.host, [game()]);
+  assert.equal(h.timers.size, 0);
+  h.doc.root.hidden = false; h.hide(false); assert.equal(h.timers.size, 1);
+});
+test('official halftime status alone is retained while an empty status remains null', () => {
+  const h = harness();
+  assert.equal(h.api.parseSituation({ competitions: [{}] }), null);
+  const s = h.api.parseSituation({ status: { type: { name: 'STATUS_HALFTIME' } }, competitions: [{}] });
+  assert.equal(s.is_halftime, true);
+});

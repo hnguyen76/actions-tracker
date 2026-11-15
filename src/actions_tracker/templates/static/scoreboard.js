@@ -31,8 +31,10 @@
     const raw = comp.situation && typeof comp.situation === "object" ? comp.situation : {};
     const possessionId = integer(raw.possession) === null ? null : String(raw.possession);
     const status = comp.status && typeof comp.status === "object" ? comp.status : event && event.status || {};
+    const statusType = status.type && typeof status.type === "object" ? status.type : {};
     const period = integer(status.period);
     const result = {
+      is_halftime: statusType.name === "STATUS_HALFTIME" || /\bhalftime\b/i.test([statusType.detail, statusType.shortDetail, statusType.description].filter(Boolean).join(" ")),
       possession: possessionId && awayId !== homeId ? (possessionId === awayId ? "away" : possessionId === homeId ? "home" : null) : null,
       possession_text: text(raw.possessionText),
       down_distance: text(raw.shortDownDistanceText) || text(raw.downDistanceText),
@@ -44,7 +46,7 @@
       away_espn_id: awayId,
       home_espn_id: homeId,
     };
-    return [result.possession, result.possession_text, result.down_distance, result.red_zone, result.period, result.clock, result.away_period_scores, result.home_period_scores]
+    return result.is_halftime || [result.possession, result.possession_text, result.down_distance, result.red_zone, result.period, result.clock, result.away_period_scores, result.home_period_scores]
       .some((value) => value !== null) ? result : null;
   }
 
@@ -57,6 +59,26 @@
   const league = (game) => String(game.league || "").toUpperCase();
   const abbreviation = (game, side) => text(game[side + "_abbr"]) || text(game[side + "_name"]) || (side === "away" ? "Đội khách" : "Đội nhà");
   const periodName = (period) => period <= 4 ? String(period) : period === 5 ? "OT" : "OT" + (period - 4);
+  const halftimeLabel = (end, now = Date.now()) => {
+    const remaining = Math.ceil((end - now) / 1000);
+    return remaining > 0 ? "Halftime · ước tính " + String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0")
+      : "Halftime · chờ hiệp 3";
+  };
+  let halftimeTicker = null;
+  function updateHalftimeClocks() {
+    if (typeof document === "undefined") return;
+    let active = false;
+    if (!document.hidden) for (const clock of document.querySelectorAll(".asb-halftime[data-halftime-ends-at]")) {
+      if (!clock.isConnected || !clock.getClientRects().length) continue;
+      const end = Date.parse(clock.dataset.halftimeEndsAt);
+      if (!Number.isFinite(end)) continue;
+      clock.textContent = halftimeLabel(end);
+      if (end > Date.now()) active = true;
+    }
+    if (active && halftimeTicker === null) halftimeTicker = setInterval(updateHalftimeClocks, 1000);
+    if (!active && halftimeTicker !== null) { clearInterval(halftimeTicker); halftimeTicker = null; }
+  }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", updateHalftimeClocks);
 
   function quarterTable(game, situation) {
     const away = Array.isArray(situation.away_period_scores) ? situation.away_period_scores : [];
@@ -89,6 +111,8 @@
   function scorecard(game) {
     const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
     const final = game.state === "final", live = game.state === "live";
+    const period = integer(situation.period);
+    const halftime = live && (period === null || period < 3) && (situation.is_halftime === true || /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail || "")));
     const card = node("article", "asb-card");
     card.dataset.gameId = String(game.game_id);
     card.setAttribute("aria-label", league(game) + " " + abbreviation(game, "away") + " tại " + abbreviation(game, "home"));
@@ -97,10 +121,18 @@
     let clock = text(game.detail) || (live ? "Đang đá" : "Chờ kết quả");
     if (final) clock = game.graded ? "Hết trận" : "Hết trận · chờ chấm";
     else if (live && text(situation.clock) && integer(situation.period) !== null && situation.period > 0
-      && (!text(game.detail) || String(game.detail).includes(situation.clock))) {
+      && (!text(game.detail) || String(game.detail).includes(situation.clock)
+        || situation.period >= 3 && /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail)))) {
       clock = situation.clock + " · " + (situation.period > 4 ? periodName(situation.period) : "Hiệp " + situation.period);
     }
     const clockNode = node("strong", "asb-clock", clock);
+    const halftimeEnd = text(situation.halftime_ends_at);
+    if (halftime && halftimeEnd && Number.isFinite(Date.parse(halftimeEnd))) {
+      clockNode.classList.add("asb-halftime");
+      clockNode.dataset.halftimeEndsAt = halftimeEnd;
+      clockNode.setAttribute("aria-live", "off");
+      clockNode.textContent = halftimeLabel(Date.parse(halftimeEnd));
+    }
     meta.append(clockNode);
     const stamp = new Date(game.updated_at);
     const checked = game.updated_at && Number.isFinite(stamp.getTime())
@@ -113,7 +145,7 @@
       const identity = node("div", "asb-identity");
       const name = text(game[side + "_name"]) || abbreviation(game, side);
       const title = node("div", "asb-name", name);
-      const possesses = live && situation.possession === side;
+      const possesses = live && !halftime && situation.possession === side;
       if (possesses) {
         const dot = node("span", "asb-possession");
         dot.setAttribute("role", "img");
@@ -132,7 +164,7 @@
       }
     }
     card.append(main);
-    if (live) {
+    if (live && !halftime) {
       const items = [];
       if (situation.possession === "away" || situation.possession === "home") items.push(abbreviation(game, situation.possession) + " đang cầm bóng");
       const down = text(situation.down_distance), spot = text(situation.possession_text);
@@ -158,6 +190,7 @@
     host.classList.add("asb-list");
     host.replaceChildren(...cards);
     host.hidden = !cards.length;
+    updateHalftimeClocks();
   }
 
   window.ActionsScoreboard = { parseSituation, render };
