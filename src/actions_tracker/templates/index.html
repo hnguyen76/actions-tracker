@@ -129,6 +129,22 @@ section.panel.active { display: block; }
 .board-details > summary::after { content: "  ▾"; color: var(--muted); }
 .board-details[open] > summary { margin-bottom: 10px; }
 .card p.note { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; max-width: 110ch; }
+.today-results-list { display: grid; gap: 10px; }
+.today-result { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.today-result > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 14px; padding: 12px 14px;
+  cursor: pointer; list-style: none; }
+.today-result > summary::-webkit-details-marker { display: none; }
+.today-result-title { min-width: 0; color: var(--ink); font-weight: 700; }
+.today-result-score { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 750; font-variant-numeric: tabular-nums; }
+.today-result-chevron { display: inline-block; color: var(--muted); transition: transform .15s; }
+.today-result[open] .today-result-chevron { transform: rotate(90deg); }
+.today-result-picks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; color: var(--ink-2); font-size: 13px; }
+.today-result-pick { display: inline-flex; align-items: center; gap: 5px; }
+.today-result-pick .pill { font-size: 11.5px; padding: 2px 8px; }
+.today-result-body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
+.today-result-scoreboard .asb-list { margin: 14px 0; }
+.today-result-market { padding: 14px 0 4px; border-top: 1px solid var(--border); }
+.today-result-market h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0 0 12px; font-size: 15px; }
 .chart-box { position: relative; height: 340px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
@@ -423,6 +439,11 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <summary><h2>Tất cả trận có picks</h2></summary>
       <div class="table-scroll" id="board-table"></div>
     </details>
+    <div class="card" id="today-results-card">
+      <h2 id="today-results-title">Kết quả hôm nay</h2>
+      <p class="note" id="today-results-record"></p>
+      <div class="today-results-list" id="today-results-list"></div>
+    </div>
   </section>
 
   <section class="panel" id="tab-rules">
@@ -1221,6 +1242,21 @@ const DATA = /*__DATA__*/null;
       detailBlock("Thời tiết giờ đá", archivedWeather(d.weather)),
       detailBlock("Chuyên gia chọn winner", archivedWinner(d.winner)));
   }
+  function methodSnapshotDetail(r) {
+    const saved = pregameSnapshot({ ...r, market: "spread" });
+    if (!saved) return el("div", { class: "detail-grid" },
+      detailBlock("Thông tin trước trận", "Game này chưa có snapshot trước trận."));
+    const d = saved.data || {};
+    const line = r.line === null || r.line === undefined ? "" : ` ${Number(r.line) > 0 ? "+" : ""}${String(r.line).replace(".", ",")}`;
+    const comparison = `Bạn đặt ${r.pick}${line} · ${r.method === "follow" ? "theo" : "ngược"} đám đông ${r.crowd} ${num(r.votes)}/${num(r.total_votes)} · kết quả: ${RESULT_LABEL[r.result] || r.result}`;
+    return el("div", { class: "detail-grid" },
+      detailBlock("Pregame → kết quả", comparison),
+      detailBlock("Tín hiệu trước trận", archivedList(d.signals, (x) => `${x.tone || "•"} ${x.text || "–"}`)),
+      detailBlock("Tin tức trước trận", archivedNews(d.news)),
+      detailBlock("Chuyên gia chọn spread", archivedATS(d.ats)),
+      detailBlock("Thời tiết giờ đá", archivedWeather(d.weather)),
+      detailBlock("Chuyên gia chọn winner", archivedWinner(d.winner)));
+  }
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, mine: { label: "Cách của bạn", cls: "info" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -1326,6 +1362,56 @@ const DATA = /*__DATA__*/null;
     ], null, Object.assign({}, HOT, { detail: liveDecisionDetail }));
   }
 
+  const todayResultOpen = new Set();
+  function todayResultsCard() {
+    const today = etDate(Date.now());
+    const methodRows = T("My_Method").map((r) => ({ ...r, market: "spread" }));
+    const rows = rawFilter(methodRows).filter((r) => r.et_date === today && r.status === "graded"
+      && ["win", "loss", "push"].includes(r.result));
+    const games = new Map();
+    for (const r of rows.slice().sort((a, b) => Date.parse(b.start_time) - Date.parse(a.start_time)
+      || String(a.market).localeCompare(String(b.market)))) {
+      const key = String(r.game_id);
+      if (!games.has(key)) games.set(key, []);
+      games.get(key).push(r);
+    }
+    document.getElementById("today-results-title").textContent = `Kết quả hôm nay · ${games.size} trận`;
+    const wins = rows.filter((r) => r.result === "win").length;
+    const losses = rows.filter((r) => r.result === "loss").length;
+    const pushes = rows.filter((r) => r.result === "push").length;
+    document.getElementById("today-results-record").textContent = rows.length
+      ? `${rows.length} kèo đã chấm · ${wins} thắng – ${losses} thua – ${pushes} hòa`
+      : "Chưa có game nào được chấm hôm nay.";
+    const host = document.getElementById("today-results-list");
+    host.replaceChildren();
+    for (const [key, plays] of games) {
+      const r = plays[0], score = scoreOf(r);
+      const [away, home] = String(r.match || "?@?").split("@");
+      const scoreText = score ? `${num(score.away_score)}–${num(score.home_score)}` : "–";
+      const details = el("details", { class: "today-result", "data-game-id": key });
+      details.open = todayResultOpen.has(key);
+      const fmtLine = (x) => x === null || x === undefined ? "" : ` ${Number(x) > 0 ? "+" : ""}${String(x).replace(".", ",")}`;
+      const picks = plays.map((p) => el("span", { class: "today-result-pick" },
+        `Đặt ${p.pick}${fmtLine(p.line)}`, resultPill(p.result)));
+      details.append(el("summary", {},
+        el("span", { class: "today-result-title", text: `${leagueName(r.league)} · ${vs(r.match)}` }),
+        el("span", { class: "today-result-score" }, scoreText, el("span", { class: "today-result-chevron", text: "›" })),
+        el("span", { class: "today-result-picks" }, ...picks)));
+      const body = el("div", { class: "today-result-body" });
+      const scoreHost = el("div", { class: "today-result-scoreboard" });
+      if (score && window.ActionsScoreboard) ActionsScoreboard.render(scoreHost, [{ ...r, ...score, market: "spread",
+        game_id: r.game_id, league: r.league, away_abbr: away, home_abbr: home, away_name: away, home_name: home }]);
+      else scoreHost.append(el("div", { class: "empty", text: "Chưa có box score." }));
+      body.append(scoreHost);
+      for (const p of plays) body.append(el("section", { class: "today-result-market" },
+        el("h3", {}, `Pregame · đặt ${p.pick}${fmtLine(p.line)} · ${p.method === "follow" ? "theo" : "ngược"} đám đông`,
+          resultPill(p.result)), methodSnapshotDetail(p)));
+      details.append(body);
+      details.addEventListener("toggle", () => details.open ? todayResultOpen.add(key) : todayResultOpen.delete(key));
+      host.append(details);
+    }
+  }
+
   function upcomingTab() {
     decideCard();
     inPlayCard();
@@ -1351,6 +1437,7 @@ const DATA = /*__DATA__*/null;
       { label: "Lịch sử (live)", num: true, value: (r) => histCell(r.hist_win_pct, r.hist_n), sort: (r) => r.hist_win_pct },
       { label: "Lịch sử mùa", num: true, value: (r) => histCell(r.season_win_pct, r.season_n, GROUP_LABEL[r.day_group]), sort: (r) => r.season_win_pct },
     ], null, HOT);
+    todayResultsCard();
   }
 
   // dashed break-even line + optional end-of-line direct labels
@@ -2347,7 +2434,7 @@ const DATA = /*__DATA__*/null;
       const next = JSON.parse(json);
       if (!next || Date.parse(next.generated_at) <= Date.parse(D.generated_at)) return;
       D = next;
-      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null; weatherMap = null; signalMap = null;
+      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null; weatherMap = null; signalMap = null; pregameSnapshotMap = null;
       header(); render();
     } catch (e) { /* offline or not published: keep what is shown */ }
     finally {
