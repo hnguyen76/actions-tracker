@@ -708,7 +708,8 @@ const DATA = /*__DATA__*/null;
         const c = cfn(r) || {};
         const hot = opts && opts.rowClass ? opts.rowClass(r) : "";
         const more = (c.more || []).filter(Boolean);
-        const row = el("div", { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : ""), "data-game-id": r.game_id ?? "" },
+        const row = el("div", { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : "")
+          + (more.length && c.open ? " open" : ""), "data-game-id": r.game_id ?? "" },
           el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
             c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
           c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null,
@@ -878,8 +879,10 @@ const DATA = /*__DATA__*/null;
     if (!boardRow) boardRow = new Map(T("Upcoming_Board").map((x) => [`${x.game_id}|${x.market}`, x]));
     return boardRow.get(`${r.game_id}|${r.market}`);
   };
-  const crowdCount = (r) => { const b = boardOf(r); return b ? `${num(Math.max(b.a_votes, b.b_votes))}/${num(b.total_votes)}` : "–"; };
-  const crowdShare = (r) => { const b = boardOf(r); return b && b.total_votes ? Math.max(b.a_votes, b.b_votes) / b.total_votes : -1; };
+  const crowdCount = (r) => { const b = boardOf(r), total = Number(r.total_votes) || 0, votes = Number(r.votes) || 0;
+    return b ? `${num(Math.max(b.a_votes, b.b_votes))}/${num(b.total_votes)}` : total ? `${num(votes)}/${num(total)}` : "–"; };
+  const crowdShare = (r) => { const b = boardOf(r), total = Number(r.total_votes) || 0;
+    return b && b.total_votes ? Math.max(b.a_votes, b.b_votes) / b.total_votes : total ? (Number(r.votes) || 0) / total : -1; };
   const STATUS_COL = { label: "Trạng thái", value: statusPill, sort: (r) => statusOf(r) };
   // "WAS +2,5: 3" = side, the experts' median line on that side, number of experts
   function boardSide(r, which) {
@@ -1115,6 +1118,16 @@ const DATA = /*__DATA__*/null;
     const play = Object.assign({}, r, { market: "spread" });
     return r.status === "graded" || !boardOf(play) ? "–" : mediaPicksCell(play);
   };
+  const detailBlock = (label, content) => el("div", { class: "detail-block" }, el("div", { class: "detail-h", text: label }),
+    content instanceof Node ? content : el("span", { class: "muted", text: content || "–" }));
+  const decisionDetail = (r) => el("div", { class: "detail-grid" },
+    detailBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), detailBlock("Tin tức", matchNewsCell(r)),
+    detailBlock("Chuyên gia chọn spread", atsPicksCell(r)), detailBlock("Thời tiết (giờ đá)", weatherCell(r)));
+  const liveDecisionDetail = (r) => {
+    const detail = decisionDetail(r);
+    detail.append(detailBlock("Chuyên gia chọn winner", mediaPicksCell(Object.assign({}, r, { market: "spread", total_votes: 99 }))));
+    return detail;
+  };
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, mine: { label: "Cách của bạn", cls: "info" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -1169,17 +1182,12 @@ const DATA = /*__DATA__*/null;
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
     ];
-    const block = (label, node) => el("div", { class: "detail-block" }, el("div", { class: "detail-h", text: label }),
-      node instanceof Node ? node : el("span", { class: "muted", text: node || "–" }));
-    const decideDetail = (r) => el("div", { class: "detail-grid" },
-      block("Tín hiệu cho bên bạn đặt", signalsCell(r)), block("Tin tức", matchNewsCell(r)),
-      block("Chuyên gia chọn spread", atsPicksCell(r)), block("Thời tiết (giờ đá)", weatherCell(r)));
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
       const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
       h.replaceChildren(MARKET_LABEL[market] || market, el("span", { class: "count", text: `${list.length} kèo` }));
       if (market === "ml") { h.hidden = host.hidden = !list.length; }
-      renderTable("decide-table-" + market, list, cols, null, Object.assign({}, HOT, { detail: decideDetail }));
+      renderTable("decide-table-" + market, list, cols, null, Object.assign({}, HOT, { detail: decisionDetail }));
       if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
     section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
@@ -1206,15 +1214,17 @@ const DATA = /*__DATA__*/null;
       ActionsScoreboard.render(document.getElementById("live-scoreboards"), [...cards.values()]);
     }
     const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
+    const nExperts = (r) => Number((boardOf(r) || {}).total_votes) || Number(r.total_votes) || 0;
     renderTable("inplay-table", rows, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match.replace("@", " @ ")}` },
-      SCORE_COL,
-      { label: "Đám đông", value: (r) => r.crowd || "–" },
-      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Expert", value: nExperts, sort: nExperts },
+      STATUS_COL,
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line, r.market) }) },
+      { label: "Vì sao", value: crowdCount, sort: crowdShare },
+      SCORE_COL,
       { label: "Hiện tại", value: (r) => nowPill(r.now, r.state === "final"), sort: (r) => r.now || "" },
-    ]);
+    ], null, Object.assign({}, HOT, { detail: liveDecisionDetail }));
   }
 
   function upcomingTab() {
@@ -2029,8 +2039,12 @@ const DATA = /*__DATA__*/null;
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
-      sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)}` + (r.crowd ? ` · đám đông ${r.crowd}` : "")],
-      more: [moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
+      sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)} · ${num((boardOf(r) || {}).total_votes || r.total_votes || 0)} expert`
+        + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`], open: true,
+      more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
+        moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
+        moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
+        moreBlock("Thời tiết (giờ đá)", weatherCell(r)),
         moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] }),
     "upcoming-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
       right: el("b", { text: `${MARKET_LABEL[r.market] || r.market}: ${sideName(r)}` }),
