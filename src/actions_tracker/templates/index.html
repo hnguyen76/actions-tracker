@@ -145,6 +145,9 @@ th { color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: .
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tbody tr:hover { background: var(--surface-2); }
 tr.clickable { cursor: pointer; }
+tr.detail-toggle { cursor: pointer; }
+tr.detail-toggle > td:first-child::before { content: "▸"; color: var(--muted); display: inline-block; width: 14px; }
+tr.detail-toggle.detail-open > td:first-child::before { content: "▾"; }
 tr.selected, tr.selected:hover { background: var(--accent-wash); }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
@@ -695,11 +698,28 @@ const DATA = /*__DATA__*/null;
         tr.addEventListener("click", () => onRow(r));
         tr.addEventListener("keydown", (e) => { if (e.key === "Enter") onRow(r); });
       }
-      tbody.append(tr);
       const detail = opts && opts.detail ? opts.detail(r) : null;
       if (detail) {
         tr.classList.add("has-detail");
-        tbody.append(el("tr", { class: "detail-row" + (hot ? " " + hot : "") }, el("td", { colspan: String(columns.length) }, detail)));
+        const collapsible = Boolean(opts && opts.collapsibleDetail);
+        const detailKey = opts && opts.detailKey ? String(opts.detailKey(r)) : `${r.game_id ?? ""}|${r.market ?? ""}`;
+        const open = !collapsible || (st.openDetails && st.openDetails.has(detailKey));
+        if (collapsible) {
+          if (!st.openDetails) st.openDetails = new Set();
+          tr.classList.add("detail-toggle");
+          if (open) tr.classList.add("detail-open");
+          tr.tabIndex = 0;
+          tr.setAttribute("aria-expanded", String(open));
+          const toggle = () => { st.openDetails.has(detailKey) ? st.openDetails.delete(detailKey) : st.openDetails.add(detailKey); redraw(); };
+          tr.addEventListener("click", toggle);
+          tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+        }
+        tbody.append(tr);
+        const detailRow = el("tr", { class: "detail-row" + (hot ? " " + hot : "") }, el("td", { colspan: String(columns.length) }, detail));
+        if (!open) detailRow.hidden = true;
+        tbody.append(detailRow);
+      } else {
+        tbody.append(tr);
       }
     }
     const cfn = isPhone() && compactFor(target);
@@ -903,7 +923,15 @@ const DATA = /*__DATA__*/null;
     }
     return r.total_votes !== undefined && r.total_votes !== null ? Number(r.total_votes) : pickCount.get(`${r.game_id}|${r.market}`) || 0;
   };
-  const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS ? "hot" : "") };
+  // yellow = 8+ picks AND a unanimous crowd (8/8, 9/9 ...): every pick on the same side
+  const unanimous = (r) => {
+    if (r.votes !== undefined && r.votes !== null && r.total_votes !== undefined && r.total_votes !== null)
+      return Number(r.votes) === Number(r.total_votes);
+    const m = String(r.crowd || "").match(/(\d+)\/(\d+)$/);
+    if (m) return m[1] === m[2];
+    return statusOf(r) === "majority";
+  };
+  const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
   const withHot = (opts) => Object.assign({}, opts || {}, HOT);
   let matchNewsByGame = null;
   function matchNewsCell(r) {
@@ -1128,6 +1156,54 @@ const DATA = /*__DATA__*/null;
     detail.append(detailBlock("Chuyên gia chọn winner", mediaPicksCell(Object.assign({}, r, { market: "spread", total_votes: 99 }))));
     return detail;
   };
+  let pregameSnapshotMap = null;
+  function pregameSnapshot(r) {
+    if (!pregameSnapshotMap) {
+      pregameSnapshotMap = new Map();
+      for (const item of T("Pregame_Snapshots")) {
+        try { pregameSnapshotMap.set(`${item.game_id}|${item.market}`, { meta: item, data: JSON.parse(item.snapshot_json) }); }
+        catch (_) { }
+      }
+    }
+    return pregameSnapshotMap.get(`${r.game_id}|${r.market}`) || null;
+  }
+  const archivedList = (items, text, cls = "") => items && items.length
+    ? el("ul", { class: cls || "signals" }, ...items.map((x) => el("li", { text: text(x) })))
+    : el("span", { class: "news-empty", text: "Chưa có dữ liệu đã lưu" });
+  function archivedNews(items) {
+    return archivedList(items, (x) => `${x.team_abbr || ""} · ${x.sentiment === "positive" ? "Có lợi" : "Bất lợi"}: ${x.summary || "–"}`);
+  }
+  function archivedWeather(items) {
+    const w = (items || [])[0];
+    if (!w) return el("span", { class: "news-empty", text: "Chưa có dự báo đã lưu" });
+    if (w.indoor) return el("span", { text: "Sân trong nhà · không ảnh hưởng thời tiết" });
+    const parts = [w.condition, w.temp_f == null ? null : `${Math.round(w.temp_f)}°F`,
+      w.precip_pct == null ? null : `mưa ${Math.round(w.precip_pct)}%`,
+      w.wind_mph == null ? null : `gió ${Math.round(w.wind_mph)} mph`].filter(Boolean);
+    return el("span", { text: parts.join(" · ") || "–" });
+  }
+  function archivedATS(items) {
+    return archivedList(items, (x) => `${x.expert || "Expert"}: ${x.pick_team || "–"} ${x.line == null ? "" : atsLine(Number(x.line))} · ${x.source || "Nguồn"}`);
+  }
+  function archivedWinner(items) {
+    return archivedList(items, (x) => `${x.expert || "Expert"}: ${x.pick_team || "–"} · ${x.source || "Nguồn"}`);
+  }
+  function pastSnapshotDetail(r) {
+    const saved = pregameSnapshot(r);
+    if (!saved) return el("div", { class: "detail-grid" },
+      detailBlock("Thông tin trước trận", "Trận cũ này chưa có snapshot trước trận."));
+    const d = saved.data || {}, board = (d.board || [])[0];
+    const comparison = board
+      ? `${r.pick} ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%) · kết quả: ${RESULT_LABEL[r.side_result] || r.side_result}`
+      : `Side đa số ${r.pick} · kết quả: ${RESULT_LABEL[r.side_result] || r.side_result}`;
+    return el("div", { class: "detail-grid" },
+      detailBlock("So sánh trước trận → kết quả", comparison),
+      detailBlock("Tín hiệu trước trận", archivedList(d.signals, (x) => `${x.tone || "•"} ${x.text || "–"}`)),
+      detailBlock("Tin tức trước trận", archivedNews(d.news)),
+      detailBlock("Chuyên gia chọn spread", archivedATS(d.ats)),
+      detailBlock("Thời tiết giờ đá", archivedWeather(d.weather)),
+      detailBlock("Chuyên gia chọn winner", archivedWinner(d.winner)));
+  }
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, mine: { label: "Cách của bạn", cls: "info" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -1572,7 +1648,9 @@ const DATA = /*__DATA__*/null;
     for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
       const part = rows.filter((r) => r.day_group === group);
       lollipop(`past-chart-${suffix}`, part);
-      renderTable(`past-table-${suffix}`, part, columns);
+      renderTable(`past-table-${suffix}`, part, columns, null, {
+        detail: pastSnapshotDetail, collapsibleDetail: true, detailKey: (r) => `${r.game_id}|${r.market}`,
+      });
     }
   }
 
@@ -2031,6 +2109,9 @@ const DATA = /*__DATA__*/null;
   const newsFor = (r) => matchNewsCell(Object.assign({}, r, { market: "spread", total_votes: 99 }));
   const ruleShort = (r) => String(r.rule_name || r.rule_id || "").replace(/^(NCAAF|NFL) /, "");
   const COMPACT = {
+    "past-table-": (r) => ({ title: `${r.et_date} · ${leagueName(r.league)} · ${vs(r.match)}`,
+      right: resultPill(r.side_result), sub: `${MARKET_LABEL[r.market] || r.market} · ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`,
+      more: [moreBlock("Thông tin trước trận và kết quả", pastSnapshotDetail(r))] }),
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
         sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
