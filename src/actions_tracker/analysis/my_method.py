@@ -107,7 +107,7 @@ def my_method_summary(plays: pd.DataFrame, sides: pd.DataFrame) -> pd.DataFrame:
 
 # --- the whole season: history (By-Game cards, weeks 1..) + live games not in the history files -------------
 SEASON_COLS = ["league", "week", "game_id", "start_time", "et_date", "day_group", "match", "score", "crowd", "votes",
-               "total_votes", "method", "pick", "line", "odds", "result", "source"]
+               "total_votes", "method", "pick", "line", "fav_dog", "odds", "result", "source"]
 SEASON_SUMMARY_COLS = ["league", "week", "day_group"] + SUMMARY_KEYS
 
 
@@ -146,6 +146,9 @@ def season_plays(sides: pd.DataFrame, live: pd.DataFrame, games: dict) -> pd.Dat
                 "score": score, "crowd": r.crowd, "votes": int(r.votes), "total_votes": int(r.total_votes),
                 "method": r.method, "pick": r.pick, "line": r.line, "odds": r.odds,
                 "result": r.result if isinstance(r.result, str) else None, "source": "live"})
+    for row in rows:  # the side we bet: favourite (minus line), underdog (plus line) or pick'em
+        ln = row["line"]
+        row["fav_dog"] = None if ln is None or pd.isna(ln) else "favorite" if ln < 0 else "underdog" if ln > 0 else "pk"
     out = pd.DataFrame(rows, columns=SEASON_COLS)
     return out.sort_values(["league", "et_date", "game_id"], ascending=[True, False, True], kind="stable") \
         .reset_index(drop=True).astype(object)
@@ -187,3 +190,20 @@ def season_sensitivity(plays: pd.DataFrame) -> pd.DataFrame:
                     rows.append({"league": league, "min_picks": k, "crowd_type": crowd, "day_group": dg,
                                  **summarize(list(g["result"]) if len(g) else [], list(g["odds"]) if len(g) else [])})
     return pd.DataFrame(rows, columns=SENSITIVITY_COLS)
+
+
+FAVDOG_COLS = ["league", "fav_dog", "day_group"] + SUMMARY_KEYS
+
+
+def season_favdog(plays: pd.DataFrame) -> pd.DataFrame:
+    """The method split by the side we bet: favourite vs underdog (pick'em and unknown lines left out)."""
+    rows = []
+    for league in LEAGUES:
+        mine = plays[(plays["league"] == league) & plays["result"].notna()] if len(plays) else plays
+        for fd in ("favorite", "underdog"):
+            sel = mine[mine["fav_dog"] == fd] if len(mine) else mine
+            for dg in ("T2-6", "T7-CN", "ALL"):
+                g = sel if dg == "ALL" else (sel[sel["day_group"] == dg] if len(sel) else sel)
+                rows.append({"league": league, "fav_dog": fd, "day_group": dg,
+                             **summarize(list(g["result"]) if len(g) else [], list(g["odds"]) if len(g) else [])})
+    return pd.DataFrame(rows, columns=FAVDOG_COLS)

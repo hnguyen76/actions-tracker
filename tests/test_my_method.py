@@ -3,7 +3,7 @@
 import pandas as pd
 
 from actions_tracker.analysis.my_method import (PLAY_COLS, SEASON_COLS, SUMMARY_COLS, my_method_plays,
-                                                my_method_summary, season_plays, season_sensitivity,
+                                                my_method_summary, season_favdog, season_plays, season_sensitivity,
                                                 season_summary)
 
 
@@ -80,6 +80,9 @@ def test_season_uses_history_then_live_games_not_in_it():
     by = s.set_index("game_id")
     assert set(by.index) == {1, 2, 4} and by.loc[1, "source"] == "history" and by.loc[4, "source"] == "live"
     assert (by.loc[2, "pick"], by.loc[2, "line"], by.loc[2, "result"], by.loc[2, "score"]) == ("WF", 3.0, "loss", "7-49")
+    assert (by.loc[2, "fav_dog"], by.loc[1, "fav_dog"]) == ("underdog", "underdog")  # WF +3, WAS +1.5
+    fd = season_favdog(s).set_index(["league", "fav_dog", "day_group"])
+    assert (fd.loc[("ncaaf", "underdog", "T7-CN"), "losses"], fd.loc[("nfl", "underdog", "ALL"), "wins"]) == (1, 1)
     assert by.loc[4, "week"] == 11 and pd.isna(by.loc[4, "result"])
     summ = season_summary(s).set_index(["league", "week", "day_group"])
     assert (summ.loc[("nfl", "ALL", "ALL"), "wins"], summ.loc[("ncaaf", 11, "T7-CN"), "losses"]) == (1, 1)
