@@ -1,5 +1,6 @@
 .asb-list { display: grid; gap: 12px; margin: 14px 0 18px; min-width: 0; }
-.asb-card { border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); padding: 14px 18px; min-width: 0; }
+.asb-card { border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); padding: 14px 18px; min-width: 0;
+  contain: layout paint style; }
 .asb-meta { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 16px; }
 .asb-league, .asb-updated { color: var(--muted); font-size: 12px; }
 .asb-updated { text-align: right; font-variant-numeric: tabular-nums; }

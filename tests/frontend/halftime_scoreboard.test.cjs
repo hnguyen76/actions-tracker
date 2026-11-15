@@ -71,8 +71,19 @@ test('hidden pages pause and resume immediately from wall-clock time', () => {
 test('rerenders share one ticker and removing cards clears the ticker', () => {
   const h = harness(); h.api.render(h.host, [game()]); const old = h.nodes('asb-clock')[0];
   for (let i = 0; i < 4; i++) h.api.render(h.host, [game()]);
-  assert.equal(h.timers.size, 1); assert.equal(old.isConnected, false);
+  assert.equal(h.timers.size, 1); assert.equal(old.isConnected, true);
   h.api.render(h.host, []); assert.equal(h.timers.size, 0);
+});
+test('live updates reuse the card and preserve its pregame subtree', () => {
+  const h = harness(); h.api.render(h.host, [game({ detail: '5:47 - 2nd', situation: { period: 2, clock: '5:47' } })]);
+  const card = h.nodes('asb-card')[0], pregame = h.doc.createElement('section');
+  pregame.className = 'live-card-pregame'; pregame.textContent = 'pregame'; card.append(pregame);
+  h.api.render(h.host, [game({ detail: '5:12 - 2nd', away_score: 10, situation: { period: 2, clock: '5:12' } })]);
+  assert.equal(h.nodes('asb-card')[0], card);
+  assert.equal(h.nodes('live-card-pregame')[0], pregame);
+  assert.equal(pregame.isConnected, true);
+  assert.equal(h.nodes('asb-score')[0].textContent, '10');
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:12 · Hiệp 2');
 });
 test('ordinary game clock, final and third-quarter status never become a countdown', () => {
   const h = harness();
