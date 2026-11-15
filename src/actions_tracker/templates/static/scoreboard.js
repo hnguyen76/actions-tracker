@@ -295,16 +295,81 @@
     return card;
   }
 
+  const hasClass = (element, name) => element && String(element.className || "").split(/\s+/).includes(name);
+  const directChild = (parent, name) => [...(parent && parent.children || [])].find((child) => hasClass(child, name)) || null;
+  const removeNode = (element) => {
+    if (!element) return;
+    if (typeof element.remove === "function") { element.remove(); return; }
+    const parent = element.parentNode, index = parent && parent.children ? parent.children.indexOf(element) : -1;
+    if (index >= 0) parent.children.splice(index, 1);
+    element.parentNode = null;
+  };
+  const insertNode = (parent, element, before) => {
+    if (typeof parent.insertBefore === "function") { parent.insertBefore(element, before || null); return; }
+    if (element.parentNode && element.parentNode.children) {
+      const old = element.parentNode.children.indexOf(element);
+      if (old >= 0) element.parentNode.children.splice(old, 1);
+    }
+    const index = before ? parent.children.indexOf(before) : -1;
+    parent.children.splice(index >= 0 ? index : parent.children.length, 0, element);
+    element.parentNode = parent;
+  };
+  const replaceNode = (current, replacement) => {
+    if (typeof current.replaceWith === "function") { current.replaceWith(replacement); return; }
+    const parent = current.parentNode, index = parent && parent.children ? parent.children.indexOf(current) : -1;
+    if (index < 0) return;
+    parent.children[index] = replacement;
+    replacement.parentNode = parent;
+    current.parentNode = null;
+  };
+  const sameNode = (a, b) => typeof a.isEqualNode === "function" ? a.isEqualNode(b)
+    : a.className === b.className && a.textContent === b.textContent
+      && JSON.stringify(a.attributes || {}) === JSON.stringify(b.attributes || {});
+  function patchBlock(parent, freshParent, name, order, preserveName = null) {
+    const current = directChild(parent, name), next = directChild(freshParent, name);
+    if (!next) { removeNode(current); return null; }
+    if (current) {
+      if (!sameNode(current, next)) { replaceNode(current, next); return next; }
+      return current;
+    }
+    const after = order.slice(order.indexOf(name) + 1).map((key) => directChild(parent, key)).find(Boolean);
+    insertNode(parent, next, after || (preserveName && directChild(parent, preserveName)) || null);
+    return next;
+  }
+  function patchScorecard(current, fresh) {
+    current.className = fresh.className;
+    current.dataset.gameId = fresh.dataset.gameId;
+    const label = typeof fresh.getAttribute === "function" ? fresh.getAttribute("aria-label") : fresh.attributes["aria-label"];
+    if (label) current.setAttribute("aria-label", label);
+    const order = ["asb-meta", "asb-main", "asb-bet", "asb-situation", "asb-drive"];
+    patchBlock(current, fresh, "asb-meta", order, "live-card-pregame");
+    let main = directChild(current, "asb-main"), freshMain = directChild(fresh, "asb-main");
+    if (!main || !freshMain) main = patchBlock(current, fresh, "asb-main", order, "live-card-pregame");
+    else for (const name of ["asb-away", "asb-quarters", "asb-home"])
+      patchBlock(main, freshMain, name, ["asb-away", "asb-quarters", "asb-home"]);
+    for (const name of ["asb-bet", "asb-situation", "asb-drive"])
+      patchBlock(current, fresh, name, order, "live-card-pregame");
+    return current;
+  }
+
   function render(host, games) {
     if (!host || typeof host.replaceChildren !== "function") return;
+    const existing = new Map([...(host.children || [])].filter((card) => hasClass(card, "asb-card"))
+      .map((card) => [String(card.dataset.gameId), card]));
     const seen = new Set(), cards = [];
     for (const game of Array.isArray(games) ? games : []) {
-      if (!game || seen.has(String(game.game_id))) continue;
-      seen.add(String(game.game_id));
-      cards.push(scorecard(game));
+      const key = game && String(game.game_id);
+      if (!game || seen.has(key)) continue;
+      seen.add(key);
+      const fresh = scorecard(game), current = existing.get(key);
+      cards.push(current ? patchScorecard(current, fresh) : fresh);
     }
+    for (const [key, card] of existing) if (!seen.has(key)) removeNode(card);
     host.classList.add("asb-list");
-    host.replaceChildren(...cards);
+    const currentOrder = [...(host.children || [])].filter((card) => hasClass(card, "asb-card"));
+    if (currentOrder.length !== cards.length || currentOrder.some((card, i) => card !== cards[i])) {
+      for (const card of cards) insertNode(host, card, null);
+    }
     host.hidden = !cards.length;
     updateHalftimeClocks();
   }

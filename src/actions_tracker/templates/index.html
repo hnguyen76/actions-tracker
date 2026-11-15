@@ -77,7 +77,8 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 [hidden] { display: none !important; }
 .filter-toggle, .bottombar, .sheet, .sheet-backdrop { display: none; }
 .clist { display: grid; gap: 8px; }
-.crow { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.crow { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+  contain: layout paint style; }
 .crow.hot { background: color-mix(in srgb, var(--warning) 14%, var(--surface-2)); box-shadow: inset 4px 0 0 var(--warning); }
 .crow .c1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .crow .ct { font-weight: 650; font-size: 15px; line-height: 1.3; min-width: 0; }
@@ -673,6 +674,35 @@ const DATA = /*__DATA__*/null;
     return e;
   }
 
+  const compactSummary = (c) => [
+    el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
+      c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
+    c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null,
+  ];
+  function compactRow(r, cfn, hot = "") {
+    const c = cfn(r) || {}, more = (c.more || []).filter(Boolean);
+    const rowAttrs = { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : ""),
+      "data-game-id": r.game_id ?? "" };
+    if (more.length) Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" });
+    const row = el("div", rowAttrs, ...compactSummary(c),
+      more.length ? el("div", { class: "cexp" }, ...more) : null);
+    const toggleMore = () => {
+      row.classList.toggle("open");
+      row.setAttribute("aria-expanded", String(row.classList.contains("open")));
+    };
+    if (more.length) row.addEventListener("click", (e) => {
+      if (e.target.closest("a, summary, .cexp")) return;
+      toggleMore();
+    });
+    if (more.length) row.addEventListener("keydown", (e) => {
+      if (e.target.closest("a, summary, .cexp")) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      toggleMore();
+    });
+    return row;
+  }
+
   // columns: [{label, value(row) -> string|Node, num?, cls?(row), sort?(row) -> number|string}]
   // every table sorts by clicking a header (again = reverse); opts.pageSize adds paging
   const tableState = {};
@@ -748,34 +778,8 @@ const DATA = /*__DATA__*/null;
     }
     const cfn = isPhone() && compactFor(target);
     if (cfn) {
-      host.append(el("div", { class: "clist" }, ...list.map((r) => {
-        const c = cfn(r) || {};
-        const hot = opts && opts.rowClass ? opts.rowClass(r) : "";
-        const more = (c.more || []).filter(Boolean);
-        const rowAttrs = { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : ""),
-          "data-game-id": r.game_id ?? "" };
-        if (more.length) Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" });
-        const row = el("div", rowAttrs,
-          el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
-            c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
-          c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null,
-          more.length ? el("div", { class: "cexp" }, ...more) : null);
-        const toggleMore = () => {
-          row.classList.toggle("open");
-          row.setAttribute("aria-expanded", String(row.classList.contains("open")));
-        };
-        if (more.length) row.addEventListener("click", (e) => {
-          if (e.target.closest("a, summary, .cexp")) return;  // links and the opened details keep working
-          toggleMore();
-        });
-        if (more.length) row.addEventListener("keydown", (e) => {
-          if (e.target.closest("a, summary, .cexp")) return;
-          if (e.key !== "Enter" && e.key !== " ") return;
-          e.preventDefault();
-          toggleMore();
-        });
-        return row;
-      })));
+      host.append(el("div", { class: "clist" }, ...list.map((r) => compactRow(r, cfn,
+        opts && opts.rowClass ? opts.rowClass(r) : ""))));
     } else host.append(el("table", {}, thead, tbody));
     if (size && pages > 1) {
       const prev = el("button", { class: "btn", type: "button", text: "‹ Trước" });
@@ -1334,9 +1338,7 @@ const DATA = /*__DATA__*/null;
     ], null, HOT);
   }
 
-  function inPlayCard() {
-    const rows = rawFilter(liveInPlayRows());
-    document.getElementById("inplay-card").hidden = !rows.length;
+  function renderLiveScoreboards(rows) {
     if (window.ActionsScoreboard) {
       const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
       const cards = new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
@@ -1344,10 +1346,12 @@ const DATA = /*__DATA__*/null;
       ActionsScoreboard.render(scoreHost, [...cards.values()]);
       for (const game of cards.values()) {
         const card = [...scoreHost.querySelectorAll(".asb-card")].find((node) => Number(node.dataset.gameId) === Number(game.game_id));
-        if (card) card.append(el("section", { class: "live-card-pregame", "aria-label": "Thông tin trước trận" },
+        if (card && !card.querySelector(".live-card-pregame")) card.append(el("section", { class: "live-card-pregame", "aria-label": "Thông tin trước trận" },
           el("div", { class: "detail-h", text: "Thông tin trước trận" }), liveDecisionDetail(game)));
       }
     }
+  }
+  function renderInPlayTable(rows) {
     const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
     const nExperts = (r) => Number((boardOf(r) || {}).total_votes) || Number(r.total_votes) || 0;
     renderTable("inplay-table", rows, [
@@ -1360,6 +1364,12 @@ const DATA = /*__DATA__*/null;
       SCORE_COL,
       { label: "Hiện tại", value: (r) => nowPill(r.now, r.state === "final"), sort: (r) => r.now || "" },
     ], null, Object.assign({}, HOT, { detail: liveDecisionDetail }));
+  }
+  function inPlayCard() {
+    const rows = rawFilter(liveInPlayRows());
+    document.getElementById("inplay-card").hidden = !rows.length;
+    renderLiveScoreboards(rows);
+    renderInPlayTable(rows);
   }
 
   const todayResultOpen = new Set();
@@ -2218,6 +2228,16 @@ const DATA = /*__DATA__*/null;
   const expertsFor = (r) => mediaPicksCell(Object.assign({}, r, { market: "spread", total_votes: 99 }));
   const newsFor = (r) => matchNewsCell(Object.assign({}, r, { market: "spread", total_votes: 99 }));
   const ruleShort = (r) => String(r.rule_name || r.rule_id || "").replace(/^(NCAAF|NFL) /, "");
+  const inPlayCompact = (r, includeMore = true) => ({
+    title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
+    sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)} · ${num((boardOf(r) || {}).total_votes || r.total_votes || 0)} expert`
+      + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`],
+    more: includeMore ? [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
+      moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
+      moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
+      moreBlock("Thời tiết (giờ đá)", weatherCell(r)),
+      moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] : [],
+  });
   const COMPACT = {
     "past-table-": (r) => ({ title: `${r.et_date} · ${leagueName(r.league)} · ${vs(r.match)}`,
       right: resultPill(r.side_result), sub: `${MARKET_LABEL[r.market] || r.market} · ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`,
@@ -2229,14 +2249,7 @@ const DATA = /*__DATA__*/null;
           moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
-    "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
-      sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)} · ${num((boardOf(r) || {}).total_votes || r.total_votes || 0)} expert`
-        + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`],
-      more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
-        moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
-        moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
-        moreBlock("Thời tiết (giờ đá)", weatherCell(r)),
-        moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] }),
+    "inplay-table": (r) => inPlayCompact(r),
     "upcoming-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
       right: el("b", { text: `${MARKET_LABEL[r.market] || r.market}: ${sideName(r)}` }),
       sub: `${leagueName(r.league)} · ${num(r.votes)}/${num(r.total_votes)} · ${BOARD_STATUS[statusOf(r)] || ""}`
@@ -2369,7 +2382,7 @@ const DATA = /*__DATA__*/null;
       const replacement = anchor && [...document.querySelectorAll(selector)].find((node) =>
         node.dataset.gameId === anchor.game && node.classList.contains('asb-card') === anchor.scoreboard);
       const delta = replacement ? replacement.getBoundingClientRect().top - anchor.top : 0;
-      window.scrollTo({ left: x, top: y + delta, behavior: 'instant' });
+      if (Math.abs(delta) > 0.5) window.scrollTo({ left: x, top: y + delta, behavior: 'instant' });
     } finally { root.style.overflowAnchor = previous; }
   }
   function redrawLiveCard() {
@@ -2386,6 +2399,42 @@ const DATA = /*__DATA__*/null;
       [...r.querySelectorAll("details")].forEach((d, i) => { d.open = !!old.details[i]; });
     }
   }
+  function patchInPlayCompact(rows) {
+    if (!isPhone()) return false;
+    const current = [...document.querySelectorAll("#inplay-table .clist > .crow")];
+    if (current.length !== rows.length || current.some((node, i) => String(node.dataset.gameId) !== String(rows[i].game_id))) return false;
+    for (let i = 0; i < rows.length; i++) {
+      const node = current[i], open = node.classList.contains("open"), c = inPlayCompact(rows[i], false);
+      const [nextHead, nextSub] = compactSummary(c);
+      const replace = (name, next) => {
+        const old = [...node.children].find((child) => child.classList.contains(name));
+        if (old && next) old.replaceWith(next);
+        else if (old) old.remove();
+        else if (next) node.insertBefore(next, node.querySelector(".cexp"));
+      };
+      replace("c1", nextHead);
+      replace("c2", nextSub);
+      const hot = HOT.rowClass(rows[i]);
+      node.className = "crow" + (hot ? " " + hot : "") + (node.querySelector(".cexp") ? " tap" : "") + (open ? " open" : "");
+      node.setAttribute("aria-expanded", String(open));
+    }
+    return true;
+  }
+  function updateLiveCard() {
+    if (currentTab() !== "upcoming") return;
+    const rows = rawFilter(liveInPlayRows());
+    document.getElementById("inplay-card").hidden = !rows.length;
+    if (isPhone()) {
+      const current = [...document.querySelectorAll("#inplay-table .clist > .crow")].map((node) => String(node.dataset.gameId));
+      const next = rows.map((r) => String(r.game_id));
+      if (current.length !== next.length || current.some((id, i) => id !== next[i])) {
+        preserveLiveViewport(redrawLiveCard);
+        return;
+      }
+    }
+    renderLiveScoreboards(rows);
+    if (!patchInPlayCompact(rows)) renderInPlayTable(rows);
+  }
   async function refreshLiveScores() {
     if (document.hidden || browserLive.busy) return;
     browserLive.busy = true;
@@ -2395,14 +2444,16 @@ const DATA = /*__DATA__*/null;
       if (!window.ActionsLiveScores) throw new Error("Scoreboard unavailable");
       const result = await ActionsLiveScores.fetchGames(games);
       let changed = false;
+      const fingerprint = (x) => JSON.stringify({ ...x, updated_at: null,
+        drive: x && x.drive ? { ...x.drive, updated_at: null } : x && x.drive });
       for (const s of result.scores) {
         const before = browserLive.scores.get(s.game_id);
         if (before && before.state === "final" && s.state !== "final") continue;
-        if (!before || JSON.stringify({ ...before, updated_at: null }) !== JSON.stringify({ ...s, updated_at: null })) changed = true;
+        if (!before || fingerprint(before) !== fingerprint(s)) changed = true;
         browserLive.scores.set(s.game_id, s);
       }
       browserLive.errors = result.scores.length ? 0 : browserLive.errors + 1;
-      if (changed) preserveLiveViewport(redrawLiveCard);
+      if (changed) updateLiveCard();
     } catch (e) { browserLive.errors += 1; }
     finally {
       browserLive.busy = false;
