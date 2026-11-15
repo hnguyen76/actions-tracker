@@ -210,6 +210,9 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px 0; color: var(--ink-2); font-size: 14px; }
 .pager .btn { padding: 7px 14px; font-weight: 600; }
 .pager .btn:disabled { opacity: .4; cursor: default; }
+.season-chart-controls { align-items: flex-end; margin: 12px 0; }
+.season-chart-pager { flex-wrap: wrap; }
+.season-chart-pager span { text-align: center; }
 footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
 
 @media (max-width: 1100px) {
@@ -284,6 +287,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
     <button role="tab" data-tab="rules" aria-selected="false">Quy tắc</button>
     <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
+    <button role="tab" data-tab="season-chart" aria-selected="false">Biểu đồ cả mùa</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
@@ -376,6 +380,35 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <div class="table-scroll" id="past-chart-we"></div>
       <div class="table-scroll" id="past-table-we"></div>
     </div>
+  </section>
+
+  <section class="panel" id="tab-season-chart">
+    <div class="card">
+      <h2>Biểu đồ cả mùa — NFL + NCAAF</h2>
+      <p class="note" id="season-chart-coverage"></p>
+      <details class="howto"><summary>Cách đọc</summary><p><b>Nguồn: lịch sử mùa</b> — số <b>picks trên thẻ By Game</b>, tỉ số và line từ scoreboard Action Network. Một expert có thể có nhiều picks; đây không phải số expert riêng biệt. Chỉ kèo đã chấm có từ 3 picks, một side nhiều hơn. Ngày theo giờ miền Đông Mỹ.</p><p>Mỗi dòng là một kèo; vị trí = % picks chọn side đa số. Xanh = side đa số thắng, đỏ = thua, xám = hòa; cả hai nhóm ngày đều chấm side đa số. Thống kê dưới/từ 75% tính trên <b>toàn bộ bộ lọc đang chọn</b>, không chỉ trang biểu đồ đang xem.</p></details>
+      <div class="filters season-chart-controls">
+        <label>Tuần<select id="season-chart-week"><option value="ALL">Tất cả từ tuần 1</option></select></label>
+        <label>Kèo mỗi trang biểu đồ<select id="season-chart-size"><option value="25">25</option><option value="50" selected>50</option></select></label>
+      </div>
+      <p class="note" id="season-chart-selected" aria-live="polite"></p>
+    </div>
+    <div id="season-chart-groups">
+      <div class="card">
+        <h2>Thứ 2 – Thứ 6</h2>
+        <div class="table-scroll" id="season-chart-wk"></div>
+        <div class="pager season-chart-pager" id="season-chart-pager-wk"></div>
+      </div>
+      <div class="card">
+        <h2>Thứ 7 – Chủ nhật</h2>
+        <div class="table-scroll" id="season-chart-we"></div>
+        <div class="pager season-chart-pager" id="season-chart-pager-we"></div>
+      </div>
+    </div>
+    <details class="card board-details" id="season-chart-details">
+      <summary><h2>Danh sách kèo — mở chi tiết</h2></summary>
+      <div class="table-scroll" id="season-chart-table"></div>
+    </details>
   </section>
 
   <section class="panel" id="tab-consensus">
@@ -1291,19 +1324,21 @@ const DATA = /*__DATA__*/null;
   const pickLabel = (r) => `${r.match} · ${MARKET_LABEL[r.market] || r.market} · ${r.pick} (${num(r.votes)}/${num(r.total_votes)})`;
 
   // one row per play: dot at % of experts on the majority side, coloured by result, dashed line at 75%
-  function lollipop(target, rows) {
+  function lollipop(target, rows, opts = {}) {
     const host = document.getElementById(target);
     host.replaceChildren();
     if (!rows.length) { host.append(el("div", { class: "empty", text: EMPTY_TEXT })); return; }
     const sorted = rows.slice().sort((a, b) => (b.majority_pct - a.majority_pct) || (a.match < b.match ? -1 : 1));
-    const x0 = 290, x1 = 720, y0 = 70, rh = 22, H = y0 + sorted.length * rh + 46;
+    const label = opts.label || pickLabel;
+    const x0 = opts.wide ? 390 : 290, x1 = opts.wide ? 940 : 720, y0 = 70, rh = 22, H = y0 + sorted.length * rh + 46;
     const xs = (p) => x0 + (p - 50) / 50 * (x1 - x0), yy = (i) => y0 + i * rh, yEnd = y0 + sorted.length * rh;
-    const svg = svgEl("svg", { viewBox: `0 0 760 ${H}`, role: "img", "aria-label": "Kèo đã qua theo mức đồng thuận", "font-size": "13", "font-family": "Inter, system-ui, sans-serif", style: "width:100%;max-width:1040px;min-width:620px;height:auto;display:block;margin:0 auto" });
+    const svg = svgEl("svg", { viewBox: `0 0 ${opts.wide ? 980 : 760} ${H}`, role: "img", "aria-label": opts.ariaLabel || "Kèo đã qua theo mức đồng thuận", "font-size": "13", "font-family": "Inter, system-ui, sans-serif", style: `width:100%;max-width:${opts.wide ? 1240 : 1040}px;min-width:${opts.wide ? 820 : 620}px;height:auto;display:block;margin:0 auto` });
     const tally = (a) => {
       const k = (x) => a.filter((r) => r.side_result === x).length;
       return `${k("win")} thắng – ${k("loss")} thua` + (k("push") ? ` – ${k("push")} hòa` : "");
     };
-    const lo = rows.filter((r) => r.majority_pct < 75), hi = rows.filter((r) => r.majority_pct >= 75);
+    const summaryRows = opts.summaryRows || rows;
+    const lo = summaryRows.filter((r) => r.majority_pct < 75), hi = summaryRows.filter((r) => r.majority_pct >= 75);
     svg.append(svgEl("circle", { cx: 6, cy: 14, r: 5, fill: "var(--win)" }), svgEl("text", { x: 16, y: 18, fill: "var(--ink-2)" }, "Side đa số thắng"),
                svgEl("circle", { cx: 136, cy: 14, r: 5, fill: "var(--loss)" }), svgEl("text", { x: 146, y: 18, fill: "var(--ink-2)" }, "Side đa số thua"));
     svg.append(svgEl("text", { x: xs(62.5), y: 48, "text-anchor": "middle", "font-weight": "600", fill: "var(--ink)" }, `Dưới 75%: ${tally(lo)}`),
@@ -1317,8 +1352,8 @@ const DATA = /*__DATA__*/null;
     sorted.forEach((r, i) => {
       const colour = r.side_result === "win" ? "var(--win)" : r.side_result === "loss" ? "var(--loss)" : "var(--muted)";
       const dot = svgEl("circle", { cx: xs(r.majority_pct), cy: yy(i), r: 6, fill: colour });
-      dot.append(svgEl("title", {}, `${r.et_date} · ${pickLabel(r)} · ${num(r.majority_pct)}% → ${RESULT_LABEL[r.side_result] || r.side_result}`));
-      svg.append(svgEl("text", { x: x0 - 12, y: yy(i) + 4, "text-anchor": "end", fill: "var(--ink-2)" }, pickLabel(r)),
+      dot.append(svgEl("title", {}, `${r.et_date} · ${label(r)} · ${num(r.majority_pct)}% → ${RESULT_LABEL[r.side_result] || r.side_result}`));
+      svg.append(svgEl("text", { x: x0 - 12, y: yy(i) + 4, "text-anchor": "end", fill: "var(--ink-2)" }, label(r)),
                  svgEl("line", { x1: xs(50), x2: xs(r.majority_pct), y1: yy(i), y2: yy(i), stroke: "var(--axis)", "stroke-width": 2 }), dot);
     });
     host.append(svg);
@@ -1345,6 +1380,89 @@ const DATA = /*__DATA__*/null;
       lollipop(`past-chart-${suffix}`, part);
       renderTable(`past-table-${suffix}`, part, columns);
     }
+  }
+
+  const seasonChartState = { key: null, page: { wk: 0, we: 0 } };
+  function seasonChartTab() {
+    const history = T("History_Plays").filter((r) => ["nfl", "ncaaf"].includes(r.league)
+      && Number(r.week) >= 1 && Number(r.total_votes) >= 3 && Number(r.votes) > Number(r.total_votes) / 2
+      && ["win", "loss", "push"].includes(r.side_result));
+    const coverage = ["nfl", "ncaaf"].map((lg) => {
+      const rows = history.filter((r) => r.league === lg);
+      if (!rows.length) return `${leagueName(lg)}: chưa có dữ liệu đã chấm`;
+      const weeks = [...new Set(rows.map((r) => Number(r.week)))].sort((a, b) => a - b);
+      const range = weeks.length === weeks[weeks.length - 1] - weeks[0] + 1
+        ? (weeks.length === 1 ? String(weeks[0]) : `${weeks[0]}–${weeks[weeks.length - 1]}`)
+        : weeks.join(", ");
+      const latest = rows.map((r) => String(r.et_date || "")).sort().pop();
+      return `${leagueName(lg)}: tuần ${range} · mới nhất ${latest || "–"}`;
+    });
+    document.getElementById("season-chart-coverage").textContent = coverage.join(". ")
+      + ". Từ tuần 1 đến dữ liệu đã thu; tuần cuối có thể chưa đủ trận.";
+
+    const filtered = rawFilter(history);
+    const week = document.getElementById("season-chart-week"), size = document.getElementById("season-chart-size");
+    const keepWeek = week.value;
+    const weeks = [...new Set(filtered.map((r) => Number(r.week)))].sort((a, b) => a - b);
+    week.replaceChildren(el("option", { value: "ALL", text: "Tất cả từ tuần 1" }),
+      ...weeks.map((w) => el("option", { value: String(w), text: `Tuần ${w}` })));
+    week.value = weeks.some((w) => String(w) === keepWeek) ? keepWeek : "ALL";
+    week.disabled = !filtered.length;
+    for (const control of [week, size]) if (!control.dataset.bound) {
+      control.dataset.bound = "1";
+      control.addEventListener("change", seasonChartTab);
+    }
+    const rows = week.value === "ALL" ? filtered : filtered.filter((r) => String(r.week) === week.value);
+    const pageSize = Number(size.value) === 25 ? 25 : 50;
+    const filterKey = `${state.league}|${state.market}|${week.value}|${pageSize}`;
+    if (seasonChartState.key !== filterKey) {
+      seasonChartState.key = filterKey;
+      seasonChartState.page = { wk: 0, we: 0 };
+      if (tableState["season-chart-table"]) tableState["season-chart-table"].page = 0;
+    }
+    const supported = state.league === "ALL" || ["nfl", "ncaaf"].includes(state.league);
+    document.getElementById("season-chart-selected").textContent = !supported
+      ? "Tab này chỉ có lịch sử NFL và NCAAF. Chọn Tất cả, NFL hoặc NCAAF ở bộ lọc Giải."
+      : !rows.length ? "Chưa có kèo đã chấm khớp bộ lọc Giải, Loại kèo và Tuần."
+      : `${num(rows.length)} kèo đã chấm · ${week.value === "ALL" ? "tất cả tuần đã thu" : "tuần " + week.value}. NFL và NCAAF đánh số tuần riêng. Thống kê dưới/từ 75% bao gồm mọi trang.`;
+    document.getElementById("season-chart-groups").hidden = !rows.length;
+    document.getElementById("season-chart-details").hidden = !rows.length;
+    const label = (r) => `${leagueName(r.league)} · T${r.week} · ${pickLabel(r)}`;
+    for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
+      const part = rows.filter((r) => r.day_group === group).sort((a, b) => (b.majority_pct - a.majority_pct)
+        || Number(a.week) - Number(b.week) || String(a.league).localeCompare(String(b.league)) || String(a.match).localeCompare(String(b.match)));
+      const pages = Math.ceil(part.length / pageSize);
+      seasonChartState.page[suffix] = Math.min(seasonChartState.page[suffix], Math.max(0, pages - 1));
+      const page = seasonChartState.page[suffix], first = page * pageSize;
+      lollipop(`season-chart-${suffix}`, part.slice(first, first + pageSize), {
+        label, summaryRows: part, wide: true,
+        ariaLabel: `Lịch sử mùa ${group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN"}: % picks của side đa số và kết quả`,
+      });
+      const pager = document.getElementById(`season-chart-pager-${suffix}`);
+      pager.replaceChildren();
+      if (!part.length) continue;
+      const prev = el("button", { class: "btn", type: "button", text: "‹ Trước", "aria-label": `Trang trước ${group}` });
+      const next = el("button", { class: "btn", type: "button", text: "Sau ›", "aria-label": `Trang sau ${group}` });
+      prev.disabled = page === 0; next.disabled = page >= pages - 1;
+      prev.addEventListener("click", () => { seasonChartState.page[suffix] -= 1; seasonChartTab(); });
+      next.addEventListener("click", () => { seasonChartState.page[suffix] += 1; seasonChartTab(); });
+      pager.append(prev, el("span", { text: `Trang ${page + 1}/${pages} · kèo ${num(first + 1)}–${num(Math.min(first + pageSize, part.length))}/${num(part.length)}` }), next);
+    }
+    const lineText = (r) => r.line === null || r.line === undefined || r.market === "ml" ? ""
+      : " " + (r.market === "spread" && r.line > 0 ? "+" : "") + num(r.line, 1);
+    renderTable("season-chart-table", rows.slice().sort((a, b) => Number(a.week) - Number(b.week)
+      || String(a.et_date).localeCompare(String(b.et_date)) || String(a.match).localeCompare(String(b.match))), [
+      { label: "Tuần", num: true, value: (r) => num(r.week), sort: (r) => Number(r.week) },
+      { label: "Ngày (ET)", value: (r) => r.et_date },
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Side đa số", value: (r) => r.pick + lineText(r) },
+      { label: "Picks (đa số/tổng)", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)}`, sort: (r) => r.total_votes },
+      { label: "% đa số", num: true, value: (r) => `${num(r.majority_pct, 1)}%`, sort: (r) => r.majority_pct },
+      { label: "Kết quả đa số", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
+      { label: "Nguồn", value: () => "By Game · line Action Network" },
+    ], null, { pageSize: 50 });
   }
 
   const GROUP_LABEL = { "T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN", ALL: "Cả tuần" };
@@ -1654,7 +1772,7 @@ const DATA = /*__DATA__*/null;
   function render() {
     kpis();
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
-    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, consensus: consensusTab,
+    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, "season-chart": seasonChartTab, consensus: consensusTab,
       experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
       forecast: forecastTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();

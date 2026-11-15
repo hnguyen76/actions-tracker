@@ -31,6 +31,12 @@ Các lượt chọn này có bộ đếm riêng với expert Action Network, ch�
 Cùng cột cũng có trong bảng **Cách của bạn — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược**
 ở tab **Quy tắc**, dùng dữ liệu đã xác minh của các trận sắp đá tương ứng.
 
+Tab **Biểu đồ cả mùa** xem NFL và NCAAF từ tuần 1 đến dữ liệu đã thu, chia **Thứ 2–6** và
+**Thứ 7–CN**, với ngưỡng đồng thuận 75%. Có bộ lọc tuần, giải, market và phân trang biểu đồ;
+số thắng/thua/hòa tính trên toàn bộ dữ liệu đang lọc. Nguồn là picks trên thẻ By Game lịch sử,
+không phải số expert duy nhất của dữ liệu live. Tuần mới nhất có thể chưa đủ trận;
+tab hiển thị phạm vi thực tế của từng giải.
+
 Chạy riêng phần tin và picks chuyên gia, rồi dựng lại dashboard; không dùng credit The Odds API:
 
 ```bash
