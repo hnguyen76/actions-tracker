@@ -357,7 +357,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <div class="wrap">
     <div class="brand">
       <div class="logo" aria-hidden="true">A</div>
-      <div><h1>Actions Expert Tracker</h1><div class="sub" id="updated"></div></div>
+      <div><h1>Actions Expert Tracker</h1><div class="sub"><span id="updated"></span> · <span id="refresh-countdown" style="font-variant-numeric:tabular-nums;white-space:nowrap" title="Thời gian đến lần kiểm tra dữ liệu mới của site">Quét sau 03:00</span></div></div>
     </div>
     <div class="status" id="league-status"></div>
     <div class="actions">
@@ -2324,7 +2324,18 @@ const DATA = /*__DATA__*/null;
   }
 
   // Picks and settled statistics still pull the published snapshot every 3 minutes.
+  const DATA_REFRESH_MS = 180000;
+  let nextDataRefresh = Date.now() + DATA_REFRESH_MS;
+  let dataRefreshing = false;
+  function updateRefreshCountdown() {
+    const node = document.getElementById("refresh-countdown");
+    const seconds = Math.max(0, Math.ceil((nextDataRefresh - Date.now()) / 1000));
+    node.textContent = dataRefreshing ? "Đang quét…" : `Quét sau ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  }
   async function refreshData() {
+    if (dataRefreshing) return;
+    dataRefreshing = true;
+    updateRefreshCountdown();
     try {
       const res = await fetch(location.pathname + "?t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) return;
@@ -2339,8 +2350,17 @@ const DATA = /*__DATA__*/null;
       pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null; weatherMap = null; signalMap = null;
       header(); render();
     } catch (e) { /* offline or not published: keep what is shown */ }
+    finally {
+      dataRefreshing = false;
+      nextDataRefresh = Date.now() + DATA_REFRESH_MS;
+      updateRefreshCountdown();
+    }
   }
-  setInterval(() => { if (!document.hidden) refreshData(); }, 180000);
+  setInterval(() => {
+    if (document.hidden) return;
+    if (!dataRefreshing && Date.now() >= nextDataRefresh) refreshData();
+    else updateRefreshCountdown();
+  }, 1000);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearTimeout(browserLive.timer);
     else { refreshData(); refreshLiveScores(); }
