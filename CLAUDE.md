@@ -17,10 +17,12 @@ in English (spread, total, moneyline, favorite, underdog, fade).
 - Never commit secrets or the gitignored key files (`.telegram_bot_token`, `.telegram_chat_id`, `.odds_api_key`, …).
 - Do not commit `data/actions.db` from a cloud session (the phone owns it; a stale copy would overwrite fresh
   data). Read it for analysis only. Same for `data/history/*.csv` unless asked.
-- Rules in `src/actions_tracker/rules.py` are frozen forward tests: do not change their thresholds.
-  Never recommend real-money bets on rules still being tested.
+- Rules in `src/actions_tracker/rules.py` are frozen forward tests: do not change their thresholds unless the
+  owner explicitly asks to drop/replace one. Never recommend real-money bets on rules still being tested.
 - The owner's own method ("Cách của bạn"): spread only, ≥5 picks, majority side; Mon–Fri ET follow the crowd,
-  Sat–Sun fade it (unanimous crowds included).
+  Sat–Sun fade it (unanimous crowds included). The owner MAY change it any time — follow the
+  "Sửa Cách của bạn" section of the project skill `.claude/skills/bettingskill/SKILL.md` (back-test first).
+- Analysis and reports: use the `bettingskill` project skill.
 
 ## Checks before finishing
 - `pip install -e .[dev]` then `python -m pytest -q` (all must pass) and `node --test tests/frontend/`.
