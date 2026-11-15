@@ -731,15 +731,27 @@ const DATA = /*__DATA__*/null;
         const c = cfn(r) || {};
         const hot = opts && opts.rowClass ? opts.rowClass(r) : "";
         const more = (c.more || []).filter(Boolean);
-        const row = el("div", { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : "")
-          + (more.length && c.open ? " open" : ""), "data-game-id": r.game_id ?? "" },
+        const rowAttrs = { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : ""),
+          "data-game-id": r.game_id ?? "" };
+        if (more.length) Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" });
+        const row = el("div", rowAttrs,
           el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
             c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
           c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null,
           more.length ? el("div", { class: "cexp" }, ...more) : null);
+        const toggleMore = () => {
+          row.classList.toggle("open");
+          row.setAttribute("aria-expanded", String(row.classList.contains("open")));
+        };
         if (more.length) row.addEventListener("click", (e) => {
           if (e.target.closest("a, summary, .cexp")) return;  // links and the opened details keep working
-          row.classList.toggle("open");
+          toggleMore();
+        });
+        if (more.length) row.addEventListener("keydown", (e) => {
+          if (e.target.closest("a, summary, .cexp")) return;
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          toggleMore();
         });
         return row;
       })));
@@ -2132,7 +2144,7 @@ const DATA = /*__DATA__*/null;
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
       sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)} · ${num((boardOf(r) || {}).total_votes || r.total_votes || 0)} expert`
-        + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`], open: true,
+        + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`],
       more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
         moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
         moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
@@ -2267,6 +2279,7 @@ const DATA = /*__DATA__*/null;
       const old = open.get(r.dataset.gameId);
       if (!old) continue;
       r.classList.toggle("open", old.expanded);
+      r.setAttribute("aria-expanded", String(old.expanded));
       [...r.querySelectorAll("details")].forEach((d, i) => { d.open = !!old.details[i]; });
     }
   }

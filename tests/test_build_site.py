@@ -40,3 +40,11 @@ def test_live_score_assets_are_published_with_dashboard(tmp_path):
     for asset in ("live-scores.js", "scoreboard.js", "scoreboard.css"):
         assert asset in html
         assert (out.parent / asset).is_file()
+
+
+def test_mobile_game_cards_start_collapsed_and_are_keyboard_accessible(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" })' in html
+    assert 'row.setAttribute("aria-expanded", String(row.classList.contains("open")))' in html
+    assert 'if (e.key !== "Enter" && e.key !== " ") return' in html
+    assert 'open: true' not in html
