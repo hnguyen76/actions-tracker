@@ -433,8 +433,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <div class="kpi-mini" id="season-kpi-nfl"></div>
       <h3 class="decide-sub">Độ nhạy theo số picks</h3>
       <div class="table-scroll" id="season-sens-nfl"></div>
-      <h3 class="decide-sub">Favorite vs underdog (bên bạn đặt)</h3>
-      <div class="table-scroll" id="season-fd-nfl"></div>
       <h3 class="decide-sub">Theo tuần</h3>
       <div class="table-scroll" id="season-weeks-nfl"></div>
       <h3 class="decide-sub">Từng kèo</h3>
@@ -446,8 +444,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <div class="kpi-mini" id="season-kpi-ncaaf"></div>
       <h3 class="decide-sub">Độ nhạy theo số picks</h3>
       <div class="table-scroll" id="season-sens-ncaaf"></div>
-      <h3 class="decide-sub">Favorite vs underdog (bên bạn đặt)</h3>
-      <div class="table-scroll" id="season-fd-ncaaf"></div>
       <h3 class="decide-sub">Theo tuần</h3>
       <div class="table-scroll" id="season-weeks-ncaaf"></div>
       <h3 class="decide-sub">Từng kèo</h3>
@@ -1458,15 +1454,6 @@ const DATA = /*__DATA__*/null;
         { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },
         { label: "ROI", num: true, value: (r) => (r.c && r.c.n ? signed(r.c.roi) : "–"), cls: (r) => roiCls(r.c && r.c.roi), sort: (r) => (r.c ? r.c.roi : 0) },
       ]);
-      const FD = T("My_Method_FavDog").filter((r) => r.league === lg);
-      const fdOf = (fd, dg) => FD.find((r) => r.fav_dog === fd && r.day_group === dg);
-      renderTable("season-fd-" + lg, ["favorite", "underdog"].map((fd) => ({ fd, a: fdOf(fd, "T2-6"), b: fdOf(fd, "T7-CN"), c: fdOf(fd, "ALL") })), [
-        { label: "Bên đặt", value: (r) => (r.fd === "favorite" ? "Favorite (line −)" : "Underdog (line +)"), cls: () => "strong" },
-        { label: "Thứ 2–6 · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
-        { label: "Thứ 7–CN · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
-        { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },
-        { label: "ROI", num: true, value: (r) => (r.c && r.c.n ? signed(r.c.roi) : "–"), cls: (r) => roiCls(r.c && r.c.roi), sort: (r) => (r.c ? r.c.roi : 0) },
-      ]);
       const weeks = [...new Set(S.filter((r) => r.league === lg && r.week !== "ALL").map((r) => Number(r.week)))].sort((a, b) => b - a);
       renderTable("season-weeks-" + lg, weeks.map((w) => ({ week: w, a: get(w, "T2-6"), b: get(w, "T7-CN"), c: get(w, "ALL") })), [
         { label: "Tuần", value: (r) => "Tuần " + r.week, sort: (r) => r.week },
@@ -1484,7 +1471,6 @@ const DATA = /*__DATA__*/null;
         { label: "Đám đông", value: (r) => `${r.crowd} ${r.votes}/${r.total_votes}`, sort: (r) => r.votes / r.total_votes },
         { label: "Cách", value: (r) => (r.method === "follow" ? "Theo" : "Ngược") },
         { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
-        { label: "Fav/Dog", value: (r) => (r.fav_dog === "favorite" ? "Favorite" : r.fav_dog === "underdog" ? "Underdog" : r.fav_dog === "pk" ? "PK" : "–"), sort: (r) => r.fav_dog || "" },
         { label: "Kết quả", value: (r) => (r.result ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
         { label: "Nguồn", value: (r) => (r.source === "live" ? "live" : "lịch sử") },
       ], null, withHot({ pageSize: 50 }));
