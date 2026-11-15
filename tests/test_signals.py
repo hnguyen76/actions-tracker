@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from actions_tracker.analysis.signals import SIGNAL_COLS, expert_sides, signals
+from actions_tracker.analysis.signals import SIGNAL_COLS, expert_sides, include_live_decisions, signals
 from actions_tracker.game_context import parse_open, parse_summary, starter_injury
 
 
@@ -69,6 +69,19 @@ def test_expert_sides_latest_pregame_pick_with_form():
     forms = pd.DataFrame([dict(pick_id=2, units_30=-5.0)])
     e = expert_sides(picks, forms)
     assert e.to_dict("records") == [dict(game_id=1, market="spread", side="away", units_30=-5.0)]
+
+
+def test_live_plays_remain_signal_inputs_after_kickoff():
+    upcoming = pd.DataFrame([dict(game_id=1, market="spread", bet_side="home")])
+    live = pd.DataFrame([
+        dict(game_id=2, market="spread", bet_side="away", source="Cách của bạn"),
+        dict(game_id=3, market="spread", bet_side="home", source="Quy tắc"),
+    ])
+    got = include_live_decisions(upcoming, live)
+    assert got[["game_id", "market", "bet_side"]].to_dict("records") == [
+        dict(game_id=1, market="spread", bet_side="home"),
+        dict(game_id=2, market="spread", bet_side="away"),
+    ]
 
 
 

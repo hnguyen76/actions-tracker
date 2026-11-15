@@ -96,12 +96,13 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "History_Summary": hs,
         "History_Weekly": history_weekly(hp),
     }
-    from actions_tracker.analysis.signals import expert_sides, signals
+    from actions_tracker.analysis.signals import expert_sides, include_live_decisions, signals
     from actions_tracker.game_context import context_tables
     ctx, opening = context_tables(conn)
     current = pd.read_sql_query("SELECT game_id, market, side, line FROM closing_lines", conn)
     public = pd.read_sql_query("SELECT game_id, market, side, tickets_pct, money_pct FROM public_splits", conn)
     games = pd.read_sql_query("SELECT id, league FROM games", conn)
-    tables["Signals"] = signals(tables["Decisions"], games, current, opening, ctx, public,
+    signal_inputs = include_live_decisions(tables["Decisions"], tables["In_Play"])
+    tables["Signals"] = signals(signal_inputs, games, current, opening, ctx, public,
                                 expert_sides(eligible, forms), tables["Forecast"])
     return tables

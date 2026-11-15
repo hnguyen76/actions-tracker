@@ -13,6 +13,20 @@ SIGNAL_COLS = ["game_id", "market", "side", "order", "tone", "text"]
 _OTHER = {"home": "away", "away": "home", "over": "under", "under": "over"}
 
 
+def include_live_decisions(decisions: pd.DataFrame, in_play: pd.DataFrame) -> pd.DataFrame:
+    """Keep calculating pregame signals after a selected play moves from upcoming to live."""
+    base = decisions.copy() if decisions is not None else pd.DataFrame()
+    if in_play is None or in_play.empty or not {"game_id", "market", "bet_side"}.issubset(in_play.columns):
+        return base
+    live = in_play.copy()
+    if "source" in live.columns:
+        live = live[live["source"] == "Cách của bạn"]
+    live = live[["game_id", "market", "bet_side"]].drop_duplicates(["game_id", "market"])
+    return pd.concat([base, live], ignore_index=True, sort=False).drop_duplicates(
+        ["game_id", "market"], keep="first"
+    )
+
+
 def _fmt(x) -> str:
     if x is None or pd.isna(x):
         return "–"
