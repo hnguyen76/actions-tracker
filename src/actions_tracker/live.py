@@ -8,6 +8,8 @@ Replaces The Odds API (paid credits) since 2026-11-14:
 One request per league and US/Eastern date that has a picked game to price or to score.
 """
 
+import json
+import math
 import sqlite3
 
 import pandas as pd
@@ -15,7 +17,7 @@ import requests
 
 from actions_tracker import db
 from actions_tracker.config import TZ
-from actions_tracker.matching import match_events
+from actions_tracker.matching import match_events, normalize
 
 ESPN = {
     "nfl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={d}",
@@ -26,6 +28,8 @@ GAME_HOURS = 72   # picked games that kicked off within this many hours and are 
 LINE_LEAD_H = 36  # picked games starting within this many hours get their lines refreshed
 SCHEMA = ("CREATE TABLE IF NOT EXISTS live_scores(game_id INTEGER PRIMARY KEY, away_score INTEGER, home_score INTEGER, "
           "state TEXT, detail TEXT, updated_at TEXT)")
+ID_SCHEMA = ("CREATE TABLE IF NOT EXISTS live_game_ids(game_id INTEGER PRIMARY KEY, espn_event_id TEXT NOT NULL)")
+DETAIL_SCHEMA = ("CREATE TABLE IF NOT EXISTS live_details(game_id INTEGER PRIMARY KEY, details_json TEXT)")
 
 
 class LiveError(Exception):
@@ -72,6 +76,64 @@ def parse_odds(odds) -> list[dict]:
     return out
 
 
+def _score_int(value):
+    if value is None or isinstance(value, bool) or value == "":
+        return None
+    try:
+        n = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return int(n) if math.isfinite(n) and n >= 0 and n.is_integer() else None
+
+
+def _text(value):
+    return (value.strip() or None) if isinstance(value, str) else None
+
+
+def _team_id(competitor):
+    team = competitor.get("team") if isinstance(competitor.get("team"), dict) else {}
+    value = team.get("id") or competitor.get("id")
+    return str(value) if value is not None and not isinstance(value, bool) and str(value).isdigit() else None
+
+
+def _period_scores(competitor):
+    lines = competitor.get("linescores")
+    if not isinstance(lines, list):
+        return None
+    values = {}
+    for item in lines:
+        if not isinstance(item, dict):
+            continue
+        period, score = _score_int(item.get("period")), _score_int(item.get("value"))
+        if period is not None and 1 <= period <= 20 and score is not None:
+            values[period] = score
+    return [values.get(period) for period in range(1, max(values) + 1)] if values else None
+
+
+def parse_situation(event: dict, competition: dict | None = None) -> dict | None:
+    """Only explicit scoreboard situation fields; missing quarters stay missing instead of becoming zero."""
+    comp = competition if competition is not None else (event.get("competitions") or [{}])[0]
+    if not isinstance(comp, dict):
+        return None
+    competitors = comp.get("competitors") or []
+    side = {c.get("homeAway"): c for c in competitors if isinstance(c, dict)} if isinstance(competitors, list) else {}
+    away, home = side.get("away", {}), side.get("home", {})
+    away_id, home_id = _team_id(away), _team_id(home)
+    raw = comp.get("situation") if isinstance(comp.get("situation"), dict) else {}
+    raw_status = event.get("status") or comp.get("status") or {}
+    status = raw_status if isinstance(raw_status, dict) else {}
+    owner = str(raw["possession"]) if raw.get("possession") is not None else None
+    possession = "away" if away_id and owner == away_id else "home" if home_id and owner == home_id else None
+    period = _score_int(status.get("period"))
+    out = {"possession": possession, "possession_text": _text(raw.get("possessionText")),
+           "down_distance": _text(raw.get("shortDownDistanceText")) or _text(raw.get("downDistanceText")),
+           "red_zone": raw["isRedZone"] if isinstance(raw.get("isRedZone"), bool) else None,
+           "period": period if period is not None and 1 <= period <= 20 else None, "clock": _text(status.get("displayClock")),
+           "away_period_scores": _period_scores(away), "home_period_scores": _period_scores(home),
+           "away_espn_id": away_id, "home_espn_id": home_id}
+    return out if any(v is not None for k, v in out.items() if not k.endswith("_espn_id")) else None
+
+
 def parse_scoreboard(data: dict) -> list[dict]:
     out = []
     for e in data.get("events", []):
@@ -91,6 +153,7 @@ def parse_scoreboard(data: dict) -> list[dict]:
                     "away_name": side["away"]["team"].get("displayName"),
                     "home_score": score(side["home"]), "away_score": score(side["away"]),
                     "state": status.get("state"), "detail": status.get("shortDetail"),
+                    "situation": parse_situation(e, comp),
                     "lines": parse_odds(comp.get("odds"))})
     return out
 
@@ -110,6 +173,8 @@ def _picked(conn: sqlite3.Connection, league: str, lo: str, hi: str, ungraded: b
 def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.get, lines: bool = True) -> dict:
     """Lines for picked games about to start (unless lines=False), scores for picked games that started."""
     conn.execute(SCHEMA)
+    conn.execute(ID_SCHEMA)
+    conn.execute(DETAIL_SCHEMA)
     t = pd.Timestamp(now)
     started = _picked(conn, league, _iso(t - pd.Timedelta(hours=GAME_HOURS)), now, ungraded=True)
     upcoming = _picked(conn, league, now, _iso(t + pd.Timedelta(hours=LINE_LEAD_H)), ungraded=False) if lines else []
@@ -131,12 +196,29 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     db.upsert_lines(conn, [{**x, "game_id": gid, "tickets_pct": None, "money_pct": None}
                            for gid, e in priced.items() for x in e["lines"]], now)
     scored = match_events(started, events) if started else {}
+    # Browser polling can reuse a verified ESPN id without fuzzy-matching college team names.
+    # Preserve the collector's existing score matching, but only retain exact normalized pairs here.
+    games = {g["id"]: g for g in started + upcoming}
+    ids = []
+    for gid, event in (priced | scored).items():
+        game = games[gid]
+        event_id = event.get("event_id") or ""
+        home, away = normalize(game.get("home_name")), normalize(game.get("away_name"))
+        if (str(event_id).isdigit() and home and away
+                and home == normalize(event.get("home_name")) and away == normalize(event.get("away_name"))):
+            ids.append((gid, str(event_id)))
+    conn.executemany("INSERT INTO live_game_ids(game_id, espn_event_id) VALUES (?, ?) "
+                     "ON CONFLICT(game_id) DO UPDATE SET espn_event_id=excluded.espn_event_id", ids)
     rows = [(gid, e["away_score"], e["home_score"], e["state"], e["detail"], now) for gid, e in scored.items()
             if e["state"] in ("in", "post")]
     conn.executemany(
         "INSERT INTO live_scores(game_id, away_score, home_score, state, detail, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(game_id) DO UPDATE SET away_score=excluded.away_score, home_score=excluded.home_score, "
         "state=excluded.state, detail=excluded.detail, updated_at=excluded.updated_at", rows)
+    conn.executemany("INSERT INTO live_details(game_id, details_json) VALUES (?, ?) "
+                     "ON CONFLICT(game_id) DO UPDATE SET details_json=excluded.details_json",
+                     [(gid, json.dumps(e["situation"], ensure_ascii=False, allow_nan=False))
+                      for gid, e in scored.items() if e["state"] in ("in", "post")])
     finals = [(e["home_score"], e["away_score"], gid) for gid, e in scored.items()
               if e["state"] == "post" and e["home_score"] is not None and e["away_score"] is not None]
     conn.executemany("UPDATE games SET status = 'complete', home_score = ?, away_score = ? "
@@ -153,23 +235,55 @@ def collect_live(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     return c["live"] + c["final"]
 
 
-SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded"]
+LIVE_GAME_COLS = ["game_id", "league", "start_time", "home_name", "away_name", "home_abbr", "away_abbr",
+                  "espn_event_id"]
+
+
+def live_games_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
+    """Unfinished picked games the open dashboard may poll directly; never changes the database."""
+    has_ids = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='live_game_ids'").fetchone()
+    id_column = "i.espn_event_id" if has_ids else "NULL AS espn_event_id"
+    join = "LEFT JOIN live_game_ids i ON i.game_id = g.id " if has_ids else ""
+    t = pd.Timestamp(now)
+    rows = conn.execute(
+        "SELECT g.id AS game_id, g.league, g.start_time, g.home_name, g.away_name, g.home_abbr, g.away_abbr, "
+        f"{id_column} FROM games g {join}"
+        "WHERE g.league IN ('nfl', 'ncaaf', 'nba') AND (g.status IS NULL OR g.status != 'complete') "
+        "AND g.start_time > ? AND g.start_time <= ? "
+        "AND EXISTS (SELECT 1 FROM picks p WHERE p.game_id = g.id) ORDER BY g.start_time, g.id",
+        (_iso(t - pd.Timedelta(hours=GAME_HOURS)), _iso(t + pd.Timedelta(hours=LINE_LEAD_H))))
+    return pd.DataFrame([dict(r) for r in rows], columns=LIVE_GAME_COLS)
+
+
+SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded", "updated_at", "situation"]
 
 
 def scores_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
     """Score per game of the last days: graded final first, else the live score."""
     conn.execute(SCHEMA)
+    has_details = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='live_details'").fetchone()
+    details_column = "d.details_json" if has_details else "NULL AS details_json"
+    details_join = "LEFT JOIN live_details d ON d.game_id = g.id " if has_details else ""
     since = (pd.Timestamp(now) - pd.Timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     rows = []
     for r in conn.execute(
-            "SELECT g.id, g.status, g.away_score, g.home_score, l.away_score AS la, l.home_score AS lh, l.state, l.detail "
-            "FROM games g LEFT JOIN live_scores l ON l.game_id = g.id WHERE g.start_time >= ? AND g.start_time <= ?",
+            "SELECT g.id, g.status, g.away_score, g.home_score, l.away_score AS la, l.home_score AS lh, l.state, l.detail, l.updated_at, "
+            f"{details_column} FROM games g LEFT JOIN live_scores l ON l.game_id = g.id {details_join}"
+            "WHERE g.start_time >= ? AND g.start_time <= ?",
             (since, now)):
         r = dict(r)
+        try:
+            situation = json.loads(r["details_json"]) if r["details_json"] else None
+        except (TypeError, json.JSONDecodeError):
+            situation = None
+        if not isinstance(situation, dict):
+            situation = None
         if r["status"] == "complete" and r["away_score"] is not None:
             rows.append({"game_id": r["id"], "away_score": r["away_score"], "home_score": r["home_score"],
-                         "state": "final", "detail": "Hết trận", "graded": True})
+                         "state": "final", "detail": "Hết trận", "graded": True, "updated_at": r["updated_at"],
+                         "situation": situation})
         elif r["la"] is not None:
             rows.append({"game_id": r["id"], "away_score": r["la"], "home_score": r["lh"],
-                         "state": "final" if r["state"] == "post" else "live", "detail": r["detail"], "graded": False})
+                         "state": "final" if r["state"] == "post" else "live", "detail": r["detail"], "graded": False,
+                         "updated_at": r["updated_at"], "situation": situation})
     return pd.DataFrame(rows, columns=SCORE_COLS)

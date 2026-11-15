@@ -13,6 +13,9 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="icon-180.png">
 <title>Actions Expert Tracker</title>
+<link rel="stylesheet" href="scoreboard.css?v=live-20261115">
+<script src="scoreboard.js?v=live-20261115"></script>
+<script src="live-scores.js?v=live-20261115"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -393,7 +396,9 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card" id="inplay-card" hidden>
       <h2>Đang đá &amp; chờ kết quả</h2>
-      <p class="decide-note">Kèo theo cách của bạn ở các trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live và tỉ số cuối: ESPN — trận xong là chấm ngay.</p>
+      <p class="decide-note">Kèo theo cách của bạn ở các trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live: ESPN, tự lấy mỗi 5 giây khi mở trang; tỉ số cuối chờ hệ thống chấm vào thống kê.</p>
+      <p class="decide-note" id="live-score-status" role="status" aria-live="polite"></p>
+      <div id="live-scoreboards"></div>
       <div class="table-scroll" id="inplay-table"></div>
     </div>
     <div class="card">
@@ -714,7 +719,7 @@ const DATA = /*__DATA__*/null;
         const c = cfn(r) || {};
         const hot = opts && opts.rowClass ? opts.rowClass(r) : "";
         const more = (c.more || []).filter(Boolean);
-        const row = el("div", { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : "") },
+        const row = el("div", { class: "crow" + (hot ? " " + hot : "") + (more.length ? " tap" : ""), "data-game-id": r.game_id ?? "" },
           el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
             c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
           c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null,
@@ -1101,9 +1106,14 @@ const DATA = /*__DATA__*/null;
   }
 
   function inPlayCard() {
-    const rows = rawFilter(T("In_Play")).filter((r) => r.source === "Cách của bạn");  // only the user's method
+    const rows = rawFilter(liveInPlayRows());
     document.getElementById("inplay-card").hidden = !rows.length;
-    const NOW = { win: { t: "Đang thắng", c: "win" }, loss: { t: "Đang thua", c: "loss" }, push: { t: "Đang hòa", c: "" } };
+    liveScoreStatus();
+    if (window.ActionsScoreboard) {
+      const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
+      const cards = new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
+      ActionsScoreboard.render(document.getElementById("live-scoreboards"), [...cards.values()]);
+    }
     const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
     renderTable("inplay-table", rows, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
@@ -1112,7 +1122,7 @@ const DATA = /*__DATA__*/null;
       { label: "Đám đông", value: (r) => r.crowd || "–" },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line, r.market) }) },
-      { label: "Hiện tại", value: (r) => { const n = NOW[r.now]; return n ? el("span", { class: "pill " + n.c, text: n.t }) : el("span", { class: "muted", text: "–" }); }, sort: (r) => r.now || "" },
+      { label: "Hiện tại", value: (r) => nowPill(r.now, r.state === "final"), sort: (r) => r.now || "" },
     ]);
   }
 
@@ -1587,13 +1597,14 @@ const DATA = /*__DATA__*/null;
     if (!x) return el("span", { class: "muted", text: "–" });
     const txt = `${num(x.away_score)}-${num(x.home_score)}`;
     if (x.state === "live") return el("span", { class: "score live " + (coverNow(r, x) || "") }, el("i"), el("b", { text: txt }), el("span", { class: "muted", text: " · " + (x.detail || "live") }));
-    return el("span", { class: "score" }, el("b", { text: txt }));
+    return el("span", { class: "score" }, el("b", { text: txt }), x.state === "final" && !x.graded ? el("span", { class: "muted", text: " · Hết trận · chờ chấm" }) : null);
   } };
   // is the play covering at this score? (green dot = winning, red = losing, grey = push / unknown)
   const coverNow = (r, x) => {
-    if (r.now) return r.now;
-    const side = r.bet_side, market = r.market || "spread", line = Number(r.line ?? r.entry_line);
-    if (!side || r.line === null && r.entry_line === null || Number.isNaN(line)) return null;
+    const side = r.bet_side, market = r.market || "spread", rawLine = r.line ?? r.entry_line;
+    const line = Number(rawLine);
+    if (!(market === "total" ? ["over", "under"] : ["home", "away"]).includes(side)
+      || market !== "ml" && (rawLine === null || rawLine === undefined || !Number.isFinite(line))) return null;
     const a = Number(x.away_score), h = Number(x.home_score);
     let m;
     if (market === "spread") m = (side === "home" ? h - a : a - h) + line;
@@ -1604,7 +1615,9 @@ const DATA = /*__DATA__*/null;
   };
   const scoreOf = (r) => {
     if (!scoreMap) scoreMap = new Map(T("Scores").map((x) => [Number(x.game_id), x]));
-    return scoreMap.get(Number(r.game_id));
+    const stored = scoreMap.get(Number(r.game_id)), fresh = browserLive.scores.get(Number(r.game_id));
+    if (!fresh || stored && (stored.graded || Date.parse(stored.updated_at) > Date.parse(fresh.updated_at))) return stored;
+    return fresh;
   };
   const DG_LABEL = { "T2-6": "Thứ 2–6 · theo đám đông", "T7-CN": "Thứ 7–CN · đánh ngược", ALL: "Cả tuần" };
   function mineCard() {
@@ -1907,8 +1920,8 @@ const DATA = /*__DATA__*/null;
   const vs = (m) => String(m || "").replace("@", " @ ");
   const ln = (x, market) => (x === null || x === undefined || market === "ml" ? "" : " " + (market !== "total" && x > 0 ? "+" : "") + String(x).replace(".", ","));
   const waitPill = () => el("span", { class: "pill info", text: "Chờ" });
-  const nowPill = (now) => ({ win: el("span", { class: "pill win", text: "Đang thắng" }), loss: el("span", { class: "pill loss", text: "Đang thua" }),
-    push: el("span", { class: "pill", text: "Đang hòa" }) })[now] || el("span", { class: "muted", text: "–" });
+  const nowPill = (now, final = false) => ({ win: el("span", { class: "pill win", text: final ? "Thắng · chờ chấm" : "Đang thắng" }), loss: el("span", { class: "pill loss", text: final ? "Thua · chờ chấm" : "Đang thua" }),
+    push: el("span", { class: "pill", text: final ? "Hòa · chờ chấm" : "Đang hòa" }) })[now] || el("span", { class: "muted", text: "–" });
   const scoreNode = (r) => SCORE_COL.value(r);
   // a collapsible block under a compact row; left out when the cell has nothing to show
   const moreBlock = (label, node, emptyText) => {
@@ -1927,7 +1940,7 @@ const DATA = /*__DATA__*/null;
         sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
         more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn winner", mediaPicksCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
-    "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now),
+    "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
       sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)}` + (r.crowd ? ` · đám đông ${r.crowd}` : "")],
       more: [moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
         moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] }),
@@ -2022,7 +2035,84 @@ const DATA = /*__DATA__*/null;
     setTimeout(() => t.remove(), 2200);
   }
 
-  // live refresh: pull the freshly published page every 3 minutes while it is open (keeps tab, filters, scroll)
+  // Direct scores are an overlay; published snapshots remain authoritative for grading/statistics.
+  const browserLive = { scores: new Map(), busy: false, timer: null, lastCheck: null, failed: false, errors: 0 };
+  const LIVE_POLL_MS = 5000;
+  function liveInPlayRows() {
+    const plays = new Map(T("In_Play").filter((r) => r.source === "Cách của bạn").map((r) => [Number(r.game_id), r]));
+    for (const r of T("My_Method")) {
+      if (r.status === "graded") { plays.delete(Number(r.game_id)); continue; }
+      if (Date.parse(r.start_time) > Date.now()) continue;
+      plays.set(Number(r.game_id), { ...r, source: "Cách của bạn", market: "spread", crowd: `${r.crowd} ${r.votes}/${r.total_votes}` });
+    }
+    return [...plays.values()].flatMap((r) => {
+      const s = scoreOf(r);
+      if (!s || s.graded || !["live", "final"].includes(s.state) || !Number.isInteger(s.away_score) || !Number.isInteger(s.home_score)) return [];
+      return [{ ...r, ...s, now: coverNow(r, s) }];
+    }).sort((a, b) => (a.state === "live" ? 0 : 1) - (b.state === "live" ? 0 : 1) || Date.parse(a.start_time) - Date.parse(b.start_time));
+  }
+  function liveScoreStatus() {
+    const note = document.getElementById("live-score-status");
+    if (!note) return;
+    const time = browserLive.lastCheck ? new Date(browserLive.lastCheck).toLocaleTimeString("vi-VN", { hour12: false }) : null;
+    note.textContent = browserLive.failed
+      ? `Chưa lấy được điểm mới cho một số trận; giữ điểm lần trước.${time ? " Lần kiểm tra thành công: " + time + "." : ""} Đang thử lại.`
+      : time ? `ESPN · tự lấy mỗi 5 giây · kiểm tra lúc ${time}.`
+      : "Điểm từ lượt quét gần nhất; đang kết nối ESPN để cập nhật mỗi 5 giây.";
+  }
+  function liveCandidateGames() {
+    const ids = new Set(T("My_Method").filter((r) => r.status !== "graded").map((r) => Number(r.game_id)));
+    for (const r of T("In_Play")) if (r.source === "Cách của bạn") ids.add(Number(r.game_id));
+    return T("Live_Games").filter((g) => {
+      const age = Date.now() - Date.parse(g.start_time), s = scoreOf(g);
+      return ids.has(Number(g.game_id)) && age >= 0 && age < 72 * 3600000 && !(s && (s.graded || s.state === "final"));
+    });
+  }
+  function scheduleLiveScores(delay = LIVE_POLL_MS) {
+    clearTimeout(browserLive.timer);
+    if (!document.hidden) browserLive.timer = setTimeout(refreshLiveScores, delay);
+  }
+  function redrawLiveCard() {
+    if (currentTab() !== "upcoming") return;
+    const open = new Map([...document.querySelectorAll("#inplay-table .crow")].map((r) => [r.dataset.gameId, {
+      expanded: r.classList.contains("open"), details: [...r.querySelectorAll("details")].map((d) => d.open),
+    }]));
+    inPlayCard();
+    for (const r of document.querySelectorAll("#inplay-table .crow")) {
+      const old = open.get(r.dataset.gameId);
+      if (!old) continue;
+      r.classList.toggle("open", old.expanded);
+      [...r.querySelectorAll("details")].forEach((d, i) => { d.open = !!old.details[i]; });
+    }
+  }
+  async function refreshLiveScores() {
+    if (document.hidden || browserLive.busy) return;
+    browserLive.busy = true;
+    try {
+      const games = liveCandidateGames();
+      if (!games.length) { browserLive.failed = false; browserLive.errors = 0; liveScoreStatus(); return; }
+      if (!window.ActionsLiveScores) throw new Error("Scoreboard unavailable");
+      const result = await ActionsLiveScores.fetchGames(games);
+      let changed = false;
+      for (const s of result.scores) {
+        const before = browserLive.scores.get(s.game_id);
+        if (before && before.state === "final" && s.state !== "final") continue;
+        if (!before || JSON.stringify({ ...before, updated_at: null }) !== JSON.stringify({ ...s, updated_at: null })) changed = true;
+        browserLive.scores.set(s.game_id, s);
+      }
+      browserLive.failed = result.failed.length > 0;
+      browserLive.errors = result.scores.length ? 0 : browserLive.errors + 1;
+      if (result.scores.length) browserLive.lastCheck = new Date().toISOString();
+      if (changed) redrawLiveCard();
+      liveScoreStatus();
+    } catch (e) { browserLive.failed = true; browserLive.errors += 1; liveScoreStatus(); }
+    finally {
+      browserLive.busy = false;
+      scheduleLiveScores(Math.min(60000, LIVE_POLL_MS * 2 ** Math.min(browserLive.errors, 4)));
+    }
+  }
+
+  // Picks and settled statistics still pull the published snapshot every 3 minutes.
   async function refreshData() {
     try {
       const res = await fetch(location.pathname + "?t=" + Date.now(), { cache: "no-store" });
@@ -2033,14 +2123,17 @@ const DATA = /*__DATA__*/null;
       const j = html.indexOf("\n", i);
       const json = html.slice(i + "const DATA = ".length, j).trim().replace(/;$/, "");
       const next = JSON.parse(json);
-      if (!next || next.generated_at === D.generated_at) return;
+      if (!next || Date.parse(next.generated_at) <= Date.parse(D.generated_at)) return;
       D = next;
       pickCount = null; boardStatus = null; boardRow = null; scoreMap = null;
       header(); render();
     } catch (e) { /* offline or not published: keep what is shown */ }
   }
   setInterval(() => { if (!document.hidden) refreshData(); }, 180000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshData(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) clearTimeout(browserLive.timer);
+    else { refreshData(); refreshLiveScores(); }
+  });
 
   function render() {
     kpis();
@@ -2065,6 +2158,7 @@ const DATA = /*__DATA__*/null;
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
   theme(); header(); filters(); tabs(); mobileNav();
   render();
+  refreshLiveScores();
 })();
 </script>
 </body>

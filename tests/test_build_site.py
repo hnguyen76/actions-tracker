@@ -32,3 +32,11 @@ def test_empty_tables_render(tmp_path):
     html = out.read_text("utf-8")
     assert "Chưa có dữ liệu" in html
     assert _data(html)["tables"] == {}
+
+
+def test_live_score_assets_are_published_with_dashboard(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    for asset in ("live-scores.js", "scoreboard.js", "scoreboard.css"):
+        assert asset in html
+        assert (out.parent / asset).is_file()

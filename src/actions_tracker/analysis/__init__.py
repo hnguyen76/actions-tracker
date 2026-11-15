@@ -9,7 +9,7 @@ from actions_tracker.analysis.consensus import (consensus_games, consensus_summa
                                                 upcoming_board)
 from actions_tracker.analysis.history import add_season, history_plays, history_summary, history_weekly, load_history
 from actions_tracker.analysis.decisions import decisions
-from actions_tracker.live import scores_table
+from actions_tracker.live import live_games_table, scores_table
 from actions_tracker.analysis.in_play import in_play
 from actions_tracker.analysis import forecast as fc
 from actions_tracker.analysis.my_method import my_method_plays, my_method_summary, season_plays, season_sensitivity, season_summary
@@ -84,6 +84,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Forecast_Cells": fc.cells(sp),
         "Rule_Plays": rp,
         "Scores": scores,
+        "Live_Games": live_games_table(conn, now),
         "In_Play": in_play(scores, mm, rp),
         "History_Plays": hp,
         "History_Summary": hs,

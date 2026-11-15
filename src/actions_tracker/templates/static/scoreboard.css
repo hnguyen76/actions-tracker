@@ -1,0 +1,40 @@
+.asb-list { display: grid; gap: 12px; margin: 14px 0 18px; min-width: 0; }
+.asb-card { border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface-2); padding: 14px 18px; min-width: 0; }
+.asb-meta { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 16px; }
+.asb-league, .asb-updated { color: var(--muted); font-size: 12px; }
+.asb-updated { text-align: right; font-variant-numeric: tabular-nums; }
+.asb-clock { color: var(--ink); font-size: 16px; text-align: center; }
+.asb-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 250px) minmax(0, 1fr); align-items: center; gap: 22px; }
+.asb-team { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.asb-home { flex-direction: row-reverse; text-align: right; }
+.asb-identity { flex: 1; min-width: 0; }
+.asb-name { color: var(--ink); font-weight: 700; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.asb-abbr { display: block; color: var(--ink-2); font-size: 12px; margin-top: 4px; }
+.asb-score { color: var(--ink); font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.asb-possession { display: inline-block; width: 11px; height: 7px; margin-left: 7px; vertical-align: middle; border-radius: 50%; background: var(--warning); transform: rotate(-25deg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent); }
+.asb-quarters { min-width: 0; max-width: 100%; overflow-x: auto; }
+.asb-quarter-table { border-collapse: collapse; width: 100%; margin: 0; color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.asb-quarter-table th, .asb-quarter-table td { border: 0; padding: 3px 5px; min-width: 22px; text-align: center; white-space: nowrap; background: transparent; }
+.asb-quarter-table thead th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: none; letter-spacing: 0; }
+.asb-quarter-table tbody th { color: var(--ink); font-weight: 600; text-align: left; }
+.asb-quarter-table tbody tr:first-child { border-top: 1px solid var(--border-strong); }
+.asb-quarter-table .asb-total { color: var(--ink); font-weight: 700; }
+.asb-situation { margin-top: 14px; padding: 9px 12px; border-radius: 9px; color: var(--ink-2); background: var(--raised); text-align: center; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.asb-red-zone { color: var(--warning); }
+@media (max-width: 700px) {
+  .asb-card { padding: 12px; }
+  .asb-meta { grid-template-columns: 1fr auto; gap: 4px 8px; margin-bottom: 14px; }
+  .asb-clock { grid-column: 1 / -1; grid-row: 1; font-size: 15px; }
+  .asb-league, .asb-updated { grid-row: 2; font-size: 11px; }
+  .asb-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .asb-away { grid-column: 1; grid-row: 1; }
+  .asb-home { grid-column: 2; grid-row: 1; }
+  .asb-main { align-items: stretch; }
+  .asb-team, .asb-home { flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+  .asb-identity { width: 100%; }
+  .asb-name { font-size: 14px; }
+  .asb-score { font-size: 40px; }
+  .asb-quarters { grid-column: 1 / -1; grid-row: 2; justify-self: center; width: 100%; max-width: 330px; }
+  .asb-quarters-empty { display: none; }
+  .asb-situation { padding: 8px; font-size: 12px; }
+}

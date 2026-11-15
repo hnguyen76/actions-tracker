@@ -1,12 +1,18 @@
 # Actions Expert Tracker
 
-Theo dõi picks của expert trên Action Network (NFL, NCAAF, NBA), chấm theo tỉ số và line của
-[The Odds API](https://the-odds-api.com) và phân tích:
+Theo dõi picks của expert trên Action Network (NFL, NCAAF, NBA), chấm theo tỉ số và line từ
+ESPN miễn phí (dữ liệu cũ có The Odds API) và phân tích:
 
 - **Consensus** — khi đa số expert chọn cùng một side, side đó thắng bao nhiêu %, đánh theo hay đánh ngược có lời.
 - **Expert** — thành tích và thói quen chọn side (favorite/underdog, nhà/khách, over/under) của từng expert.
 
 Dashboard: https://hnguyen76.github.io/actions-tracker/
+
+Mục **Đang đá & chờ kết quả** lấy điểm trực tiếp từ scoreboard công khai của ESPN mỗi **5 giây**
+khi trang đang mở, độc lập với lịch quét/đăng website 5 phút. Hiển thị đội cầm bóng, down & distance,
+vị trí bóng, đồng hồ/hiệp và điểm từng hiệp khi ESPN có dữ liệu. Trang giữ điểm lần trước nếu lỗi,
+thử lại chậm dần và ngừng lấy khi bị ẩn. Nhịp lấy 5 giây không bảo đảm độ trễ 5 giây của nguồn.
+Tỉ số cuối trên trình duyệt chờ lượt chấm của hệ thống trước khi vào thống kê.
 
 ## Cập nhật dữ liệu
 
@@ -14,9 +20,9 @@ Bấm shortcut **Actions - Cap nhat** trên Desktop **ít nhất mỗi ngày** (
 Nút này lấy picks mới, chấm kết quả, xuất `reports/actions_report.xlsx`, dựng `site/index.html` rồi push lên GitHub;
 workflow `pages` tự đăng dashboard.
 
-API key The Odds API: đặt trong file `.odds_api_key` ở thư mục repo (đã gitignore) hoặc biến môi trường
-`ODDS_API_KEY`. Gói miễn phí 500 credit/tháng; mỗi lần bấm tốn tối đa ~15 credit. Tỉ số chỉ lấy lại được 3 ngày,
-nên đừng để quá 3 ngày không bấm.
+Mặc định lấy điểm và line ESPN, không dùng credit The Odds API. Nếu chủ động chạy `run --odds-api`,
+đặt key trong `.odds_api_key` ở thư mục repo (đã gitignore) hoặc biến môi trường `ODDS_API_KEY`;
+các lượt gọi tùy chọn đó mới dùng credit theo gói API.
 
 Trong **Kèo sắp tới**, cột **Tin tức** sau **Vì sao** tóm tắt có lợi/bất lợi cho từng đội NFL/NCAAF,
 chỉ ở các kèo tô vàng (từ 8 expert trên cùng market). Tin có link nguồn, tối đa 2 ý mỗi nhóm;
@@ -55,6 +61,7 @@ python -m venv .venv
 .venv/Scripts/python -m actions_tracker run              # lấy dữ liệu thật
 .venv/Scripts/python -m actions_tracker run --offline tests/fixtures --db /tmp/t.db   # dùng dữ liệu mẫu
 .venv/Scripts/python -m pytest
+node --test tests/frontend/live_scores.test.cjs          # bộ lấy điểm trực tiếp trên trình duyệt
 ```
 
 Thiết kế: `docs/superpowers/specs/2026-11-09-actions-expert-tracker-design.md`
