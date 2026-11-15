@@ -27,7 +27,7 @@ def test_build_tables_empty_db_without_public(tmp_path):
     assert set(t) == {"Picks", "Consensus", "Experts", "Expert_Habits", "Trend_Weekly", "Upcoming", "Leaderboard", "Past_Plays",
                       "Expert_Form", "Expert_Form_Now",
                       "History_Plays", "History_Summary", "History_Weekly",
-                      "Upcoming_Board", "Match_News", "Media_Picks", "Media_ATS", "Rule_Summary", "Rule_Plays", "Expert_CLV", "Decisions", "Data_Quality",
+                      "Upcoming_Board", "Match_News", "Media_Picks", "Media_ATS", "Weather", "Rule_Summary", "Rule_Plays", "Expert_CLV", "Decisions", "Data_Quality",
                       "My_Method", "My_Method_Summary",
                       "My_Method_Season", "My_Method_Season_Summary",
                       "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells",

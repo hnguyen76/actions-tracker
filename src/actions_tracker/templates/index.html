@@ -149,6 +149,9 @@ tr.selected, tr.selected:hover { background: var(--accent-wash); }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
 .low-n { color: var(--muted); }
+td.wx-cell { min-width: 170px; }
+.wx { display: grid; gap: 4px; font-size: 13.5px; }
+.wx .pill { justify-self: start; white-space: normal; }
 .toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
   background: var(--raised); color: var(--ink); border: 1px solid var(--border-strong); border-radius: 999px; padding: 10px 16px;
   font-size: 14px; box-shadow: var(--shadow); }
@@ -929,6 +932,37 @@ const DATA = /*__DATA__*/null;
   const mediaExpertKey = (name) => String(name || "").trim().normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   // One vote per named expert; team totals retain the different lines each expert selected.
+  // game-time weather and a rough read of what it means for the side the user bets
+  let weatherMap = null;
+  function weatherCell(r) {
+    if (!weatherMap) weatherMap = new Map(T("Weather").map((w) => [Number(w.game_id), w]));
+    const w = weatherMap.get(Number(r.game_id));
+    if (!w) return el("span", { class: "news-empty", text: "Chưa có dự báo" });
+    if (w.indoor) return el("div", { class: "wx" }, el("div", { text: "Sân trong nhà" }),
+      el("span", { class: "pill", text: "Không ảnh hưởng" }));
+    const parts = [];
+    if (w.temp_f !== null && w.temp_f !== undefined) parts.push(`${Math.round(w.temp_f)}°F`);
+    if (w.precip_pct !== null && w.precip_pct !== undefined) parts.push(`mưa ${Math.round(w.precip_pct)}%`);
+    if (w.wind_mph !== null && w.wind_mph !== undefined) parts.push(`gió ${Math.round(w.wind_mph)} mph` + (w.gust_mph ? ` (giật ${Math.round(w.gust_mph)})` : ""));
+    const bad = [];
+    if ((w.wind_mph || 0) >= 15 || (w.gust_mph || 0) >= 25) bad.push("gió mạnh");
+    if ((w.precip_pct || 0) >= 50) bad.push("mưa");
+    if (w.temp_f !== null && w.temp_f !== undefined && w.temp_f <= 32) bad.push("rất lạnh");
+    // rough read: rough weather means fewer points -> helps underdogs and unders, hurts favourites and overs
+    const pickText = String(r.pick || "");
+    const num = parseFloat((pickText.match(/[+-]?\d+(?:,\d+)?/) || [""])[0].replace(",", "."));
+    let effect = { t: "Bình thường", c: "" };
+    if (bad.length) {
+      const good = r.market === "total" ? /^Under/i.test(pickText) : r.market === "spread" ? num > 0 : null;
+      effect = good === null ? { t: bad.join(", "), c: "" }
+        : good ? { t: `Có lợi nhẹ (${bad.join(", ")} → ít điểm)`, c: "win" }
+        : { t: `Bất lợi nhẹ (${bad.join(", ")} → ít điểm)`, c: "loss" };
+    }
+    return el("div", { class: "wx" }, el("div", { text: parts.join(" · ") || (w.condition || "–") }),
+      w.condition && parts.length ? el("div", { class: "muted", text: w.condition }) : null,
+      el("span", { class: "pill " + effect.c, text: effect.t }));
+  }
+
   let atsByGame = null;
   const atsLine = (line) => line === 0 ? "PK" : (line > 0 ? "+" : "") + line.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
   const atsStamp = (pick) => Date.parse(pick.modified_at || pick.published_at || pick.fetched_at || "") || 0;
@@ -1101,6 +1135,7 @@ const DATA = /*__DATA__*/null;
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
       { label: "Tin tức", value: matchNewsCell, cls: () => "news-cell" },
       { label: "Chuyên gia chọn spread", value: atsPicksCell, cls: () => "media-picks-cell" },
+      { label: "Thời tiết (giờ đá)", value: weatherCell, cls: () => "wx-cell" },
     ];
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
@@ -1952,7 +1987,8 @@ const DATA = /*__DATA__*/null;
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
         sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
-        more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn spread", atsPicksCell(r))] }; },
+        more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
+          moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
       sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)}` + (r.crowd ? ` · đám đông ${r.crowd}` : "")],
@@ -2127,7 +2163,7 @@ const DATA = /*__DATA__*/null;
       const next = JSON.parse(json);
       if (!next || Date.parse(next.generated_at) <= Date.parse(D.generated_at)) return;
       D = next;
-      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null;
+      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null; weatherMap = null;
       header(); render();
     } catch (e) { /* offline or not published: keep what is shown */ }
   }

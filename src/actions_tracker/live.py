@@ -18,6 +18,7 @@ import requests
 from actions_tracker import db
 from actions_tracker.config import TZ
 from actions_tracker.matching import match_events, normalize
+from actions_tracker.weather import parse_venue, store_weather
 
 ESPN = {
     "nfl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={d}",
@@ -154,6 +155,7 @@ def parse_scoreboard(data: dict) -> list[dict]:
                     "home_score": score(side["home"]), "away_score": score(side["away"]),
                     "state": status.get("state"), "detail": status.get("shortDetail"),
                     "situation": parse_situation(e, comp),
+                    "venue": parse_venue(e, comp),
                     "lines": parse_odds(comp.get("odds"))})
     return out
 
@@ -195,6 +197,13 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     priced = match_events(upcoming, [e for e in events if e["state"] == "pre"]) if upcoming else {}
     db.upsert_lines(conn, [{**x, "game_id": gid, "tickets_pct": None, "money_pct": None}
                            for gid, e in priced.items() for x in e["lines"]], now)
+    if priced and league in ("nfl", "ncaaf"):  # game-time weather for the decision card; never fails the run
+        try:
+            starts = {g["id"]: g["start_time"] for g in upcoming}
+            store_weather(conn, {gid: {"start_time": starts[gid], "venue": e.get("venue")} for gid, e in priced.items()},
+                          now, get=get)
+        except Exception:  # noqa: BLE001
+            pass
     scored = match_events(started, events) if started else {}
     # Browser polling can reuse a verified ESPN id without fuzzy-matching college team names.
     # Preserve the collector's existing score matching, but only retain exact normalized pairs here.

@@ -40,6 +40,7 @@ def _db(tmp_path):
 def test_parse_scoreboard():
     ev = live.parse_scoreboard(BOARD)
     assert ev[0].pop("lines") == []
+    assert ev[0].pop("venue")["venue"] is None      # this test board carries no venue
     assert ev[0] == {"event_id": "1", "commence_time": "2026-11-14T23:15Z", "home_name": "Kentucky Wildcats",
                      "away_name": "Florida Gators", "home_score": 14, "away_score": 10, "state": "in",
                      "detail": "6:09 - 2nd", "situation": None}
