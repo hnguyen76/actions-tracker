@@ -1,5 +1,6 @@
 """Render the static dashboard: one HTML file with the analysis tables embedded as JSON (spec §8)."""
 
+import hashlib
 import json
 import math
 import shutil
@@ -42,7 +43,14 @@ def build_site(tables: dict[str, pd.DataFrame], status: list[dict], out_dir: Pat
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "index.html"
-    out.write_text(template.replace(PLACEHOLDER, data), encoding="utf-8")
+    static = resources.files("actions_tracker").joinpath("templates/static")
+    digest = hashlib.sha1()  # cache-busting: the version changes whenever a static file changes
+    if static.is_dir():
+        for f in sorted(static.iterdir(), key=lambda f: f.name):
+            if f.is_file():
+                digest.update(f.name.encode() + f.read_bytes())
+    html = template.replace(PLACEHOLDER, data).replace("__STATIC_V__", digest.hexdigest()[:10])
+    out.write_text(html, encoding="utf-8")
     static = resources.files("actions_tracker").joinpath("templates/static")
     if static.is_dir():  # home-screen icons and the web app manifest (iPhone "Add to Home Screen")
         for f in static.iterdir():
