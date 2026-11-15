@@ -68,3 +68,17 @@ def test_user_method_is_listed_and_merged_with_rules():
     d = decisions(rp, rs, pd.DataFrame(), now, mm).set_index("game_id")
     assert d.loc[1, "action"] == "mine" and d.loc[1, "pick"] == "MIA +4,5" and "ngược đám đông IND 5/5" in d.loc[1, "reason"]
     assert d.loc[2, "action"] == "paper" and "Cách của bạn" in d.loc[2, "reason"] and "cùng bên" in d.loc[2, "reason"]
+
+
+def test_user_method_wins_when_a_rule_picks_the_other_side():
+    import pandas as pd
+    from actions_tracker.analysis.decisions import decisions
+    now = "2026-11-15T12:00:00.000Z"
+    mm = pd.DataFrame([dict(game_id=1, league="nfl", start_time="2026-11-15T18:00:00.000Z", et_date="2026-11-15",
+                            match="BUF@NYJ", crowd="NYJ", votes=12, total_votes=12, method="fade", bet_side="away",
+                            pick="BUF", line=-8.5, status="pending")])
+    rp = pd.DataFrame([dict(rule_id="r5", rule_name="NFL ≥ 10", league="nfl", game_id=1, start_time="2026-11-15T18:00:00.000Z",
+                            match="BUF@NYJ", market="spread", bet_side="home", pick="NYJ", line=8.5, basis="", status="pending")])
+    rs = pd.DataFrame([dict(rule_id="r5", decision="collecting", hist_record="19-13", wins=0, losses=0, pushes=0, n=0, target_n=100)])
+    d = decisions(rp, rs, pd.DataFrame(), now, mm).iloc[0]
+    assert (d.action, d.pick, d.bet_side) == ("mine", "BUF -8,5", "away") and "quy tắc chọn ngược: NYJ +8,5" in d.reason

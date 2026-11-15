@@ -19,6 +19,7 @@ from actions_tracker import db
 from actions_tracker.config import TZ
 from actions_tracker.matching import match_events, normalize
 from actions_tracker.weather import parse_venue, store_weather
+from actions_tracker.game_context import parse_open, store_context, store_open
 
 ESPN = {
     "nfl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={d}",
@@ -156,6 +157,7 @@ def parse_scoreboard(data: dict) -> list[dict]:
                     "state": status.get("state"), "detail": status.get("shortDetail"),
                     "situation": parse_situation(e, comp),
                     "venue": parse_venue(e, comp),
+                    "open": parse_open(comp.get("odds")),
                     "lines": parse_odds(comp.get("odds"))})
     return out
 
@@ -202,6 +204,12 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
             starts = {g["id"]: g["start_time"] for g in upcoming}
             store_weather(conn, {gid: {"start_time": starts[gid], "venue": e.get("venue")} for gid, e in priced.items()},
                           now, get=get)
+        except Exception:  # noqa: BLE001
+            pass
+        try:  # opening lines, rest days and quarterback status for the "Tín hiệu" column
+            store_open(conn, {gid: e.get("open") or [] for gid, e in priced.items()}, now)
+            store_context(conn, league, {gid: {"event_id": e["event_id"], "start_time": starts[gid]}
+                                         for gid, e in priced.items()}, now, get=get)
         except Exception:  # noqa: BLE001
             pass
     scored = match_events(started, events) if started else {}

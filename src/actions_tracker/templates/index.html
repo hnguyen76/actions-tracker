@@ -153,9 +153,14 @@ td.wx-cell { min-width: 170px; }
 tr.has-detail > td { border-bottom: 0; padding-bottom: 4px; }
 tr.detail-row > td { padding-top: 2px; padding-bottom: 14px; }
 tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
-.detail-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .8fr); gap: 10px 22px;
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, .8fr); gap: 10px 22px;
   border-top: 1px dashed var(--border); padding-top: 10px; }
 .detail-block { min-width: 0; font-size: 13.5px; }
+.signals { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.signals .sig { display: flex; gap: 6px; align-items: baseline; line-height: 1.35; }
+.signals .sig-dot { flex: none; font-size: 11px; }
+.signals .sig.info { color: var(--ink-2); }
+@media (max-width: 1200px) { .detail-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .detail-h { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px; }
 @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 .wx { display: grid; gap: 4px; font-size: 13.5px; }
@@ -945,6 +950,23 @@ const DATA = /*__DATA__*/null;
   const mediaExpertKey = (name) => String(name || "").trim().normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   // One vote per named expert; team totals retain the different lines each expert selected.
+  // signals for the side the user bets (line move, key numbers, rest, QB, experts, same situation, public money)
+  let signalMap = null;
+  function signalsCell(r) {
+    if (!signalMap) {
+      signalMap = new Map();
+      for (const x of T("Signals")) {
+        const k = `${x.game_id}|${x.market}|${x.side}`;
+        if (!signalMap.has(k)) signalMap.set(k, []);
+        signalMap.get(k).push(x);
+      }
+    }
+    const list = (signalMap.get(`${r.game_id}|${r.market}|${r.bet_side}`) || []).slice().sort((a, b) => a.order - b.order);
+    if (!list.length) return el("span", { class: "news-empty", text: "Chưa có tín hiệu" });
+    return el("ul", { class: "signals" }, ...list.map((x) => el("li", { class: "sig " + ({ "🟢": "good", "🔴": "bad" }[x.tone] || "info") },
+      el("span", { class: "sig-dot", text: x.tone }), el("span", { text: x.text }))));
+  }
+
   // game-time weather and a rough read of what it means for the side the user bets
   let weatherMap = null;
   function weatherCell(r) {
@@ -1150,8 +1172,8 @@ const DATA = /*__DATA__*/null;
     const block = (label, node) => el("div", { class: "detail-block" }, el("div", { class: "detail-h", text: label }),
       node instanceof Node ? node : el("span", { class: "muted", text: node || "–" }));
     const decideDetail = (r) => el("div", { class: "detail-grid" },
-      block("Tin tức", matchNewsCell(r)), block("Chuyên gia chọn spread", atsPicksCell(r)),
-      block("Thời tiết (giờ đá)", weatherCell(r)));
+      block("Tín hiệu cho bên bạn đặt", signalsCell(r)), block("Tin tức", matchNewsCell(r)),
+      block("Chuyên gia chọn spread", atsPicksCell(r)), block("Thời tiết (giờ đá)", weatherCell(r)));
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
       const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
@@ -2002,7 +2024,8 @@ const DATA = /*__DATA__*/null;
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
         sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
-        more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
+        more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), moreBlock("Tin tức", matchNewsCell(r)),
+          moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
@@ -2178,7 +2201,7 @@ const DATA = /*__DATA__*/null;
       const next = JSON.parse(json);
       if (!next || Date.parse(next.generated_at) <= Date.parse(D.generated_at)) return;
       D = next;
-      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null; weatherMap = null;
+      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null; weatherMap = null; signalMap = null;
       header(); render();
     } catch (e) { /* offline or not published: keep what is shown */ }
   }

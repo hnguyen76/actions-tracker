@@ -11,7 +11,7 @@ import pandas as pd
 from actions_tracker.config import TZ
 
 DECISION_COLS = ["et_date", "start_time", "league", "game_id", "match", "market", "action", "pick", "stake_u",
-                 "reason", "evidence", "rule_ids"]
+                 "reason", "evidence", "rule_ids", "bet_side"]
 STAKE = {"pass": 1.0}  # units per play once a rule passed; every other state stakes nothing
 ACTION = {"pass": "bet", "collecting": "paper", "watch": "paper", "fail": "skip"}
 ORDER = {"bet": 0, "mine": 1, "paper": 2, "conflict": 3, "skip": 4}
@@ -61,7 +61,8 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
             evidence.append(f"nhìn lại {r.hist_record} · ghi trước {fwd} ({r.n}/{r.target_n})")
         base = {"et_date": _et_date(first["start_time"]), "start_time": first["start_time"], "league": first["league"],
                 "game_id": int(game_id), "match": first["match"], "market": market,
-                "evidence": "; ".join(evidence), "rule_ids": ",".join(dict.fromkeys(g["rule_id"]))}
+                "evidence": "; ".join(evidence), "rule_ids": ",".join(dict.fromkeys(g["rule_id"])),
+                "bet_side": first["bet_side"]}
         if g["bet_side"].nunique() > 1:
             picks = " / ".join(f"{p}{_line(market, l)}" for p, l in zip(g["pick"], g["line"]))
             rows.append(base | {"action": "conflict", "pick": picks, "stake_u": 0.0,
@@ -72,9 +73,15 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
         basis = "; ".join(dict.fromkeys(b for b in g["basis"] if b))
         reason = f"{names}: {basis}" if basis else names
         m = mine.pop((int(game_id), market), None)
-        if m is not None:  # the user's method backs the same game: say so (and whether it agrees)
-            same = m.bet_side == first["bet_side"]
-            reason = f"{_mine_reason(m)} — {'cùng bên' if same else 'NGƯỢC bên'} với quy tắc · " + reason
+        if m is not None and m.bet_side != first["bet_side"]:
+            # the user's own method decides the side shown; the opposite rule is only mentioned
+            rows.append(base | {"action": "mine", "pick": f"{m.pick}{_line(market, m.line)}", "stake_u": 0.0,
+                                "bet_side": m.bet_side,
+                                "reason": f"{_mine_reason(m)} · quy tắc chọn ngược: {first['pick']}"
+                                          f"{_line(market, first['line'])} ({names})"})
+            continue
+        if m is not None:  # same side: keep the rule's status and say the user's method agrees
+            reason = f"{_mine_reason(m)} — cùng bên với quy tắc · " + reason
         rows.append(base | {"action": action, "pick": f"{first['pick']}{_line(market, first['line'])}",
                             "stake_u": max(STAKE.get(s, 0.0) for s in states), "reason": reason})
     for (game_id, market), m in mine.items():
@@ -82,7 +89,7 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
         rows.append({"et_date": m.et_date, "start_time": m.start_time, "league": m.league, "game_id": int(game_id),
                      "match": m.match, "market": market, "action": "mine",
                      "pick": f"{m.pick}{_line(market, m.line)}", "stake_u": 0.0, "reason": _mine_reason(m),
-                     "evidence": "", "rule_ids": "my_method"})
+                     "evidence": "", "rule_ids": "my_method", "bet_side": m.bet_side})
     if not upcoming.empty:
         for r in upcoming[upcoming["start_time"].astype(str) > now].itertuples():
             if (r.game_id, r.market) in covered:
@@ -91,7 +98,8 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
             rows.append({"et_date": _et_date(r.start_time), "start_time": r.start_time, "league": r.league,
                          "game_id": int(r.game_id), "match": f"{r.away_abbr}@{r.home_abbr}", "market": r.market,
                          "action": "skip", "pick": f"Đa số chọn {side} ({r.votes}/{r.total_votes})",
-                         "stake_u": 0.0, "reason": CONSENSUS_REASON, "evidence": "", "rule_ids": ""})
+                         "stake_u": 0.0, "reason": CONSENSUS_REASON, "evidence": "", "rule_ids": "",
+                         "bet_side": r.side})
     out = pd.DataFrame(rows, columns=DECISION_COLS)
     if out.empty:
         return out

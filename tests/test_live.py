@@ -41,6 +41,7 @@ def test_parse_scoreboard():
     ev = live.parse_scoreboard(BOARD)
     assert ev[0].pop("lines") == []
     assert ev[0].pop("venue")["venue"] is None      # this test board carries no venue
+    assert ev[0].pop("open") == []
     assert ev[0] == {"event_id": "1", "commence_time": "2026-11-14T23:15Z", "home_name": "Kentucky Wildcats",
                      "away_name": "Florida Gators", "home_score": 14, "away_score": 10, "state": "in",
                      "detail": "6:09 - 2nd", "situation": None}
@@ -50,7 +51,7 @@ def test_collect_live_only_games_in_progress_and_scores_table(tmp_path):
     c = _db(tmp_path)
     urls = []
     n = live.collect_live(c, "ncaaf", NOW, get=lambda url, **k: urls.append(url) or _R())
-    assert n == 1 and len(urls) == 1 and "dates=20261114" in urls[0]       # only the game that has kicked off
+    assert n == 1 and len([u for u in urls if "scoreboard" in u]) == 1 and "dates=20261114" in urls[0]       # only the game that has kicked off
     s = live.scores_table(c, NOW).set_index("game_id")
     assert (s.loc[1, "away_score"], s.loc[1, "home_score"], s.loc[1, "state"], s.loc[1, "detail"]) == (10, 14, "live", "6:09 - 2nd")
     assert (s.loc[3, "away_score"], s.loc[3, "state"]) == (49, "final")    # the Odds API final wins
