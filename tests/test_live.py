@@ -57,3 +57,18 @@ def test_no_request_when_nothing_is_being_played(tmp_path):
     c = _db(tmp_path)
     called = []
     assert live.collect_live(c, "nfl", NOW, get=lambda url, **k: called.append(url)) == 0 and called == []
+
+
+
+def test_espn_final_grades_the_game(tmp_path):
+    c = _db(tmp_path)
+    final = {"events": [dict(BOARD["events"][0], status={"type": {"state": "post", "shortDetail": "Final"}})]}
+
+    class R:
+        status_code = 200
+
+        def json(self):
+            return final
+    live.collect_live(c, "ncaaf", NOW, get=lambda url, **k: R())
+    g = dict(c.execute("SELECT status, away_score, home_score FROM games WHERE id = 1").fetchone())
+    assert g == {"status": "complete", "away_score": 10, "home_score": 14}

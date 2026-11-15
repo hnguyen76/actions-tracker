@@ -81,11 +81,16 @@ def collect_live(conn: sqlite3.Connection, league: str, now: str, get=requests.g
         "INSERT INTO live_scores(game_id, away_score, home_score, state, detail, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(game_id) DO UPDATE SET away_score=excluded.away_score, home_score=excluded.home_score, "
         "state=excluded.state, detail=excluded.detail, updated_at=excluded.updated_at", rows)
+    # a game ESPN reports as final is graded right away; The Odds API scores later overwrite it with theirs
+    finals = [(e["home_score"], e["away_score"], gid) for gid, e in matched.items()
+              if e["state"] == "post" and e["home_score"] is not None and e["away_score"] is not None]
+    conn.executemany("UPDATE games SET status = 'complete', home_score = ?, away_score = ? "
+                     "WHERE id = ? AND (status IS NULL OR status != 'complete')", finals)
     conn.commit()
     return len(rows)
 
 
-SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail"]
+SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded"]
 
 
 def scores_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
@@ -100,8 +105,8 @@ def scores_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
         r = dict(r)
         if r["status"] == "complete" and r["away_score"] is not None:
             rows.append({"game_id": r["id"], "away_score": r["away_score"], "home_score": r["home_score"],
-                         "state": "final", "detail": "Hết trận"})
+                         "state": "final", "detail": "Hết trận", "graded": True})
         elif r["la"] is not None:
             rows.append({"game_id": r["id"], "away_score": r["la"], "home_score": r["lh"],
-                         "state": "final" if r["state"] == "post" else "live", "detail": r["detail"]})
+                         "state": "final" if r["state"] == "post" else "live", "detail": r["detail"], "graded": False})
     return pd.DataFrame(rows, columns=SCORE_COLS)

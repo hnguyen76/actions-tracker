@@ -305,6 +305,11 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <details class="howto" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
       <details class="howto"><summary>Cách hệ thống quyết định</summary><p><b>Đặt</b> chỉ khi kèo khớp một quy tắc có ít nhất 100 kết quả ghi trước, thắng ≥ 55% và cận dưới CI 95% vượt mức hòa vốn −110 — mức cược 1 unit. <b>Theo dõi</b> = khớp quy tắc đang kiểm chứng: ghi lại, chưa đặt tiền thật. <b>Bỏ qua</b> = chỉ có consensus của expert, hai quy tắc ngược nhau, hoặc quy tắc đã bị loại. Kèo đổi đến lần cập nhật cuối trước giờ đá — bấm cập nhật gần giờ đá rồi mới quyết.</p></details>
     </div>
+    <div class="card" id="inplay-card" hidden>
+      <h2>Đang đá &amp; chờ kết quả</h2>
+      <p class="decide-note">Kèo của bạn và các quy tắc ở trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live: ESPN; chấm chính thức khi có tỉ số cuối của The Odds API.</p>
+      <div class="table-scroll" id="inplay-table"></div>
+    </div>
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <details class="howto"><summary>Cách đọc</summary><p>Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p></details>
@@ -902,8 +907,25 @@ const DATA = /*__DATA__*/null;
     ], null, HOT);
   }
 
+  function inPlayCard() {
+    const rows = rawFilter(T("In_Play"));
+    document.getElementById("inplay-card").hidden = !rows.length;
+    const NOW = { win: { t: "Đang thắng", c: "win" }, loss: { t: "Đang thua", c: "loss" }, push: { t: "Đang hòa", c: "" } };
+    const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
+    renderTable("inplay-table", rows, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match.replace("@", " @ ")}` },
+      SCORE_COL,
+      { label: "Nguồn", cls: () => "cell-wrap", value: (r) => String(r.source).replace(/^NCAAF /, "") + (r.crowd ? ` · đám đông ${r.crowd}` : "") },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line, r.market) }) },
+      { label: "Hiện tại", value: (r) => { const n = NOW[r.now]; return n ? el("span", { class: "pill " + n.c, text: n.t }) : el("span", { class: "muted", text: "–" }); }, sort: (r) => r.now || "" },
+    ]);
+  }
+
   function upcomingTab() {
     decideCard();
+    inPlayCard();
     renderTable("board-table", rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)), [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Giải", value: (r) => leagueName(r.league) },

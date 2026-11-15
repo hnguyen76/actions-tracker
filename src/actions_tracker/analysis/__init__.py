@@ -10,6 +10,7 @@ from actions_tracker.analysis.consensus import (consensus_games, consensus_summa
 from actions_tracker.analysis.history import add_season, history_plays, history_summary, history_weekly, load_history
 from actions_tracker.analysis.decisions import decisions
 from actions_tracker.live import scores_table
+from actions_tracker.analysis.in_play import in_play
 from actions_tracker.analysis import forecast as fc
 from actions_tracker.analysis.my_method import my_method_plays, my_method_summary, season_plays, season_sensitivity, season_summary
 from actions_tracker.analysis.rule_report import rule_plays, rule_summary
@@ -46,6 +47,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     sides = load_history(history_dir)
     hp = history_plays(sides)
     mm = my_method_plays(cg, picks)
+    scores = scores_table(conn, now)
     game_info = {int(r["id"]): dict(r) for r in conn.execute("SELECT id, week, away_score, home_score FROM games")}
     sp = season_plays(sides, mm, game_info)
     hs = history_summary(hp)
@@ -79,7 +81,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Forecast_Backtest": fc.walk_forward(sp),
         "Forecast_Cells": fc.cells(sp),
         "Rule_Plays": rp,
-        "Scores": scores_table(conn, now),
+        "Scores": scores,
+        "In_Play": in_play(scores, mm, rp),
         "History_Plays": hp,
         "History_Summary": hs,
         "History_Weekly": history_weekly(hp),
