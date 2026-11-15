@@ -150,6 +150,14 @@ th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
 .low-n { color: var(--muted); }
 td.wx-cell { min-width: 170px; }
+tr.has-detail > td { border-bottom: 0; padding-bottom: 4px; }
+tr.detail-row > td { padding-top: 2px; padding-bottom: 14px; }
+tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .8fr); gap: 10px 22px;
+  border-top: 1px dashed var(--border); padding-top: 10px; }
+.detail-block { min-width: 0; font-size: 13.5px; }
+.detail-h { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px; }
+@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 .wx { display: grid; gap: 4px; font-size: 13.5px; }
 .wx .pill { justify-self: start; white-space: normal; }
 .toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
@@ -683,6 +691,11 @@ const DATA = /*__DATA__*/null;
         tr.addEventListener("keydown", (e) => { if (e.key === "Enter") onRow(r); });
       }
       tbody.append(tr);
+      const detail = opts && opts.detail ? opts.detail(r) : null;
+      if (detail) {
+        tr.classList.add("has-detail");
+        tbody.append(el("tr", { class: "detail-row" + (hot ? " " + hot : "") }, el("td", { colspan: String(columns.length) }, detail)));
+      }
     }
     const cfn = isPhone() && compactFor(target);
     if (cfn) {
@@ -1133,16 +1146,18 @@ const DATA = /*__DATA__*/null;
       STATUS_COL,
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
-      { label: "Tin tức", value: matchNewsCell, cls: () => "news-cell" },
-      { label: "Chuyên gia chọn spread", value: atsPicksCell, cls: () => "media-picks-cell" },
-      { label: "Thời tiết (giờ đá)", value: weatherCell, cls: () => "wx-cell" },
     ];
+    const block = (label, node) => el("div", { class: "detail-block" }, el("div", { class: "detail-h", text: label }),
+      node instanceof Node ? node : el("span", { class: "muted", text: node || "–" }));
+    const decideDetail = (r) => el("div", { class: "detail-grid" },
+      block("Tin tức", matchNewsCell(r)), block("Chuyên gia chọn spread", atsPicksCell(r)),
+      block("Thời tiết (giờ đá)", weatherCell(r)));
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
       const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
       h.replaceChildren(MARKET_LABEL[market] || market, el("span", { class: "count", text: `${list.length} kèo` }));
       if (market === "ml") { h.hidden = host.hidden = !list.length; }
-      renderTable("decide-table-" + market, list, cols, null, HOT);
+      renderTable("decide-table-" + market, list, cols, null, Object.assign({}, HOT, { detail: decideDetail }));
       if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
     section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");

@@ -98,7 +98,7 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert calls == [(NOW, True)]
     assert media_calls == [(NOW, True)]
     html = (tmp_path / "site" / "index.html").read_text("utf-8")
-    assert '"Match_News":[]' in html and 'label: "Tin tức"' in html
+    assert '"Match_News":[]' in html and '"Tin tức"' in html
     assert '"Media_Picks":[]' in html and 'label: "Chuyên gia chọn winner"' in html
 
 
