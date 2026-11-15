@@ -8,8 +8,8 @@ const event = () => ({
   id:'401873053',date:'2026-11-15T14:30:00Z',
   status:{period:2,displayClock:'5:47',type:{state:'in',completed:false,shortDetail:'5:47 - 2nd'}},
   competitions:[{situation:{possession:'17',possessionText:'NE 39',yardLine:61,shortDownDistanceText:'1st & 10'},competitors:[
-    {homeAway:'away',team:{id:'17',displayName:'New England Patriots'},score:'3',linescores:[{period:1,value:3},{period:2,value:0}]},
-    {homeAway:'home',team:{id:'8',displayName:'Detroit Lions'},score:'14',linescores:[{period:1,value:7},{period:2,value:7}]},
+    {homeAway:'away',team:{id:'17',displayName:'New England Patriots',color:'123ABC'},score:'3',linescores:[{period:1,value:3},{period:2,value:0}]},
+    {homeAway:'home',team:{id:'8',displayName:'Detroit Lions',color:'C8102E'},score:'14',linescores:[{period:1,value:7},{period:2,value:7}]},
   ]}],
 });
 const game = {game_id:290823,league:'nfl',start_time:'2026-11-15T14:30:00Z',home_name:'Detroit Lions',away_name:'New England Patriots'};
@@ -22,6 +22,8 @@ test('official score and situation preserve possession, field label, clock and z
   assert.equal(e.situation.possession_text,'NE 39');
   assert.equal(e.situation.clock,'5:47');
   assert.deepEqual(e.situation.away_period_scores,[3,0]);
+  assert.equal(e.situation.away_color,'#123abc');
+  assert.equal(e.situation.home_color,'#c8102e');
 });
 const driveSummary = (eventId='401873053', side='home') => ({
   header:{id:eventId},

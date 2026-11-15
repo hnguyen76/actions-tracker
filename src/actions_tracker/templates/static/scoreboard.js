@@ -11,6 +11,10 @@
     const value = competitor && ((competitor.team || {}).id ?? competitor.id);
     return value === null || value === undefined || typeof value === "boolean" || !/^\d+$/.test(String(value)) ? null : String(value);
   };
+  const teamColor = (competitor) => {
+    const value = competitor && competitor.team && competitor.team.color;
+    return typeof value === "string" && /^[0-9a-f]{6}$/i.test(value) ? "#" + value.toLowerCase() : null;
+  };
   const periodScores = (competitor) => {
     const scores = [];
     for (const row of competitor && Array.isArray(competitor.linescores) ? competitor.linescores : []) {
@@ -45,6 +49,8 @@
       home_period_scores: periodScores(home),
       away_espn_id: awayId,
       home_espn_id: homeId,
+      away_color: teamColor(away),
+      home_color: teamColor(home),
     };
     return result.is_halftime || [result.possession, result.possession_text, result.down_distance, result.red_zone, result.period, result.clock, result.away_period_scores, result.home_period_scores]
       .some((value) => value !== null) ? result : null;
@@ -130,11 +136,14 @@
 
     const facts = node("div", "asb-drive-facts");
     const down = text(drive.down_distance), spot = text(drive.spot);
-    if (down) facts.append(node("strong", "", down));
-    if (spot) facts.append(node("span", "", "Bóng tại " + spot));
-    section.append(facts);
+    facts.append(node("strong", "", [down, spot].filter(Boolean).join(" · ") || "Đang cập nhật vị trí bóng"));
 
     const field = node("div", "asb-field");
+    const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
+    const awayColor = teamColor({ team: { color: String(situation.away_color || "").replace(/^#/, "") } }) || "#164b91";
+    const homeColor = teamColor({ team: { color: String(situation.home_color || "").replace(/^#/, "") } }) || "#8d2638";
+    const offenseColor = drive.team_side === "away" ? awayColor : homeColor;
+    field.setAttribute("style", `--asb-away-color:${awayColor};--asb-home-color:${homeColor};--asb-offense-color:${offenseColor}`);
     field.setAttribute("role", "img");
     field.setAttribute("aria-label", [drive.team_abbr && drive.team_abbr + " cầm bóng", down, spot && "bóng tại " + spot].filter(Boolean).join(", "));
     const turf = node("div", "asb-turf");
@@ -142,10 +151,16 @@
     turf.append(node("span", "asb-endzone asb-endzone-home", abbreviation(game, "home")));
     const labels = [10, 20, 30, 40, 50, 60, 70, 80, 90];
     for (const yard of labels) {
-      const line = node("span", "asb-yardline", yard === 50 ? "50" : String(yard <= 50 ? yard : 100 - yard));
+      const line = node("span", "asb-yardline");
       line.setAttribute("style", "left:" + fieldPercent(yard));
       turf.append(line);
     }
+    const ballPercent = Number(fieldPercent(drive.ball_x).replace("%", ""));
+    const progress = node("span", "asb-drive-progress asb-drive-progress-" + drive.team_side);
+    progress.setAttribute("style", drive.team_side === "away"
+      ? `left:8%;width:${Math.max(0, ballPercent - 8).toFixed(2)}%`
+      : `left:${ballPercent.toFixed(2)}%;width:${Math.max(0, 92 - ballPercent).toFixed(2)}%`);
+    turf.append(progress);
     const scrimmage = node("span", "asb-scrimmage");
     scrimmage.setAttribute("style", "left:" + fieldPercent(drive.ball_x));
     turf.append(scrimmage);
@@ -158,12 +173,16 @@
     }
     const marker = node("span", "asb-ball-marker");
     marker.setAttribute("style", "left:" + fieldPercent(drive.ball_x));
-    marker.append(node("b", "", text(drive.team_abbr) || abbreviation(game, drive.team_side)));
-    if (typeof drive.play_yards === "number" && Number.isFinite(drive.play_yards)) {
-      marker.append(node("small", "", (drive.play_yards > 0 ? "+" : "") + drive.play_yards + " yd"));
-    }
+    marker.setAttribute("title", `${text(drive.team_abbr) || abbreviation(game, drive.team_side)} · ${spot || "vị trí bóng"}`);
+    marker.append(node("span", "asb-football-icon"));
     turf.append(marker);
-    field.append(turf);
+    const numbers = node("div", "asb-yard-numbers");
+    for (const yard of labels) {
+      const label = node("span", "asb-yard-number", yard === 50 ? "50" : String(yard <= 50 ? yard : 100 - yard));
+      label.setAttribute("style", "left:" + fieldPercent(yard));
+      numbers.append(label);
+    }
+    field.append(facts, turf, numbers);
     section.append(field);
 
     const play = text(drive.last_play);

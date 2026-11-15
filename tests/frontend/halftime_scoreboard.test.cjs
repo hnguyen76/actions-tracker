@@ -126,6 +126,9 @@ test('live football renders an accessible drive field and hides it when drive da
   assert.equal(h.nodes('asb-field')[0].attributes['aria-label'], 'DET cầm bóng, 3rd & 6, bóng tại DET 32');
   assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:65.12%');
   assert.equal(h.nodes('asb-first-down')[0].attributes.style, 'left:60.08%');
+  assert.equal(h.nodes('asb-drive-progress')[0].attributes.style, 'left:65.12%;width:26.88%');
+  assert.equal(h.nodes('asb-yard-number').length, 9);
+  assert.equal(h.nodes('asb-drive-facts')[0].textContent, '3rd & 6 · DET 32');
   assert.match(h.nodes('asb-last-play')[0].textContent, /Illegal Formation/);
   h.api.render(h.host, [game({ detail: '2:05 - 4th', situation: { period: 4, clock: '2:05' }, drive: null })]);
   assert.equal(h.nodes('asb-drive').length, 0);
