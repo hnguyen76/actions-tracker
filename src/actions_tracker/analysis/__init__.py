@@ -16,6 +16,7 @@ from actions_tracker.analysis.form import expert_form, expert_form_now
 from actions_tracker.analysis.experts import expert_clv, expert_habits, expert_summary, leaderboard
 from actions_tracker.analysis.trend import weekly_trend
 from actions_tracker.grading import load_graded_picks
+from actions_tracker.match_news import load_news
 
 
 def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = None) -> dict[str, pd.DataFrame]:
@@ -50,6 +51,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     rp = rule_plays(conn)
     rs = rule_summary(rp)
     up = add_season(upcoming(cg, cs, now), hs)
+    board = upcoming_board(picks, now)
     return {
         "Picks": picks,
         "Consensus": cs,
@@ -62,7 +64,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Upcoming": up,
         "Decisions": decisions(rp, rs, up, now),
         "Data_Quality": quality,
-        "Upcoming_Board": upcoming_board(picks, now),
+        "Upcoming_Board": board,
+        "Match_News": load_news(conn, board, now),
         "Past_Plays": past_plays(cg),
         "Leaderboard": lb,
         "Rule_Summary": rs,

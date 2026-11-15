@@ -242,7 +242,7 @@ def _ungraded_past_games(conn, league: str, now: str) -> int:
 
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,
-        odds_api=None, budget: bool = False, telegram: tuple | None = None) -> int:
+        odds_api=None, budget: bool = False, telegram: tuple | None = None, news_fetcher=None) -> int:
     """Exit codes: 0 ok, 1 every league failed, 2 page structure changed, 3 unexpected error,
     4 Excel file open, 5 no The Odds API key."""
     conn = db.connect(db_path)
@@ -269,6 +269,14 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         print(f"The Odds API con {odds_api.remaining} credit.")
 
     tables = build_tables(conn, now, Path(db_path).parent / "history")
+    if news_fetcher is not None:
+        from actions_tracker.match_news import load_news, refresh_news
+        try:
+            refresh_news(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
+            tables["Match_News"] = load_news(conn, tables["Upcoming_Board"], now)
+        except Exception as e:
+            # News must never interrupt picks, grading, or publication.
+            print(f"Tin tuc chua cap nhat duoc ({type(e).__name__}); dung tin da xac minh con han.")
     excel_ok = write_report(tables, report_path)
     if not excel_ok:
         print(f"CANH BAO: {report_path} dang mo trong Excel - dong file roi bam lai de cap nhat Excel.")
@@ -303,7 +311,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
 
 
 def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now_fn, odds_api,
-          telegram: tuple[str | None, str | None], post=None) -> int:
+          telegram: tuple[str | None, str | None], post=None, news_fetcher=None) -> int:
     """Announce games that start soon on Telegram. Exit codes: 0 sent or nothing due, 6 Telegram not set up
     or sending failed (games stay un-announced and are retried on the next run while they have not started)."""
     from actions_tracker import alerts
@@ -319,7 +327,7 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
               "chay `python -m actions_tracker telegram-setup`.")
         return 6
     run(db_path, report_path, site_dir, leagues, fetcher, now_fn(), odds_api, budget=True,
-        telegram=telegram)  # fresh data first
+        telegram=telegram, **({"news_fetcher": news_fetcher} if news_fetcher is not None else {}))
     conn = db.connect(db_path)
     now = now_fn()
     due = alerts.due_games(conn, now)
@@ -379,9 +387,32 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--report", default="reports/actions_report.xlsx")
     a.add_argument("--site", default="site")
     sub.add_parser("telegram-setup", help="find the chat id after you pressed Start in the bot, send a test message")
+    n = sub.add_parser("news", help="refresh news only for highlighted NFL/NCAAF games and rebuild the dashboard")
+    n.add_argument("--db", default="data/actions.db")
+    n.add_argument("--site", default="site")
+    n.add_argument("--report", default="reports/actions_report.xlsx")
+    n.add_argument("--force", action="store_true", help="refresh even if the hourly news cache is still fresh")
     args = ap.parse_args(argv)
     if args.cmd == "telegram-setup":
         return telegram_setup(Path.cwd())
+    if args.cmd == "news":
+        from actions_tracker.match_news import eligible_games, load_news, refresh_news
+        conn = db.connect(Path(args.db))
+        try:
+            now = utc_now()
+            tables = build_tables(conn, now, Path(args.db).parent / "history")
+            count = refresh_news(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
+                                 force=args.force)
+            tables["Match_News"] = load_news(conn, tables["Upcoming_Board"], now)
+            status = [dict(row) for row in conn.execute("SELECT * FROM league_status ORDER BY league")]
+            remaining = db.get_meta(conn, "odds_api_remaining")
+            build_site(tables, status, Path(args.site), Path(args.report), now,
+                       {"odds_api_remaining": int(remaining) if remaining is not None else None})
+            games = eligible_games(conn, tables["Upcoming_Board"], now)
+            print(f"Tin tuc: {len(games)} tran to vang; {len(tables['Match_News'])} tom tat; {count} tin cap nhat.")
+            return 0
+        finally:
+            conn.close()
     leagues = [x.strip() for x in args.leagues.split(",") if x.strip()]
     if getattr(args, "offline", None):
         fetcher, api = OfflineFetcher(Path(args.offline)), OfflineOddsApi(Path(args.offline))
@@ -391,11 +422,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "alert":
         from actions_tracker.alerts import load_telegram
         return alert(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now, api,
-                     load_telegram(Path.cwd()))
+                     load_telegram(Path.cwd()), news_fetcher=Fetcher(delay=(0.3, 0.8)))
     from actions_tracker.alerts import load_telegram
     tg = None if getattr(args, "offline", None) else load_telegram(Path.cwd())
     return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget,
-               telegram=tg)
+               telegram=tg, news_fetcher=None if getattr(args, "offline", None) else Fetcher(delay=(0.3, 0.8)))
 
 
 if __name__ == "__main__":

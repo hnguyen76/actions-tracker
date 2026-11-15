@@ -150,6 +150,18 @@ th.sortable:hover { color: var(--ink); }
 .decide-note { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
 #decide-skips { margin-top: 12px; }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
+td.news-cell { white-space: normal; min-width: 320px; max-width: 420px; vertical-align: top; }
+.match-news { font-size: 12.5px; line-height: 1.45; text-align: left; }
+.news-team + .news-team { border-top: 1px solid var(--grid); margin-top: 7px; padding-top: 7px; }
+.news-team-name { font-size: 13px; color: var(--ink); }
+.news-side { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 6px; margin-top: 3px; }
+.news-label { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.news-label.positive { color: var(--good); } .news-label.negative { color: var(--critical); }
+.news-items { list-style: none; padding: 0; margin: 0; color: var(--ink-2); }
+.news-items li + li { margin-top: 3px; }
+.news-source { color: var(--accent); font-size: 11px; margin-left: 4px; white-space: nowrap; text-decoration: none; }
+.news-source:hover { text-decoration: underline; }
+.news-empty { color: var(--muted); font-size: 12.5px; }
 .rule-name { font-weight: 600; }
 .kpi-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 6px 0 4px; }
 .kpi-mini .k { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
@@ -210,6 +222,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   #decide-table td, #rules-summary td { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border: 0; white-space: normal; text-align: right; }
   #decide-table td::before, #rules-summary td::before { content: attr(data-label); flex: 0 0 34%; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
   #decide-table td.cell-wrap, #rules-summary td.cell-wrap { min-width: 0; max-width: none; }
+  td.news-cell { min-width: 280px; max-width: 340px; }
   #rules-summary td:first-child { display: block; text-align: left; }
   #rules-summary td:first-child::before { display: none; }
 }
@@ -744,6 +757,50 @@ const DATA = /*__DATA__*/null;
   };
   const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS ? "hot" : "") };
   const withHot = (opts) => Object.assign({}, opts || {}, HOT);
+  let matchNewsByGame = null;
+  function matchNewsCell(r) {
+    if (!["nfl", "ncaaf"].includes(r.league) || picksOn(r) < HOT_PICKS) return "–";
+    if (!matchNewsByGame) {
+      matchNewsByGame = new Map();
+      for (const item of T("Match_News")) {
+        if (!["positive", "negative"].includes(item.sentiment) || !item.summary || !item.team_abbr) continue;
+        const key = `${item.league}|${item.game_id}`;
+        if (!matchNewsByGame.has(key)) matchNewsByGame.set(key, []);
+        matchNewsByGame.get(key).push(item);
+      }
+    }
+    const news = matchNewsByGame.get(`${r.league}|${r.game_id}`) || [];
+    if (!news.length) return el("span", { class: "news-empty", text: "Chưa có tin xác minh" });
+    const board = boardOf(r) || r;
+    const teams = [...new Set([board.away_abbr, board.home_abbr, ...news.map((x) => x.team_abbr)].filter(Boolean))].slice(0, 2);
+    const host = el("div", { class: "match-news" });
+    for (const team of teams) {
+      const block = el("div", { class: "news-team" }, el("b", { class: "news-team-name", text: team }));
+      for (const [sentiment, label] of [["positive", "Có lợi"], ["negative", "Bất lợi"]]) {
+        const items = news.filter((x) => x.team_abbr === team && x.sentiment === sentiment).slice(0, 2);
+        const list = el("ul", { class: "news-items" });
+        if (!items.length) list.append(el("li", { class: "news-empty", text: "–", title: "Chưa có tin xác minh" }));
+        for (const item of items) {
+          const li = el("li", { text: item.summary });
+          try {
+            const url = new URL(item.url);
+            if (["https:", "http:"].includes(url.protocol)) {
+              const published = item.published_at ? new Date(item.published_at) : null;
+              const publishedDate = published && !isNaN(published) ? published.toLocaleDateString("vi-VN", {
+                timeZone: /^\d{4}-\d{2}-\d{2}$/.test(item.published_at) ? "UTC" : "America/New_York",
+              }) : "";
+              li.append(el("a", { class: "news-source", href: url.href, target: "_blank", rel: "noopener noreferrer",
+                text: item.source || "Nguồn", title: publishedDate ? `Đăng ${publishedDate}` : "Đọc nguồn" }));
+            }
+          } catch (_) { }
+          list.append(li);
+        }
+        block.append(el("div", { class: "news-side" }, el("span", { class: "news-label " + sentiment, text: label + ":" }), list));
+      }
+      host.append(block);
+    }
+    return host;
+  }
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -811,6 +868,7 @@ const DATA = /*__DATA__*/null;
       STATUS_COL,
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
+      { label: "Tin tức", value: matchNewsCell, cls: () => "news-cell" },
     ];
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
