@@ -74,3 +74,15 @@
   .asb-ball-marker { top: 13px; }
   .asb-last-play { grid-template-columns: 1fr; gap: 3px; font-size: 11px; }
 }
+
+.asb-bet { margin-top: 12px; padding: 9px 12px; border-radius: 9px; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 4px 14px; font-size: 13.5px; border: 1px solid var(--border); background: var(--raised); }
+.asb-bet-pick { font-weight: 700; }
+.asb-bet-ats { color: var(--ink-2); flex: 1 1 auto; }
+.asb-bet-state { font-size: 12.5px; letter-spacing: .04em; padding: 3px 10px; border-radius: 999px; }
+.asb-bet-win { border-color: color-mix(in srgb, var(--win) 45%, transparent); background: color-mix(in srgb, var(--win) 10%, var(--raised)); }
+.asb-bet-win .asb-bet-state { color: var(--win); background: color-mix(in srgb, var(--win) 16%, transparent); }
+.asb-bet-loss { border-color: color-mix(in srgb, var(--loss) 45%, transparent); background: color-mix(in srgb, var(--loss) 10%, var(--raised)); }
+.asb-bet-loss .asb-bet-state { color: var(--loss); background: color-mix(in srgb, var(--loss) 16%, transparent); }
+.asb-bet-push .asb-bet-state { color: var(--ink-2); background: var(--surface-2); }
+@media (max-width: 600px) { .asb-bet { font-size: 12.5px; } .asb-bet-ats { flex-basis: 100%; order: 3; } }

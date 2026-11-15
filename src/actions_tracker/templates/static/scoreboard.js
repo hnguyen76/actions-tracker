@@ -177,6 +177,49 @@
     return section;
   }
 
+  // "Bạn đặt" strip: the bet against the live score - spread margin after the line, or total vs the line
+  function betStatus(game) {
+    const side = text(game.bet_side), market = text(game.market) || "spread";
+    if (game.line === null || game.line === undefined || game.line === "") return null;
+    const line = Number(game.line);
+    const away = integer(game.away_score), home = integer(game.home_score);
+    if (!side || !Number.isFinite(line) || away === null || home === null) return null;
+    const fmt = (x) => (x > 0 ? "+" : "") + String(x).replace(".", ",");
+    if (market === "spread" && (side === "home" || side === "away")) {
+      const mine = side === "home" ? home : away, theirs = side === "home" ? away : home;
+      const margin = mine + line - theirs;
+      const me = abbreviation(game, side), them = abbreviation(game, side === "home" ? "away" : "home");
+      return {
+        state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
+        pick: me + " " + fmt(line),
+        detail: "ATS: " + me + " " + mine + " " + (line < 0 ? "− " + String(-line).replace(".", ",") : "+ " + String(line).replace(".", ","))
+          + " = " + String(mine + line).replace(".", ",") + " vs " + them + " " + theirs
+          + (margin === 0 ? " → hòa" : " → " + (margin > 0 ? "hơn " : "kém ") + String(Math.abs(margin)).replace(".", ",") + " điểm"),
+      };
+    }
+    if (market === "total" && (side === "over" || side === "under")) {
+      const total = away + home, margin = (total - line) * (side === "over" ? 1 : -1);
+      return {
+        state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
+        pick: (side === "over" ? "Over " : "Under ") + String(line).replace(".", ","),
+        detail: "Tổng " + total + " vs line " + String(line).replace(".", ",")
+          + (margin === 0 ? " → hòa" : " → " + (side === "over" ? (total > line ? "đã vượt " : "còn thiếu ") : (total < line ? "còn dư " : "đã vượt "))
+            + String(Math.abs(total - line)).replace(".", ",") + " điểm"),
+      };
+    }
+    return null;
+  }
+
+  function betStrip(game) {
+    const b = betStatus(game);
+    if (!b) return null;
+    const label = { win: "ĐANG THẮNG", loss: "ĐANG THUA", push: "ĐANG HÒA" }[b.state];
+    const strip = node("div", "asb-bet asb-bet-" + b.state);
+    strip.append(node("span", "asb-bet-pick", "Bạn đặt " + b.pick), node("span", "asb-bet-ats", b.detail),
+      node("strong", "asb-bet-state", game.state === "final" ? { win: "THẮNG", loss: "THUA", push: "HÒA" }[b.state] : label));
+    return strip;
+  }
+
   function scorecard(game) {
     const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
     const final = game.state === "final", live = game.state === "live";
@@ -233,6 +276,8 @@
       }
     }
     card.append(main);
+    const bet = betStrip(game);
+    if (bet) card.append(bet);
     if (live && !halftime) {
       const items = [];
       if (situation.possession === "away" || situation.possession === "home") items.push(abbreviation(game, situation.possession) + " đang cầm bóng");
@@ -264,5 +309,5 @@
     updateHalftimeClocks();
   }
 
-  window.ActionsScoreboard = { parseSituation, render };
+  window.ActionsScoreboard = { parseSituation, render, betStatus };
 })();
