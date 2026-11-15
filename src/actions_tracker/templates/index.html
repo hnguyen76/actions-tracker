@@ -1919,6 +1919,7 @@ const DATA = /*__DATA__*/null;
   };
   // expert winner picks for any game the user taps (not only the highlighted 8+ games)
   const expertsFor = (r) => mediaPicksCell(Object.assign({}, r, { market: "spread", total_votes: 99 }));
+  const newsFor = (r) => matchNewsCell(Object.assign({}, r, { market: "spread", total_votes: 99 }));
   const ruleShort = (r) => String(r.rule_name || r.rule_id || "").replace(/^(NCAAF|NFL) /, "");
   const COMPACT = {
     "decide-table-": (r) => { const b = boardOf(r) || {};
@@ -1928,7 +1929,8 @@ const DATA = /*__DATA__*/null;
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now),
       sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)}` + (r.crowd ? ` · đám đông ${r.crowd}` : "")],
-      more: [moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] }),
+      more: [moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
+        moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] }),
     "upcoming-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
       right: el("b", { text: `${MARKET_LABEL[r.market] || r.market}: ${sideName(r)}` }),
       sub: `${leagueName(r.league)} · ${num(r.votes)}/${num(r.total_votes)} · ${BOARD_STATUS[statusOf(r)] || ""}`
