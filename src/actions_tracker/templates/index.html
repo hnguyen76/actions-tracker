@@ -165,6 +165,9 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .signals .sig.info { color: var(--ink-2); }
 @media (max-width: 1200px) { .detail-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .detail-h { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px; }
+.live-card-pregame { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
+.live-card-pregame > .detail-h { margin-bottom: 10px; }
+.live-card-pregame .detail-grid { border-top: 0; padding-top: 0; }
 @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 .wx { display: grid; gap: 4px; font-size: 13.5px; }
 .wx .pill { justify-self: start; white-space: normal; }
@@ -1287,7 +1290,13 @@ const DATA = /*__DATA__*/null;
     if (window.ActionsScoreboard) {
       const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
       const cards = new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
-      ActionsScoreboard.render(document.getElementById("live-scoreboards"), [...cards.values()]);
+      const scoreHost = document.getElementById("live-scoreboards");
+      ActionsScoreboard.render(scoreHost, [...cards.values()]);
+      for (const game of cards.values()) {
+        const card = [...scoreHost.querySelectorAll(".asb-card")].find((node) => Number(node.dataset.gameId) === Number(game.game_id));
+        if (card) card.append(el("section", { class: "live-card-pregame", "aria-label": "Thông tin trước trận" },
+          el("div", { class: "detail-h", text: "Thông tin trước trận" }), liveDecisionDetail(game)));
+      }
     }
     const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
     const nExperts = (r) => Number((boardOf(r) || {}).total_votes) || Number(r.total_votes) || 0;
