@@ -301,6 +301,8 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
         except Exception as e:
             print(f"Picks chuyen gia chua cap nhat duoc ({type(e).__name__}); dung picks da xac minh.")
+    from actions_tracker.pregame_archive import refresh_snapshots
+    refresh_snapshots(conn, tables, now)
     excel_ok = write_report(tables, report_path)
     if not excel_ok:
         print(f"CANH BAO: {report_path} dang mo trong Excel - dong file roi bam lai de cap nhat Excel.")
@@ -390,6 +392,8 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
         changed += c["live"] + c["final"]
     if changed:
         tables = build_tables(conn, now, Path(db_path).parent / "history")
+        from actions_tracker.pregame_archive import refresh_snapshots
+        refresh_snapshots(conn, tables, now)
         status = [dict(r) | {"ungraded_past_games": _ungraded_past_games(conn, r["league"], now)}
                   for r in conn.execute("SELECT * FROM league_status ORDER BY league")]
         remaining = db.get_meta(conn, "odds_api_remaining")
@@ -476,6 +480,8 @@ def main(argv: list[str] | None = None) -> int:
             media_count = refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
                                         force=args.force)
             tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
+            from actions_tracker.pregame_archive import refresh_snapshots
+            refresh_snapshots(conn, tables, now)
             status = [dict(row) for row in conn.execute("SELECT * FROM league_status ORDER BY league")]
             remaining = db.get_meta(conn, "odds_api_remaining")
             build_site(tables, status, Path(args.site), Path(args.report), now,
