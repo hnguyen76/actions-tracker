@@ -32,8 +32,10 @@ Cùng cột cũng có trong bảng **Cách của bạn — Thứ 2–6 theo đá
 ở tab **Quy tắc**, dùng dữ liệu đã xác minh của các trận sắp đá tương ứng.
 
 Tab **Biểu đồ cả mùa** xem NFL và NCAAF từ tuần 1 đến dữ liệu đã thu, chia **Thứ 2–6** và
-**Thứ 7–CN**, với ngưỡng đồng thuận 75%. Có bộ lọc tuần, giải, market và phân trang biểu đồ;
-số thắng/thua/hòa tính trên toàn bộ dữ liệu đang lọc. Nguồn là picks trên thẻ By Game lịch sử,
+**Thứ 7–CN**, với ngưỡng đồng thuận 75%. **Over/Under** và **kèo đội (Spread/Moneyline)**
+có biểu đồ và bảng chi tiết riêng trong từng tuần, xếp từ tuần 1. Có bộ lọc tuần, giải,
+market và phân trang biểu đồ; số thắng/thua/hòa tính riêng theo tuần, nhóm kèo và nhóm ngày,
+bao gồm mọi trang đang lọc. Nguồn là picks trên thẻ By Game lịch sử,
 không phải số expert duy nhất của dữ liệu live. Tuần mới nhất có thể chưa đủ trận;
 tab hiển thị phạm vi thực tế của từng giải.
 
