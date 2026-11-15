@@ -122,7 +122,7 @@ def test_refresh_scopes_hot_games_and_caches_each_source(tmp_path):
     assert len(calls) == 6 and set(media.load_picks(c, _board(), "2026-11-15T01:20:00Z").fetched_at) == {NOW}
 
 
-def test_accepts_existing_fetcher_object_and_new_hot_scope(tmp_path):
+def test_accepts_existing_fetcher_object_and_new_game_scope(tmp_path):
     c = _db(tmp_path)
     class Fetcher:
         def __init__(self): self.calls = []
@@ -130,9 +130,9 @@ def test_accepts_existing_fetcher_object_and_new_hot_scope(tmp_path):
             self.calls.append(url)
             return _cfb() if 'college-football' in url else _nfl() if 'nfl.com' in url else _cbs()
     f = Fetcher()
-    media.refresh_picks(c, _board(), NOW, f)
-    board = _board(); board.loc[board.game_id == 4, 'total_votes'] = 8
-    media.refresh_picks(c, board, NOW, f)
+    board = _board()
+    media.refresh_picks(c, board[board.game_id != 4], NOW, f)
+    media.refresh_picks(c, board, NOW, f)  # a game joins the board (any pick count) -> sources are read again
     assert len(f.calls) == 6
 
 
@@ -212,3 +212,12 @@ def test_empty_or_ats_html_never_creates_guessed_picks(tmp_path):
     c = _db(tmp_path)
     assert media.refresh_picks(c, _board(), NOW, lambda url: '<html>unavailable</html>') == 0
     assert media.load_picks(c, _board(), NOW).empty
+
+
+
+def test_every_board_game_is_in_scope_not_only_eight_plus(tmp_path):
+    c = _db(tmp_path)
+    board = _board()
+    board["total_votes"] = 2                        # far below the old 8-pick highlight
+    ids = {g["id"] for g in media.media_games(c, board, NOW)}
+    assert {1, 2, 3, 4} <= ids and 5 not in ids     # NBA stays out

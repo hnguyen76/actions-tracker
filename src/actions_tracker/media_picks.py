@@ -322,9 +322,36 @@ def _download(url):
     return response.text
 
 
+_DEAD = ("complete", "closed", "canceled", "cancelled", "postponed")
+RECENT_H = 12  # games that kicked off this recently keep showing the picks captured before kickoff
+
+
+def media_games(conn, board, now, include_started=False):
+    """Every NFL/NCAAF game with picks on the upcoming board (the whole decision card, not only 8+ games).
+    The weekly CBS / NFL.com pages list every game anyway, so a wider scope costs no extra download."""
+    ids = set()
+    if board is not None and not board.empty and "game_id" in board.columns:
+        ids = {int(g) for g in board["game_id"] if pd.notna(g)}
+    rows = []
+    if ids:
+        cursor = conn.execute(f"SELECT * FROM games WHERE id IN ({','.join('?' for _ in ids)})", sorted(ids))
+        names = [c[0] for c in cursor.description]
+        rows = [dict(zip(names, r)) for r in cursor]
+    games = [g for g in rows if g["league"] in ("nfl", "ncaaf") and _time(g["start_time"]) > _time(now)
+             and g.get("status") not in _DEAD]
+    if include_started:
+        since = (_time(now) - timedelta(hours=RECENT_H)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        cursor = conn.execute("SELECT * FROM games g WHERE league IN ('nfl','ncaaf') AND start_time > ? AND start_time <= ? "
+                              "AND EXISTS (SELECT 1 FROM picks p WHERE p.game_id = g.id)", (since, _iso(now) or now))
+        names = [c[0] for c in cursor.description]
+        seen = {g["id"] for g in games}
+        games += [g for r in cursor for g in [dict(zip(names, r))] if g["id"] not in seen]
+    return games
+
+
 def refresh_picks(conn, board, now, fetcher=None, force=False):
-    """Refresh selected football matchups hourly, independently of odds credits."""
-    games = eligible_games(conn, board, now)
+    """Refresh football matchups hourly, independently of odds credits."""
+    games = media_games(conn, board, now)
     if not games:
         return 0
     _schema(conn)
@@ -376,7 +403,7 @@ def load_picks(conn, board, now):
     """Read-only current winner selections; absent tables and ineligible games are empty."""
     if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_picks'").fetchone():
         return pd.DataFrame(columns=MEDIA_PICK_COLS)
-    games = {g["id"]: g for g in eligible_games(conn, board, now)}
+    games = {g["id"]: g for g in media_games(conn, board, now, include_started=True)}
     cursor = conn.execute("SELECT * FROM media_picks")
     names = [c[0] for c in cursor.description]
     rows = []

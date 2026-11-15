@@ -956,7 +956,7 @@ const DATA = /*__DATA__*/null;
   const mediaExpertKey = (name) => String(name || "").trim().normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   function mediaPicksCell(r) {
-    if (!["nfl", "ncaaf"].includes(r.league) || picksOn(r) < HOT_PICKS) return "–";
+    if (!["nfl", "ncaaf"].includes(r.league)) return "–";  // every football game, not only the 8+ ones
     if (!mediaPicksByGame) {
       mediaPicksByGame = new Map();
       for (const item of T("Media_Picks")) {
