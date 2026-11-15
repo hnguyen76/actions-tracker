@@ -7,6 +7,10 @@ After either one, a changed data/actions.db is committed and pushed, and the das
 there is new data (same steps as the Desktop button). Both share one lock, so they never run at the same time.
 Output goes to reports/pc_task.log.
 
+The phone (scripts/auto_update.sh, commits tagged "(phone ...)") is the main collector. While it has pushed
+data in the last PHONE_ACTIVE_S seconds the PC skips its turn, so the two never fight over data/actions.db;
+when the phone goes quiet the PC fast-forwards to the phone's data and takes over.
+
 Install (PowerShell, see the README / chat): Register-ScheduledTask "Actions Update 15m" and
 "Actions Telegram Alert" with action  <repo>\\.venv\\Scripts\\pythonw.exe "<repo>\\scripts\\pc_task.py" <mode>
 """
@@ -25,6 +29,13 @@ LOG = REPO / "reports" / "pc_task.log"
 LOCK_STALE_S = 20 * 60
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 COMMANDS = {"update": ["run", "--budget"], "alert": ["alert"], "live": ["live"]}
+PHONE_ACTIVE_S = 30 * 60
+
+
+def phone_active(last_db_commit: str, now: float) -> bool:
+    """`git log -1 --format=%ct|%s` of the newest origin/main commit touching data/actions.db."""
+    stamp, _, subject = last_db_commit.partition("|")
+    return "(phone" in subject and stamp.isdigit() and now - int(stamp) < PHONE_ACTIVE_S
 
 
 def sh(log, *cmd: str) -> int:
@@ -50,6 +61,13 @@ def main(mode: str) -> int:
         with LOG.open("a", encoding="utf-8") as log:
             log.write(f"\n=== {dt.datetime.now():%Y-%m-%d %H:%M:%S} {mode} ===\n")
             log.flush()
+            sh(log, "git", "fetch", "-q", "origin", "main")
+            if phone_active(out("git", "log", "-1", "--format=%ct|%s", "origin/main", "--", "data/actions.db"),
+                            time.time()):
+                log.write("dien thoai dang chay - may tinh bo qua luot nay\n")
+                return 0
+            if out("git", "rev-parse", "--abbrev-ref", "HEAD") == "main":
+                sh(log, "git", "merge", "--ff-only", "-q", "origin/main")  # take the phone's newest data first
             code = sh(log, str(PYTHON), "-m", "actions_tracker", *COMMANDS[mode])
             log.write(f"{mode} exit={code}\n")
             log.flush()
