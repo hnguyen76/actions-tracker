@@ -22,6 +22,30 @@
 .asb-quarter-table .asb-total { color: var(--ink); font-weight: 700; }
 .asb-situation { margin-top: 14px; padding: 9px 12px; border-radius: 9px; color: var(--ink-2); background: var(--raised); text-align: center; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .asb-red-zone { color: var(--warning); }
+.asb-drive { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); min-width: 0; }
+.asb-drive-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink); }
+.asb-drive-team { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.asb-drive-logo { width: 28px; height: 28px; object-fit: contain; }
+.asb-drive-summary { color: var(--muted); font-size: 12px; text-align: right; }
+.asb-drive-facts { display: flex; justify-content: center; gap: 18px; margin: 10px 0 8px; color: var(--ink-2); font-size: 13px; }
+.asb-drive-facts strong { color: var(--ink); }
+.asb-field { min-width: 0; }
+.asb-turf { position: relative; height: 114px; overflow: hidden; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--border-strong) 85%, transparent); background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--surface-2) 86%, #238748 14%) 0 8.4%, color-mix(in srgb, var(--raised) 88%, #238748 12%) 8.4% 16.8%); }
+.asb-turf::before, .asb-turf::after { content: ""; position: absolute; top: 47%; left: 8%; right: 8%; border-top: 2px dotted color-mix(in srgb, var(--ink-2) 28%, transparent); }
+.asb-turf::after { top: 53%; }
+.asb-endzone { position: absolute; top: 0; bottom: 0; z-index: 1; width: 8%; display: grid; place-items: center; overflow: hidden; background: color-mix(in srgb, var(--accent) 25%, var(--surface)); color: var(--ink); font-size: 11px; font-weight: 800; writing-mode: vertical-rl; letter-spacing: .08em; }
+.asb-endzone-away { left: 0; transform: rotate(180deg); }
+.asb-endzone-home { right: 0; }
+.asb-yardline { position: absolute; z-index: 1; top: 0; bottom: 0; width: 1px; border-left: 1px solid color-mix(in srgb, var(--ink-2) 22%, transparent); color: var(--muted); font-size: 10px; text-indent: -7px; padding-top: 92px; }
+.asb-scrimmage, .asb-first-down { position: absolute; z-index: 2; top: 0; bottom: 0; width: 2px; transform: translateX(-50%); }
+.asb-scrimmage { background: color-mix(in srgb, var(--accent) 76%, white); }
+.asb-first-down { width: 3px; background: #f5c518; box-shadow: 0 0 0 1px rgb(0 0 0 / 15%); }
+.asb-ball-marker { position: absolute; z-index: 4; top: 16px; transform: translateX(-50%); display: grid; justify-items: center; gap: 2px; color: var(--ink); white-space: nowrap; }
+.asb-ball-marker::after { content: ""; width: 13px; height: 9px; border-radius: 50%; background: #8a4b26; border: 1px solid #f2d0a7; transform: rotate(-25deg); box-shadow: 0 1px 4px rgb(0 0 0 / 35%); }
+.asb-ball-marker b { padding: 3px 7px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); font-size: 11px; box-shadow: 0 2px 8px rgb(0 0 0 / 16%); }
+.asb-ball-marker small { padding: 1px 4px; border-radius: 4px; background: var(--surface); color: var(--ink-2); font-size: 10px; font-weight: 700; }
+.asb-last-play { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; margin-top: 10px; color: var(--ink-2); font-size: 12px; line-height: 1.45; }
+.asb-last-play strong { color: var(--ink); white-space: nowrap; }
 @media (max-width: 700px) {
   .asb-card { padding: 12px; }
   .asb-meta { grid-template-columns: 1fr auto; gap: 4px 8px; margin-bottom: 14px; }
@@ -38,4 +62,15 @@
   .asb-quarters { grid-column: 1 / -1; grid-row: 2; justify-self: center; width: 100%; max-width: 330px; }
   .asb-quarters-empty { display: none; }
   .asb-situation { padding: 8px; font-size: 12px; }
+  .asb-drive { padding: 11px 8px; }
+  .asb-drive-head { align-items: flex-start; }
+  .asb-drive-team { font-size: 12px; }
+  .asb-drive-logo { width: 23px; height: 23px; }
+  .asb-drive-summary { max-width: 48%; font-size: 10px; }
+  .asb-drive-facts { gap: 10px; font-size: 12px; }
+  .asb-turf { height: 104px; }
+  .asb-yardline { padding-top: 84px; font-size: 9px; }
+  .asb-endzone { font-size: 9px; }
+  .asb-ball-marker { top: 13px; }
+  .asb-last-play { grid-template-columns: 1fr; gap: 3px; font-size: 11px; }
 }

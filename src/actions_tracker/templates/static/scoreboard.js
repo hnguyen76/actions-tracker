@@ -108,6 +108,75 @@
     return scroll;
   }
 
+  const fieldPercent = (yard) => (8 + yard * .84).toFixed(2) + "%";
+  function driveField(game) {
+    const drive = game.drive && typeof game.drive === "object" ? game.drive : null;
+    if (!drive || !["NFL", "NCAAF"].includes(league(game)) || !["away", "home"].includes(drive.team_side)
+      || typeof drive.ball_x !== "number" || !Number.isFinite(drive.ball_x) || drive.ball_x < 0 || drive.ball_x > 100) return null;
+    const section = node("section", "asb-drive");
+    section.setAttribute("aria-label", "Đợt tấn công hiện tại");
+    const head = node("div", "asb-drive-head");
+    const identity = node("div", "asb-drive-team");
+    if (typeof drive.team_logo === "string" && /^https:\/\/[^/]*\.espncdn\.com\//i.test(drive.team_logo)) {
+      const logo = node("img", "asb-drive-logo");
+      logo.setAttribute("src", drive.team_logo);
+      logo.setAttribute("alt", "");
+      logo.setAttribute("loading", "lazy");
+      identity.append(logo);
+    }
+    identity.append(node("strong", "", "ĐỢT TẤN CÔNG HIỆN TẠI"));
+    head.append(identity, node("span", "asb-drive-summary", text(drive.description) || ""));
+    section.append(head);
+
+    const facts = node("div", "asb-drive-facts");
+    const down = text(drive.down_distance), spot = text(drive.spot);
+    if (down) facts.append(node("strong", "", down));
+    if (spot) facts.append(node("span", "", "Bóng tại " + spot));
+    section.append(facts);
+
+    const field = node("div", "asb-field");
+    field.setAttribute("role", "img");
+    field.setAttribute("aria-label", [drive.team_abbr && drive.team_abbr + " cầm bóng", down, spot && "bóng tại " + spot].filter(Boolean).join(", "));
+    const turf = node("div", "asb-turf");
+    turf.append(node("span", "asb-endzone asb-endzone-away", abbreviation(game, "away")));
+    turf.append(node("span", "asb-endzone asb-endzone-home", abbreviation(game, "home")));
+    const labels = [10, 20, 30, 40, 50, 60, 70, 80, 90];
+    for (const yard of labels) {
+      const line = node("span", "asb-yardline", yard === 50 ? "50" : String(yard <= 50 ? yard : 100 - yard));
+      line.setAttribute("style", "left:" + fieldPercent(yard));
+      turf.append(line);
+    }
+    const scrimmage = node("span", "asb-scrimmage");
+    scrimmage.setAttribute("style", "left:" + fieldPercent(drive.ball_x));
+    turf.append(scrimmage);
+    if (typeof drive.first_down_x === "number" && Number.isFinite(drive.first_down_x)
+      && drive.first_down_x >= 0 && drive.first_down_x <= 100 && drive.distance > 0) {
+      const first = node("span", "asb-first-down");
+      first.setAttribute("style", "left:" + fieldPercent(drive.first_down_x));
+      first.setAttribute("title", "Vạch first down");
+      turf.append(first);
+    }
+    const marker = node("span", "asb-ball-marker");
+    marker.setAttribute("style", "left:" + fieldPercent(drive.ball_x));
+    marker.append(node("b", "", text(drive.team_abbr) || abbreviation(game, drive.team_side)));
+    if (typeof drive.play_yards === "number" && Number.isFinite(drive.play_yards)) {
+      marker.append(node("small", "", (drive.play_yards > 0 ? "+" : "") + drive.play_yards + " yd"));
+    }
+    turf.append(marker);
+    field.append(turf);
+    section.append(field);
+
+    const play = text(drive.last_play);
+    if (play) {
+      const last = node("div", "asb-last-play");
+      const label = [text(drive.play_clock), text(drive.play_type)].filter(Boolean).join(" · ");
+      if (label) last.append(node("strong", "", label));
+      last.append(node("span", "", play));
+      section.append(last);
+    }
+    return section;
+  }
+
   function scorecard(game) {
     const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
     const final = game.state === "final", live = game.state === "live";
@@ -175,6 +244,8 @@
         const status = node("div", "asb-situation" + (situation.red_zone === true ? " asb-red-zone" : ""), items.join(" · "));
         card.append(status);
       }
+      const drive = driveField(game);
+      if (drive) card.append(drive);
     }
     return card;
   }

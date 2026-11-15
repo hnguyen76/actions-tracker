@@ -4,7 +4,9 @@
   // Regular-season baselines: NFL Rule 4-1-3 (13m), NCAA Rule 3-2-1-b (20m).
   // The referee's actual restart can differ; these are explicitly labelled estimates.
   const HALFTIME_MINUTES = { nfl: 13, ncaaf: 20 };
+  const DRIVE_POLL_MS = 10000;
   const halftimeCache = new Map();
+  const driveCache = new Map();
   const ALIASES = {
     "delaware fightin blue hens": "delaware blue hens", "hawaii warriors": "hawaii rainbow warriors",
     "miami fl hurricanes": "miami hurricanes", "north carolina state wolfpack": "nc state wolfpack",
@@ -48,6 +50,85 @@
     if (!home || !away) return null;
     const exact = events.filter((e) => within(e) && normalize(e.home_name) === home && normalize(e.away_name) === away);
     return exact.length === 1 ? exact[0] : null;
+  }
+  const boundedInteger = (value, min, max) => {
+    if (typeof value !== "number" && (typeof value !== "string" || !/^\d+(?:\.0+)?$/.test(value.trim()))) return null;
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
+  };
+  const cleanText = (value, limit = 500) => typeof value === "string" && value.trim() ? value.trim().slice(0, limit) : null;
+  function parseDrive(summary, event, eventId) {
+    if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return null;
+    const drive = summary.drives && summary.drives.current;
+    if (!drive || !Array.isArray(drive.plays) || !drive.plays.length) return null;
+    const situation = event && event.situation || {};
+    const headerCompetition = summary.header && Array.isArray(summary.header.competitions) ? summary.header.competitions[0] || {} : {};
+    const headerTeams = Array.isArray(headerCompetition.competitors) ? headerCompetition.competitors : [];
+    const headerAway = headerTeams.find((x) => x && x.homeAway === "away");
+    const headerHome = headerTeams.find((x) => x && x.homeAway === "home");
+    const awayId = String(situation.away_espn_id || headerAway && headerAway.team && headerAway.team.id || "");
+    const homeId = String(situation.home_espn_id || headerHome && headerHome.team && headerHome.team.id || "");
+    const teamId = drive.team && /^\d+$/.test(String(drive.team.id || "")) ? String(drive.team.id) : null;
+    const side = teamId && teamId === awayId ? "away" : teamId && teamId === homeId ? "home" : null;
+    if (!side) return null;
+    let play = null, point = null;
+    for (let i = drive.plays.length - 1; i >= 0; i--) {
+      const candidate = drive.plays[i];
+      if (!candidate || typeof candidate !== "object") continue;
+      const end = candidate.end && typeof candidate.end === "object" ? candidate.end : null;
+      const start = candidate.start && typeof candidate.start === "object" ? candidate.start : null;
+      const candidatePoint = end && boundedInteger(end.yardsToEndzone, 0, 100) !== null ? end
+        : start && boundedInteger(start.yardsToEndzone, 0, 100) !== null ? start : null;
+      if (candidatePoint) { play = candidate; point = candidatePoint; break; }
+    }
+    if (!play || !point) return null;
+    const yardsToEndzone = boundedInteger(point.yardsToEndzone, 0, 100);
+    const ball = side === "away" ? 100 - yardsToEndzone : yardsToEndzone;
+    const distance = boundedInteger(point.distance, 0, 99);
+    const down = boundedInteger(point.down, 1, 4);
+    const first = distance === null ? null : Math.max(0, Math.min(100, ball + (side === "away" ? distance : -distance)));
+    const statYardage = typeof play.statYardage === "number" && Number.isFinite(play.statYardage)
+      && play.statYardage >= -99 && play.statYardage <= 99 ? play.statYardage : null;
+    const logo = Array.isArray(drive.team && drive.team.logos)
+      ? drive.team.logos.map((x) => x && x.href).find((href) => /^https:\/\/[^/]*\.espncdn\.com\//i.test(String(href || ""))) || null : null;
+    return {
+      team_side: side,
+      team_abbr: cleanText(drive.team && drive.team.abbreviation, 12),
+      team_logo: logo,
+      description: cleanText(drive.description, 100),
+      down_distance: cleanText(point.shortDownDistanceText, 50),
+      spot: cleanText(point.possessionText, 50),
+      ball_x: ball,
+      first_down_x: first,
+      last_play: cleanText(play.text, 500),
+      play_clock: cleanText(play.clock && play.clock.displayValue, 12),
+      play_type: cleanText(play.type && play.type.text, 50),
+      play_yards: statYardage,
+      down,
+      distance,
+      updated_at: new Date().toISOString(),
+    };
+  }
+  async function fetchDrive(game, event, fetcher) {
+    if (!["nfl", "ncaaf"].includes(game.league) || !/^\d+$/.test(event.event_id)
+      || String(game.espn_event_id || "") !== event.event_id) return null;
+    const key = game.league + "/" + event.event_id;
+    let cached = driveCache.get(key);
+    if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;
+    if (!cached) cached = { value: null, nextTry: 0, promise: null };
+    cached.nextTry = Date.now() + DRIVE_POLL_MS;
+    driveCache.set(key, cached);
+    cached.promise = (async () => {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 4000);
+      try {
+        const url = `https://site.web.api.espn.com/apis/site/v2/sports/${PATHS[game.league]}/summary?event=${encodeURIComponent(event.event_id)}`;
+        const res = await fetcher(url, { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal });
+        if (res.ok) cached.value = parseDrive(await res.json(), event, event.event_id);
+      } catch (error) { /* Keep the last verified field position through a transient ESPN failure. */ }
+      finally { clearTimeout(timeout); }
+      return cached.value;
+    })().finally(() => { cached.promise = null; });
+    return cached.promise;
   }
   function halftimeEnd(summary, game, eventId, now = Date.now()) {
     const minutes = HALFTIME_MINUTES[game.league], kickoff = Date.parse(game.start_time);
@@ -104,16 +185,21 @@
           const e = matchEvent(game, events);
           if (!e || e.state !== "scheduled" && (e.away_score === null || e.home_score === null)) { result.failed.push(Number(game.game_id)); return; }
           let situation = e.situation;
+          let drive = null;
           if (e.state === "live" && e.is_halftime && e.season_type === 2 && /^\d+$/.test(e.event_id) && HALFTIME_MINUTES[game.league]) {
             situation = { ...situation, is_halftime: true, halftime_ends_at: await estimateHalftime(game, e, fetcher) };
-          } else if (!e.is_halftime) halftimeCache.delete(game.league + "/" + e.event_id);
+          } else if (!e.is_halftime) {
+            halftimeCache.delete(game.league + "/" + e.event_id);
+            if (e.state === "live") drive = await fetchDrive(game, e, fetcher);
+          }
+          if (e.state !== "live") driveCache.delete(game.league + "/" + e.event_id);
           result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
-            state: e.state, detail: e.detail, situation, updated_at: checked, graded: false });
+            state: e.state, detail: e.detail, situation, drive, updated_at: checked, graded: false });
         }));
       } catch (error) { result.failed.push(...part.map((g) => Number(g.game_id))); }
       finally { clearTimeout(timeout); }
     }));
     return result;
   }
-  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, halftimeEnd, fetchGames };
+  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, halftimeEnd, fetchGames };
 })(globalThis);

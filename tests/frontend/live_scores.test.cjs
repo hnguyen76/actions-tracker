@@ -23,6 +23,44 @@ test('official score and situation preserve possession, field label, clock and z
   assert.equal(e.situation.clock,'5:47');
   assert.deepEqual(e.situation.away_period_scores,[3,0]);
 });
+const driveSummary = (eventId='401873053', side='home') => ({
+  header:{id:eventId},
+  drives:{current:{
+    id:'drive-24',description:'3 plays, 11 yards, 1:28',
+    team:{id:side==='home'?'8':'17',abbreviation:side==='home'?'DET':'NE',logos:[{href:'https://a.espncdn.com/i/teamlogos/nfl/500/det.png'}]},
+    plays:[{clock:{displayValue:'2:12'},type:{text:'Penalty'},statYardage:-5,
+      text:'Illegal Formation, 5 yards, enforced at DET 37 - No Play.',
+      end:side==='home'
+        ?{down:3,distance:6,yardsToEndzone:68,shortDownDistanceText:'3rd & 6',possessionText:'DET 32'}
+        :{down:1,distance:10,yardsToEndzone:61,shortDownDistanceText:'1st & 10',possessionText:'NE 39'},
+    }],
+  }},
+});
+test('current drive becomes a normalized field position with the first-down line', () => {
+  const e=api.parseEvent(event());
+  const home=api.parseDrive(driveSummary(),e,e.event_id);
+  assert.equal(home.team_side,'home');
+  assert.equal(home.ball_x,68);
+  assert.equal(home.first_down_x,62);
+  assert.equal(home.down_distance,'3rd & 6');
+  assert.equal(home.spot,'DET 32');
+  assert.equal(home.play_yards,-5);
+  const away=api.parseDrive(driveSummary(e.event_id,'away'),e,e.event_id);
+  assert.equal(away.team_side,'away');
+  assert.equal(away.ball_x,39);
+  assert.equal(away.first_down_x,49);
+  const headerOnly=driveSummary();
+  headerOnly.header.competitions=[{competitors:[{homeAway:'away',team:{id:'17'}},{homeAway:'home',team:{id:'8'}}]}];
+  assert.equal(api.parseDrive(headerOnly,{event_id:e.event_id,situation:null},e.event_id).team_side,'home');
+});
+test('drive parser rejects the wrong event, unknown offense and unusable positions', () => {
+  const e=api.parseEvent(event());
+  assert.equal(api.parseDrive(driveSummary('other'),e,e.event_id),null);
+  const unknown=driveSummary(); unknown.drives.current.team.id='999';
+  assert.equal(api.parseDrive(unknown,e,e.event_id),null);
+  const bad=driveSummary(); delete bad.drives.current.plays[0].end.yardsToEndzone;
+  assert.equal(api.parseDrive(bad,e,e.event_id),null);
+});
 test('zero score is valid, absent score does not become zero', () => {
   const raw=event(), side=raw.competitions[0].competitors[0];
   side.score='0'; assert.equal(api.parseEvent(raw).away_score,0);
@@ -66,6 +104,20 @@ test('fetch groups games by league/date and returns scores without modifying ori
   assert.equal(result.scores.length,2);
   assert.equal(result.scores[0].graded,false);
   assert.equal(game.away_score,undefined);
+});
+test('live football fetches current drive by verified event id and caches it for ten seconds', async () => {
+  const target={...game,espn_event_id:'401873053'},calls=[];
+  const mock=async (url,opts) => {
+    calls.push({url,opts});
+    return {ok:true,json:async()=>url.includes('/summary?')?driveSummary():{events:[event()]}};
+  };
+  const first=await api.fetchGames([target],mock),second=await api.fetchGames([target],mock);
+  assert.equal(calls.filter(x=>x.url.includes('/summary?')).length,1);
+  assert.equal(first.scores[0].drive.spot,'DET 32');
+  assert.equal(second.scores[0].drive.ball_x,68);
+  const summaryCall=calls.find(x=>x.url.includes('/summary?'));
+  assert.equal(summaryCall.opts.credentials,'omit');
+  assert.equal(summaryCall.opts.cache,'no-store');
 });
 test('college request includes all FBS groups; one league failure preserves successful scores', async () => {
   const urls=[];
