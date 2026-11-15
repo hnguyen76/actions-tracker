@@ -892,6 +892,10 @@ const DATA = /*__DATA__*/null;
     }
     return host;
   }
+  const methodMediaPicksCell = (r) => {
+    const play = Object.assign({}, r, { market: "spread" });
+    return r.status === "graded" || !boardOf(play) ? "–" : mediaPicksCell(play);
+  };
   const ACTION = {
     bet: { label: "Đặt", cls: "win" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
@@ -950,7 +954,7 @@ const DATA = /*__DATA__*/null;
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
       { label: "Tin tức", value: matchNewsCell, cls: () => "news-cell" },
-      { label: "Chuyên gia chọn thắng", value: mediaPicksCell, cls: () => "media-picks-cell" },
+      { label: "Chuyên gia chọn winner", value: mediaPicksCell, cls: () => "media-picks-cell" },
     ];
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
@@ -1379,6 +1383,7 @@ const DATA = /*__DATA__*/null;
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
       { label: "Kết quả", value: (r) => (r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
       SCORE_COL,
+      { label: "Chuyên gia chọn winner", value: methodMediaPicksCell, cls: () => "media-picks-cell" },
     ], null, withHot({ pageSize: 25 }));
   }
 
