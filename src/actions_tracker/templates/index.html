@@ -82,6 +82,9 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .crow .cr .pill { font-size: 12.5px; }
 .crow .c2 { color: var(--ink-2); font-size: 13px; margin-top: 4px; line-height: 1.4; }
 .crow .c2 .pill { font-size: 11.5px; padding: 2px 8px; }
+.crow .cmore { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 6px; font-size: 13.5px; }
+.crow .cmore > summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; list-style-position: inside; }
+.crow .cmore[open] > summary { margin-bottom: 6px; }
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0 0; }
 .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 16px;
   display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center; }
@@ -707,7 +710,8 @@ const DATA = /*__DATA__*/null;
         return el("div", { class: "crow" + (hot ? " " + hot : "") },
           el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
             c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
-          c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null);
+          c.sub ? el("div", { class: "c2" }, ...(Array.isArray(c.sub) ? c.sub : [c.sub])) : null,
+          ...(c.more || []).filter(Boolean));
       })));
     } else host.append(el("table", {}, thead, tbody));
     if (size && pages > 1) {
@@ -1881,11 +1885,17 @@ const DATA = /*__DATA__*/null;
   const nowPill = (now) => ({ win: el("span", { class: "pill win", text: "Đang thắng" }), loss: el("span", { class: "pill loss", text: "Đang thua" }),
     push: el("span", { class: "pill", text: "Đang hòa" }) })[now] || el("span", { class: "muted", text: "–" });
   const scoreNode = (r) => SCORE_COL.value(r);
+  // a collapsible block under a compact row; left out when the cell has nothing to show
+  const moreBlock = (label, node) => {
+    if (!(node instanceof Node) || !node.textContent.replace(/[–\s]/g, "")) return null;
+    return el("details", { class: "cmore" }, el("summary", { text: label }), node);
+  };
   const ruleShort = (r) => String(r.rule_name || r.rule_id || "").replace(/^(NCAAF|NFL) /, "");
   const COMPACT = {
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
-        sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}` }; },
+        sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
+        more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn winner", mediaPicksCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now),
       sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)}` + (r.crowd ? ` · đám đông ${r.crowd}` : "")] }),
@@ -1898,7 +1908,8 @@ const DATA = /*__DATA__*/null;
     "mine-plays": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`,
       right: r.status === "graded" ? resultPill(r.result) : waitPill(),
       sub: [`Đặt ${r.pick}${ln(r.line, "spread")} · ${r.method === "follow" ? "theo" : "ngược"} đám đông ${r.crowd} ${r.votes}/${r.total_votes}`,
-        scoreOf(r) ? " · " : null, scoreOf(r) ? scoreNode(r) : null] }),
+        scoreOf(r) ? " · " : null, scoreOf(r) ? scoreNode(r) : null],
+      more: [moreBlock("Chuyên gia chọn winner", methodMediaPicksCell(r))] }),
     "season-plays-": (r) => ({ title: `T${r.week ?? "–"} · ${String(r.et_date || "").slice(5).replace("-", "/")} · ${vs(r.match)}`,
       right: r.result ? resultPill(r.result) : waitPill(),
       sub: `${r.score ? r.score + " · " : ""}Đặt ${r.pick}${ln(r.line, "spread")} · ${r.method === "follow" ? "theo" : "ngược"} ${r.crowd} ${r.votes}/${r.total_votes}` }),
