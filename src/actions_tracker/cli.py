@@ -452,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
         return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
                            utc_now())
     if args.cmd == "news":
-        from actions_tracker.match_news import eligible_games, load_news, refresh_news
+        from actions_tracker.match_news import board_games, load_news, refresh_news
         from actions_tracker.media_picks import load_picks as load_media_picks, refresh_picks
         conn = db.connect(Path(args.db))
         try:
@@ -468,8 +468,8 @@ def main(argv: list[str] | None = None) -> int:
             remaining = db.get_meta(conn, "odds_api_remaining")
             build_site(tables, status, Path(args.site), Path(args.report), now,
                        {"odds_api_remaining": int(remaining) if remaining is not None else None})
-            games = eligible_games(conn, tables["Upcoming_Board"], now)
-            print(f"Tin tuc: {len(games)} tran to vang; {len(tables['Match_News'])} tom tat; {count} tin cap nhat.")
+            games = board_games(conn, tables["Upcoming_Board"], now)
+            print(f"Tin tuc: {len(games)} tran; {len(tables['Match_News'])} tom tat; {count} tin cap nhat.")
             print(f"Winner: {len(tables['Media_Picks'])} picks chuyen gia; {media_count} picks cap nhat.")
             return 0
         finally:

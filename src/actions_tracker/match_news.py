@@ -75,6 +75,33 @@ def eligible_games(conn, board, now):
             and g.get("status") not in ("complete", "closed", "canceled", "cancelled", "postponed")]
 
 
+RECENT_H = 12  # games that kicked off this recently keep showing the news verified before kickoff
+
+
+def board_games(conn, board, now, include_started=False):
+    """Every NFL/NCAAF game with picks on the upcoming board (the whole decision card), optionally plus picked
+    games that kicked off within RECENT_H hours."""
+    ids = set()
+    if board is not None and not board.empty and "game_id" in board.columns:
+        ids = {int(g) for g in board["game_id"] if pd.notna(g)}
+    games = []
+    if ids:
+        cursor = conn.execute(f"SELECT * FROM games WHERE id IN ({','.join('?' for _ in ids)})", sorted(ids))
+        names = [c[0] for c in cursor.description]
+        games = [g for row in cursor for g in [dict(zip(names, row))]
+                 if g["league"] in ("nfl", "ncaaf") and _time(g["start_time"]) > _time(now)
+                 and g.get("status") not in ("complete", "closed", "canceled", "cancelled", "postponed")]
+    if include_started:
+        since = (_time(now) - timedelta(hours=RECENT_H)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        upto = _time(now).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        cursor = conn.execute("SELECT * FROM games g WHERE league IN ('nfl','ncaaf') AND start_time > ? AND start_time <= ? "
+                              "AND EXISTS (SELECT 1 FROM picks p WHERE p.game_id = g.id)", (since, upto))
+        names = [c[0] for c in cursor.description]
+        seen = {g["id"] for g in games}
+        games += [g for row in cursor for g in [dict(zip(names, row))] if g["id"] not in seen]
+    return games
+
+
 def _schema(conn):
     conn.execute("""CREATE TABLE IF NOT EXISTS match_news(
         game_id INTEGER, league TEXT, team_abbr TEXT, sentiment TEXT, summary TEXT,
@@ -236,7 +263,7 @@ def _download(url):
 def refresh_news(conn, board, now, fetcher=None, force=False):
     """Refresh public reports at most hourly per URL; failures leave fresh cache intact."""
     try:
-        games = eligible_games(conn, board, now)
+        games = board_games(conn, board, now)  # every game on the board, not only the 8+ highlights
         if not games:
             return 0
         _schema(conn)
@@ -302,7 +329,7 @@ def load_news(conn, board, now):
     """No-network, read-only view for the current highlighted games only."""
     if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_news'").fetchone():
         return pd.DataFrame(columns=NEWS_COLS)
-    ids = {g["id"] for g in eligible_games(conn, board, now)}
+    ids = {g["id"] for g in board_games(conn, board, now, include_started=True)}
     if not ids:
         return pd.DataFrame(columns=NEWS_COLS)
     cursor = conn.execute("SELECT * FROM match_news")

@@ -915,7 +915,7 @@ const DATA = /*__DATA__*/null;
   const withHot = (opts) => Object.assign({}, opts || {}, HOT);
   let matchNewsByGame = null;
   function matchNewsCell(r) {
-    if (!["nfl", "ncaaf"].includes(r.league) || picksOn(r) < HOT_PICKS) return "–";
+    if (!["nfl", "ncaaf"].includes(r.league)) return "–";  // every football game, not only the 8+ ones
     if (!matchNewsByGame) {
       matchNewsByGame = new Map();
       for (const item of T("Match_News")) {

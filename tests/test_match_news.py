@@ -92,7 +92,7 @@ def test_team_matching_does_not_confuse_michigan_and_michigan_state():
 
 def test_refresh_only_fetches_eligible_teams_and_hourly_cache(tmp_path):
     conn = _db(tmp_path)
-    board = _board().query("game_id != 5")
+    board = _board().query("game_id not in (2, 5)")  # only teams of games on the board are fetched
     calls = []
     fetcher = lambda url: calls.append(url) or _html()
     assert news.refresh_news(conn, board, NOW, fetcher) == 1
@@ -134,8 +134,9 @@ def test_old_future_and_wrong_team_reports_are_not_shown(tmp_path):
     conn = _db(tmp_path)
     html = _html(date="November 10, 2026") + _html(player="Future", date="November 15, 2026", rank=101)
     html += _html(player="Other", team="Atlanta Falcons", code="ATL", rank=102)
-    news.refresh_news(conn, _board(), NOW, lambda url: html)
-    assert news.load_news(conn, _board(), NOW).empty
+    board = _board().query("game_id != 2")  # ATL is not playing on this board
+    news.refresh_news(conn, board, NOW, lambda url: html)
+    assert news.load_news(conn, board, NOW).empty
 
 
 def test_fetch_failures_preserve_fresh_news_and_are_cached(tmp_path):
@@ -145,9 +146,10 @@ def test_fetch_failures_preserve_fresh_news_and_are_cached(tmp_path):
     def broken(url):
         calls.append(url)
         raise RuntimeError("provider unavailable")
-    assert news.refresh_news(conn, _board(), NOW, broken) == 0
-    assert not news.load_news(conn, _board(), NOW).empty
-    news.refresh_news(conn, _board(), NOW, broken)
+    board = _board().query("game_id != 2")
+    assert news.refresh_news(conn, board, NOW, broken) == 0
+    assert not news.load_news(conn, board, NOW).empty
+    news.refresh_news(conn, board, NOW, broken)
     assert len(calls) == 4
     assert news.load_news(conn, _board(), "2026-11-18T00:00:00Z").empty
 
@@ -167,7 +169,8 @@ def test_verified_sources_limit_per_sentiment_and_current_eligibility(tmp_path):
               _item(subject="wrongteam", team_abbr="KC")]
     assert news.add_verified_news(conn, items, NOW) == 4
     assert len(news.load_news(conn, _board(), NOW)) == 2
-    assert news.load_news(conn, pd.DataFrame([dict(game_id=1, total_votes=7)]), NOW).empty
+    assert len(news.load_news(conn, pd.DataFrame([dict(game_id=1, total_votes=2)]), NOW)) == 2  # any pick count
+    assert news.load_news(conn, pd.DataFrame([dict(game_id=5, total_votes=9)]), NOW).empty         # game not on board
 
 
 def test_expired_verified_item_is_not_loaded(tmp_path):
@@ -197,3 +200,13 @@ def test_newly_highlighted_game_is_checked_before_hourly_cache_expires(tmp_path)
     board = pd.concat([board, pd.DataFrame([dict(game_id=6, total_votes=8)])], ignore_index=True)
     news.refresh_news(conn, board, NOW, fetch)
     assert len(calls) == 4 and 6 in set(news.load_news(conn, board, NOW).game_id)
+
+
+
+def test_every_board_game_gets_news_not_only_eight_plus(tmp_path):
+    conn = _db(tmp_path)
+    board = pd.DataFrame([dict(game_id=2, total_votes=3)])          # KC @ ATL with only 3 picks
+    calls = []
+    news.refresh_news(conn, board, NOW, lambda url: calls.append(url) or _html(team="Kansas City Chiefs", code="KC"))
+    assert set(calls) == {"https://www.rotowire.com/football/news.php?team=KC",
+                          "https://www.rotowire.com/football/news.php?team=ATL"}
