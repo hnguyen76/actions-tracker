@@ -2257,6 +2257,22 @@ const DATA = /*__DATA__*/null;
     clearTimeout(browserLive.timer);
     if (!document.hidden) browserLive.timer = setTimeout(refreshLiveScores, delay);
   }
+  function preserveLiveViewport(update) {
+    const selector = '.asb-card[data-game-id], .crow[data-game-id]';
+    const visible = [...document.querySelectorAll(selector)].find((node) => node.getBoundingClientRect().bottom > 0);
+    const anchor = visible && { game: visible.dataset.gameId, scoreboard: visible.classList.contains('asb-card'), top: visible.getBoundingClientRect().top };
+    const x = window.scrollX, y = window.scrollY;
+    const root = document.documentElement;
+    const previous = root.style.overflowAnchor;
+    root.style.overflowAnchor = 'none';
+    try {
+      update();
+      const replacement = anchor && [...document.querySelectorAll(selector)].find((node) =>
+        node.dataset.gameId === anchor.game && node.classList.contains('asb-card') === anchor.scoreboard);
+      const delta = replacement ? replacement.getBoundingClientRect().top - anchor.top : 0;
+      window.scrollTo({ left: x, top: y + delta, behavior: 'instant' });
+    } finally { root.style.overflowAnchor = previous; }
+  }
   function redrawLiveCard() {
     if (currentTab() !== "upcoming") return;
     const open = new Map([...document.querySelectorAll("#inplay-table .crow")].map((r) => [r.dataset.gameId, {
@@ -2286,7 +2302,7 @@ const DATA = /*__DATA__*/null;
         browserLive.scores.set(s.game_id, s);
       }
       browserLive.errors = result.scores.length ? 0 : browserLive.errors + 1;
-      if (changed) redrawLiveCard();
+      if (changed) preserveLiveViewport(redrawLiveCard);
     } catch (e) { browserLive.errors += 1; }
     finally {
       browserLive.busy = false;
