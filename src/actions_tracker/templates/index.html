@@ -925,6 +925,40 @@ const DATA = /*__DATA__*/null;
   let mediaPicksByGame = null;
   const mediaExpertKey = (name) => String(name || "").trim().normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // CBS experts against the spread: "SF -3,5: 6/7 · Dubin, Wilson +4" (the side the user bets is marked ⭐)
+  let atsByGame = null;
+  function atsPicksCell(r) {
+    if (!["nfl", "ncaaf"].includes(r.league)) return "–";
+    if (!atsByGame) {
+      atsByGame = new Map();
+      for (const x of T("Media_ATS")) {
+        const k = `${x.league}|${x.game_id}`;
+        if (!atsByGame.has(k)) atsByGame.set(k, []);
+        atsByGame.get(k).push(x);
+      }
+    }
+    const picks = atsByGame.get(`${r.league}|${r.game_id}`) || [];
+    if (!picks.length) return el("span", { class: "news-empty", text: "Chưa có picks spread" });
+    const host = el("div", { class: "media-picks" },
+      el("div", { class: "media-picks-note", text: `Chọn theo spread · ${picks.length} chuyên gia CBS` }));
+    const mineTeam = String(r.pick || "").split(" ")[0].toUpperCase();
+    const sides = [...new Set(picks.map((x) => x.pick_team))]
+      .sort((a, b) => picks.filter((x) => x.pick_team === b).length - picks.filter((x) => x.pick_team === a).length);
+    for (const team of sides) {
+      const mine = picks.filter((x) => x.pick_team === team).sort((a, b) => a.expert.localeCompare(b.expert));
+      const line = mine[0].line;
+      const lineText = line === null || line === undefined ? "" : " " + (line > 0 ? "+" : "") + String(line).replace(".", ",");
+      const label = `${team}${lineText}: ${mine.length}/${picks.length}` + (team === mineTeam ? " ⭐" : "");
+      const shortNames = mine.slice(0, 2).map((x) => x.expert.split(/\s+/).pop()).join(", ");
+      const list = el("ul", { class: "media-experts" }, ...mine.map((x) => el("li", {},
+        el("a", { class: "media-expert-link", href: x.source_url, target: "_blank", rel: "noopener noreferrer", text: x.expert }),
+        el("span", { class: "media-source", text: "CBS Sports" }))));
+      host.append(el("details", { class: "media-team" }, el("summary", {}, el("b", { class: "media-team-name", text: label }),
+        el("span", { class: "media-preview", text: shortNames + (mine.length > 2 ? ` +${mine.length - 2}` : "") })), list));
+    }
+    return host;
+  }
+
   function mediaPicksCell(r) {
     if (!["nfl", "ncaaf"].includes(r.league)) return "–";  // every football game, not only the 8+ ones
     if (!mediaPicksByGame) {
@@ -1036,7 +1070,7 @@ const DATA = /*__DATA__*/null;
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
       { label: "Tin tức", value: matchNewsCell, cls: () => "news-cell" },
-      { label: "Chuyên gia chọn winner", value: mediaPicksCell, cls: () => "media-picks-cell" },
+      { label: "Chuyên gia chọn spread", value: atsPicksCell, cls: () => "media-picks-cell" },
     ];
     const section = (market, emptyText) => {
       const list = act.filter((r) => r.market === market);
@@ -1888,7 +1922,7 @@ const DATA = /*__DATA__*/null;
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
         sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
-        more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn winner", mediaPicksCell(r))] }; },
+        more: [moreBlock("Tin tức", matchNewsCell(r)), moreBlock("Chuyên gia chọn spread", atsPicksCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
     "inplay-table": (r) => ({ title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
       sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)}` + (r.crowd ? ` · đám đông ${r.crowd}` : "")],
@@ -2063,7 +2097,7 @@ const DATA = /*__DATA__*/null;
       const next = JSON.parse(json);
       if (!next || Date.parse(next.generated_at) <= Date.parse(D.generated_at)) return;
       D = next;
-      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null;
+      pickCount = null; boardStatus = null; boardRow = null; scoreMap = null; atsByGame = null;
       header(); render();
     } catch (e) { /* offline or not published: keep what is shown */ }
   }

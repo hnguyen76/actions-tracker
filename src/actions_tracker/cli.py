@@ -292,6 +292,9 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         from actions_tracker.media_picks import load_picks as load_media_picks, refresh_picks
         try:
             refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
+            from actions_tracker.media_ats import load_ats, refresh_ats
+            refresh_ats(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
+            tables["Media_ATS"] = load_ats(conn, tables["Upcoming_Board"], now)
             tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
         except Exception as e:
             print(f"Picks chuyen gia chua cap nhat duoc ({type(e).__name__}); dung picks da xac minh.")
@@ -461,6 +464,10 @@ def main(argv: list[str] | None = None) -> int:
             count = refresh_news(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
                                  force=args.force)
             tables["Match_News"] = load_news(conn, tables["Upcoming_Board"], now)
+            from actions_tracker.media_ats import load_ats, refresh_ats
+            ats_count = refresh_ats(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)), force=args.force)
+            tables["Media_ATS"] = load_ats(conn, tables["Upcoming_Board"], now)
+            print(f"Spread chuyen gia (CBS): {len(tables['Media_ATS'])} picks; {ats_count} cap nhat.")
             media_count = refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
                                         force=args.force)
             tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)

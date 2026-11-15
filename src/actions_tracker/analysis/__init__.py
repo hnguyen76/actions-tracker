@@ -20,6 +20,7 @@ from actions_tracker.analysis.trend import weekly_trend
 from actions_tracker.grading import load_graded_picks
 from actions_tracker.match_news import load_news
 from actions_tracker.media_picks import load_picks as load_media_picks
+from actions_tracker.media_ats import load_ats
 
 
 def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = None) -> dict[str, pd.DataFrame]:
@@ -71,6 +72,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Upcoming_Board": board,
         "Match_News": load_news(conn, board, now),
         "Media_Picks": load_media_picks(conn, board, now),
+        "Media_ATS": load_ats(conn, board, now),
         "Past_Plays": past_plays(cg),
         "Leaderboard": lb,
         "Rule_Summary": rs,
