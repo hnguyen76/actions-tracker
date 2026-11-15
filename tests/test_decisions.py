@@ -48,3 +48,23 @@ def test_opposite_rules_conflict_and_started_games_drop_out():
 
 def test_empty_inputs():
     assert decisions(pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), NOW).empty
+
+
+def test_user_method_is_listed_and_merged_with_rules():
+    import pandas as pd
+    from actions_tracker.analysis.decisions import decisions
+    now = "2026-11-15T12:00:00.000Z"
+    mm = pd.DataFrame([
+        dict(game_id=1, league="nfl", start_time="2026-11-15T18:00:00.000Z", et_date="2026-11-15", match="MIA@IND",
+             crowd="IND", votes=5, total_votes=5, method="fade", bet_side="away", pick="MIA", line=4.5, status="pending"),
+        dict(game_id=2, league="ncaaf", start_time="2026-11-15T18:00:00.000Z", et_date="2026-11-15", match="MISS@OU",
+             crowd="OU", votes=8, total_votes=8, method="fade", bet_side="away", pick="MISS", line=2.5, status="pending"),
+    ])
+    rp = pd.DataFrame([dict(rule_id="r4", rule_name="Quy tắc 4", league="ncaaf", game_id=2,
+                            start_time="2026-11-15T18:00:00.000Z", match="MISS@OU", market="spread", bet_side="away",
+                            pick="MISS", line=2.5, basis="", status="pending")])
+    rs = pd.DataFrame([dict(rule_id="r4", decision="collecting", hist_record="1-0", wins=0, losses=0, pushes=0, n=0,
+                            target_n=100)])
+    d = decisions(rp, rs, pd.DataFrame(), now, mm).set_index("game_id")
+    assert d.loc[1, "action"] == "mine" and d.loc[1, "pick"] == "MIA +4,5" and "ngược đám đông IND 5/5" in d.loc[1, "reason"]
+    assert d.loc[2, "action"] == "paper" and "Cách của bạn" in d.loc[2, "reason"] and "cùng bên" in d.loc[2, "reason"]

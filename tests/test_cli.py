@@ -71,7 +71,9 @@ PAST_SCORE = [{"id": "ev777", "commence_time": "2026-11-09T00:40:00Z", "complete
                "scores": [{"name": "Boston Celtics", "score": "110"}, {"name": "New York Knicks", "score": "99"}]}]
 
 
-def test_offline_end_to_end(tmp_path):
+def test_offline_end_to_end(tmp_path, monkeypatch):
+    # a fixed clock before the fixture kickoffs: lines are only stored for games that have not started
+    monkeypatch.setattr("actions_tracker.cli.utc_now", lambda: "2026-11-10T12:00:00.000Z")
     args = _args(tmp_path)
     assert main(args) == 0
     assert (tmp_path / "r.xlsx").exists() and (tmp_path / "site" / "index.html").exists()

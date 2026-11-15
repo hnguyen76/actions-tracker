@@ -66,7 +66,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Expert_Form_Now": expert_form_now(forms),
         "Trend_Weekly": weekly_trend(cg, picks),
         "Upcoming": up,
-        "Decisions": decisions(rp, rs, up, now),
+        "Decisions": decisions(rp, rs, up, now, mm),
         "Data_Quality": quality,
         "Upcoming_Board": board,
         "Match_News": load_news(conn, board, now),

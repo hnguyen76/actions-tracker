@@ -14,7 +14,8 @@ DECISION_COLS = ["et_date", "start_time", "league", "game_id", "match", "market"
                  "reason", "evidence", "rule_ids"]
 STAKE = {"pass": 1.0}  # units per play once a rule passed; every other state stakes nothing
 ACTION = {"pass": "bet", "collecting": "paper", "watch": "paper", "fail": "skip"}
-ORDER = {"bet": 0, "paper": 1, "conflict": 2, "skip": 3}
+ORDER = {"bet": 0, "mine": 1, "paper": 2, "conflict": 3, "skip": 4}
+MINE = "Cách của bạn"
 CONSENSUS_REASON = "Chỉ có consensus của expert — dữ liệu hiện tại chưa chứng minh lợi thế để đặt tiền"
 _MARKET = {"spread": "Spread", "total": "Total", "ml": "Moneyline"}
 
@@ -30,8 +31,18 @@ def _et_date(start: str) -> str:
     return pd.Timestamp(start).tz_convert(TZ).strftime("%Y-%m-%d")
 
 
-def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd.DataFrame, now: str) -> pd.DataFrame:
+def _mine_reason(m) -> str:
+    how = "theo" if m.method == "follow" else "ngược"
+    return f"{MINE}: {how} đám đông {m.crowd} {int(m.votes)}/{int(m.total_votes)}"
+
+
+def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd.DataFrame, now: str,
+              my_method: pd.DataFrame | None = None) -> pd.DataFrame:
     rows = []
+    mine = {}
+    if my_method is not None and not my_method.empty:
+        up = my_method[(my_method["status"] != "graded") & (my_method["start_time"].astype(str) > now)]
+        mine = {(int(m.game_id), "spread"): m for m in up.itertuples()}
     covered = set()
     status = dict(zip(rule_summary["rule_id"], rule_summary["decision"])) if not rule_summary.empty else {}
     record = {r.rule_id: r for r in rule_summary.itertuples()} if not rule_summary.empty else {}
@@ -59,9 +70,19 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
         states = [status.get(rid, "collecting") for rid in g["rule_id"]]
         action = min((ACTION.get(s, "paper") for s in states), key=ORDER.get)
         basis = "; ".join(dict.fromkeys(b for b in g["basis"] if b))
+        reason = f"{names}: {basis}" if basis else names
+        m = mine.pop((int(game_id), market), None)
+        if m is not None:  # the user's method backs the same game: say so (and whether it agrees)
+            same = m.bet_side == first["bet_side"]
+            reason = f"{_mine_reason(m)} — {'cùng bên' if same else 'NGƯỢC bên'} với quy tắc · " + reason
         rows.append(base | {"action": action, "pick": f"{first['pick']}{_line(market, first['line'])}",
-                            "stake_u": max(STAKE.get(s, 0.0) for s in states),
-                            "reason": f"{names}: {basis}" if basis else names})
+                            "stake_u": max(STAKE.get(s, 0.0) for s in states), "reason": reason})
+    for (game_id, market), m in mine.items():
+        covered.add((game_id, market))
+        rows.append({"et_date": m.et_date, "start_time": m.start_time, "league": m.league, "game_id": int(game_id),
+                     "match": m.match, "market": market, "action": "mine",
+                     "pick": f"{m.pick}{_line(market, m.line)}", "stake_u": 0.0, "reason": _mine_reason(m),
+                     "evidence": "", "rule_ids": "my_method"})
     if not upcoming.empty:
         for r in upcoming[upcoming["start_time"].astype(str) > now].itertuples():
             if (r.game_id, r.market) in covered:

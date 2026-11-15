@@ -1014,7 +1014,7 @@ const DATA = /*__DATA__*/null;
     return r.status === "graded" || !boardOf(play) ? "–" : mediaPicksCell(play);
   };
   const ACTION = {
-    bet: { label: "Đặt", cls: "win" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
+    bet: { label: "Đặt", cls: "win" }, mine: { label: "Cách của bạn", cls: "info" }, paper: { label: "Theo dõi — chưa đặt tiền", cls: "info" },
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
   };
   const etDate = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/New_York" });

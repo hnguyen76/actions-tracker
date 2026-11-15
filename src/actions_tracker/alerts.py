@@ -70,13 +70,15 @@ def _game_lines(game: dict, decisions: pd.DataFrame, experts: dict) -> tuple[lis
         if r.action == "bet":
             bets += 1
             lines.append(f"✅ {market}: <b>{pick}</b> · {n} expert · ĐẶT {r.stake_u:g}u")
+        elif r.action == "mine":
+            lines.append(f"⭐ {market}: <b>{pick}</b> · {n} expert")
         elif r.action == "paper":
             lines.append(f"📝 {market}: {pick} · {n} expert")
         elif r.action == "conflict":
             lines.append(f"⚠️ {market}: {pick} · {n} expert · hai quy tắc ngược nhau, bỏ qua")
         else:
             lines.append(f"▫️ {market}: {pick} · {n} expert · bỏ qua")
-        if r.action in ("bet", "paper") and r.reason:
+        if r.action in ("bet", "mine", "paper") and r.reason:
             reason = str(r.reason)
             lines.append(f"    <i>{html.escape(reason if len(reason) <= 160 else reason[:157] + '…')}</i>")
     if not lines:
