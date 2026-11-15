@@ -24,7 +24,7 @@ LOCK = REPO / ".pc_task.lock"
 LOG = REPO / "reports" / "pc_task.log"
 LOCK_STALE_S = 20 * 60
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-COMMANDS = {"update": ["run", "--budget"], "alert": ["alert"]}
+COMMANDS = {"update": ["run", "--budget"], "alert": ["alert"], "live": ["live"]}
 
 
 def sh(log, *cmd: str) -> int:

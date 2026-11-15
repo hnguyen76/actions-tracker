@@ -108,3 +108,16 @@ def test_lines_stored_before_kickoff_only(tmp_path):
     live.collect_espn(c, "ncaaf", "2026-11-15T01:00:00.000Z", get=lambda url, **k: R())
     assert c.execute("SELECT captured_at FROM closing_lines WHERE game_id = 2 AND market = 'spread' AND side = 'home'"
                      ).fetchone()[0] == NOW
+
+
+
+def test_live_command_updates_scores_without_lines_and_rebuilds_site(tmp_path):
+    from actions_tracker.cli import live_scores
+    _db(tmp_path).close()
+    urls = []
+    assert live_scores(tmp_path / "a.db", tmp_path / "site", ["ncaaf", "nfl"], NOW,
+                       get=lambda url, **k: urls.append(url) or _R()) == 0
+    assert len(urls) == 1 and (tmp_path / "site" / "index.html").exists()    # only the league with a game on
+    c = db.connect(tmp_path / "a.db")
+    assert c.execute("SELECT count(*) FROM closing_lines").fetchone()[0] == 0  # no lines in the light run
+    assert c.execute("SELECT state FROM live_scores WHERE game_id = 1").fetchone()[0] == "in"

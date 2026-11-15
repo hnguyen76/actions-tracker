@@ -367,6 +367,34 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
     return 0
 
 
+def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get=None) -> int:
+    """Light run for games in progress: ESPN scores only (no Action Network, no lines), then rebuild the site.
+    Does nothing (and makes no request) when no picked game is being played."""
+    from actions_tracker import live
+    conn = db.connect(db_path)
+    changed = 0
+    for league in leagues:
+        try:
+            c = live.collect_espn(conn, league, now, get=get or requests.get, lines=False)
+        except live.LiveError as e:
+            print(f"[{league}] diem live: loi {e}")
+            continue
+        if c["scored_of"]:
+            print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong")
+        changed += c["live"] + c["final"]
+    if changed:
+        tables = build_tables(conn, now, Path(db_path).parent / "history")
+        status = [dict(r) | {"ungraded_past_games": _ungraded_past_games(conn, r["league"], now)}
+                  for r in conn.execute("SELECT * FROM league_status ORDER BY league")]
+        remaining = db.get_meta(conn, "odds_api_remaining")
+        build_site(tables, status, site_dir, None, now,
+                   {"odds_api_remaining": int(remaining) if remaining is not None else None})
+    else:
+        print("Khong co tran nao dang da.")
+    conn.close()
+    return 0
+
+
 def telegram_setup(root: Path, get=None, post=None) -> int:
     from actions_tracker import alerts
     token, _ = alerts.load_telegram(root)
@@ -408,6 +436,10 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--report", default="reports/actions_report.xlsx")
     a.add_argument("--site", default="site")
     sub.add_parser("telegram-setup", help="find the chat id after you pressed Start in the bot, send a test message")
+    lv = sub.add_parser("live", help="update live scores of games in progress (ESPN only) and rebuild the dashboard")
+    lv.add_argument("--leagues", default=",".join(k for k, on in LEAGUES.items() if on))
+    lv.add_argument("--db", default="data/actions.db")
+    lv.add_argument("--site", default="site")
     n = sub.add_parser("news", help="refresh news and expert winners for highlighted football games, then rebuild")
     n.add_argument("--db", default="data/actions.db")
     n.add_argument("--site", default="site")
@@ -416,6 +448,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "telegram-setup":
         return telegram_setup(Path.cwd())
+    if args.cmd == "live":
+        return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
+                           utc_now())
     if args.cmd == "news":
         from actions_tracker.match_news import eligible_games, load_news, refresh_news
         from actions_tracker.media_picks import load_picks as load_media_picks, refresh_picks

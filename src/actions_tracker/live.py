@@ -107,12 +107,12 @@ def _picked(conn: sqlite3.Connection, league: str, lo: str, hi: str, ungraded: b
     return [dict(r) for r in rows]
 
 
-def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.get) -> dict:
-    """Lines for picked games about to start, scores for picked games that started. Returns counts."""
+def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.get, lines: bool = True) -> dict:
+    """Lines for picked games about to start (unless lines=False), scores for picked games that started."""
     conn.execute(SCHEMA)
     t = pd.Timestamp(now)
     started = _picked(conn, league, _iso(t - pd.Timedelta(hours=GAME_HOURS)), now, ungraded=True)
-    upcoming = _picked(conn, league, now, _iso(t + pd.Timedelta(hours=LINE_LEAD_H)), ungraded=False)
+    upcoming = _picked(conn, league, now, _iso(t + pd.Timedelta(hours=LINE_LEAD_H)), ungraded=False) if lines else []
     counts = {"lines": 0, "priced_of": len(upcoming), "live": 0, "final": 0, "scored_of": len(started)}
     if league not in ESPN or not (started or upcoming):
         return counts
