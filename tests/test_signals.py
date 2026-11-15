@@ -3,7 +3,7 @@
 import pandas as pd
 
 from actions_tracker.analysis.signals import SIGNAL_COLS, expert_sides, signals
-from actions_tracker.game_context import parse_open, parse_summary
+from actions_tracker.game_context import parse_open, parse_summary, starter_injury
 
 
 def _df(rows, cols):
@@ -31,7 +31,7 @@ def test_signals_for_the_side_bet():
     assert ("🟢", "Line chạy về phía bạn: mở +4,5 → nay +3,5") in one
     assert ("🟢", "Nhận +3,5: qua được số then chốt 3") in one
     assert ("🟢", "Đội bạn sau tuần nghỉ (14 ngày, đối thủ 7)") in one
-    assert ("🟢", "QB đối thủ: J. Doe (Out)") in one
+    assert ("🟢", "QB chính đối thủ: J. Doe (Out)") in one
     assert any("2 người · 1 đang lời, 1 đang lỗ" in t for _, t in one)
     assert any("57%" in t for _, t in one)
     two = list(zip(s[s.game_id == 2].tone, s[s.game_id == 2].text))
@@ -52,9 +52,13 @@ def test_parse_open_and_summary():
                    {"athlete": {"displayName": "Brock Purdy", "position": {"abbreviation": "QB"}}, "status": "Questionable"},
                    {"athlete": {"displayName": "Backup", "position": {"abbreviation": "QB"}}, "status": "Injured Reserve"},
                    {"athlete": {"displayName": "Some WR", "position": {"abbreviation": "WR"}}, "status": "Out"}]}]}
+    summary["leaders"] = [{"team": {"id": "25"}, "leaders": [{"name": "passingYards",
+                                                         "leaders": [{"athlete": {"displayName": "Brock Purdy"}}]}]}]
     c = parse_summary(summary, "2026-11-15T21:25:00Z")
     assert (c["home_rest_days"], c["away_rest_days"]) == (7.1, 20.1)
-    assert c["away_qb"] == "Brock Purdy (Questionable)" and c["home_qb"] is None
+    assert c["away_qb_injuries"] == [("Brock Purdy", "Questionable")] and c["away_passer"] == "Brock Purdy"
+    assert starter_injury(c["away_qb_injuries"], "Brock Purdy") == "Brock Purdy (Questionable)"
+    assert starter_injury([("Mac Jones", "Out")], "Brock Purdy") is None          # a backup is ignored
 
 
 def test_expert_sides_latest_pregame_pick_with_form():
@@ -65,3 +69,33 @@ def test_expert_sides_latest_pregame_pick_with_form():
     forms = pd.DataFrame([dict(pick_id=2, units_30=-5.0)])
     e = expert_sides(picks, forms)
     assert e.to_dict("records") == [dict(game_id=1, market="spread", side="away", units_30=-5.0)]
+
+
+
+def test_store_context_uses_nfl_depth_chart_starter(tmp_path):
+    from actions_tracker import db
+    from actions_tracker.game_context import store_context
+
+    class R:
+        def __init__(self, d):
+            self._d, self.status_code = d, 200
+
+        def json(self):
+            return self._d
+    summary = {"header": {"competitions": [{"competitors": [{"homeAway": "home", "team": {"id": "5"}},
+                                                            {"homeAway": "away", "team": {"id": "34"}}]}]},
+               "injuries": [{"team": {"id": "5"}, "injuries": [
+                   {"athlete": {"displayName": "Dillon Gabriel", "position": {"abbreviation": "QB"}}, "status": "Out"}]},
+                            {"team": {"id": "34"}, "injuries": [
+                   {"athlete": {"displayName": "C.J. Stroud", "position": {"abbreviation": "QB"}}, "status": "Doubtful"}]}]}
+    depth = {"5": "Deshaun Watson", "34": "C.J. Stroud"}
+
+    def get(url, params=None, **k):
+        if "depthcharts" in url:
+            team = url.split("/teams/")[1].split("/")[0]
+            return R({"depthchart": [{"positions": {"qb": {"athletes": [{"displayName": depth[team]}]}}}]})
+        return R(summary)
+    c = db.connect(tmp_path / "a.db")
+    assert store_context(c, "nfl", {1: {"event_id": "9", "start_time": "2026-11-15T18:00:00Z"}}, "2026-11-15T12:00:00Z", get) == 1
+    row = dict(c.execute("SELECT home_qb, away_qb FROM game_context WHERE game_id=1").fetchone())
+    assert row == {"home_qb": None, "away_qb": "C.J. Stroud (Doubtful)"}    # CLE's injured QB is the backup

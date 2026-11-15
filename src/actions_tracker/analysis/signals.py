@@ -87,7 +87,7 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
                 qb = getattr(x, f"{who}_qb")
                 if qb and not pd.isna(qb):
                     sure = any(s in qb for s in ("(Out)", "(Doubtful)"))
-                    label = "QB đội bạn" if who == side else "QB đối thủ"
+                    label = "QB chính đội bạn" if who == side else "QB chính đối thủ"
                     out.append((tone_out if sure else "⚪", f"{label}: {qb}"))
         # 3. experts on the same side
         es = expert_sides[(expert_sides["game_id"] == gid) & (expert_sides["market"] == market)] if len(expert_sides) else expert_sides
