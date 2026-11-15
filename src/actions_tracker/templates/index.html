@@ -152,8 +152,10 @@ th.sortable:hover { color: var(--ink); }
   background: var(--raised); color: var(--ink); border: 1px solid var(--border-strong); border-radius: 999px; padding: 10px 16px;
   font-size: 14px; box-shadow: var(--shadow); }
 .score { white-space: nowrap; }
-.score.live i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--loss); margin-right: 6px;
+.score.live i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--push); margin-right: 6px;
   vertical-align: 1px; animation: pulse 1.4s ease-in-out infinite; }
+.score.live.win i { background: var(--win); }
+.score.live.loss i { background: var(--loss); }
 @keyframes pulse { 50% { opacity: .25; } }
 .low-n::after { content: " *"; color: var(--warning); font-weight: 700; }
 .badge { display: inline-block; font-size: 12px; font-weight: 500; color: var(--muted); border: 1px solid var(--border-strong); border-radius: 999px; padding: 1px 8px; margin-left: 8px; vertical-align: 1px; }
@@ -1574,9 +1576,22 @@ const DATA = /*__DATA__*/null;
     const x = scoreOf(r);
     if (!x) return el("span", { class: "muted", text: "–" });
     const txt = `${num(x.away_score)}-${num(x.home_score)}`;
-    if (x.state === "live") return el("span", { class: "score live" }, el("i"), el("b", { text: txt }), el("span", { class: "muted", text: " · " + (x.detail || "live") }));
+    if (x.state === "live") return el("span", { class: "score live " + (coverNow(r, x) || "") }, el("i"), el("b", { text: txt }), el("span", { class: "muted", text: " · " + (x.detail || "live") }));
     return el("span", { class: "score" }, el("b", { text: txt }));
   } };
+  // is the play covering at this score? (green dot = winning, red = losing, grey = push / unknown)
+  const coverNow = (r, x) => {
+    if (r.now) return r.now;
+    const side = r.bet_side, market = r.market || "spread", line = Number(r.line ?? r.entry_line);
+    if (!side || r.line === null && r.entry_line === null || Number.isNaN(line)) return null;
+    const a = Number(x.away_score), h = Number(x.home_score);
+    let m;
+    if (market === "spread") m = (side === "home" ? h - a : a - h) + line;
+    else if (market === "total") m = (a + h - line) * (side === "over" ? 1 : -1);
+    else if (market === "ml") m = side === "home" ? h - a : a - h;
+    else return null;
+    return m > 0 ? "win" : m < 0 ? "loss" : "push";
+  };
   const scoreOf = (r) => {
     if (!scoreMap) scoreMap = new Map(T("Scores").map((x) => [Number(x.game_id), x]));
     return scoreMap.get(Number(r.game_id));
