@@ -289,6 +289,12 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         except Exception as e:
             # News must never interrupt picks, grading, or publication.
             print(f"Tin tuc chua cap nhat duoc ({type(e).__name__}); dung tin da xac minh con han.")
+        from actions_tracker.media_picks import load_picks as load_media_picks, refresh_picks
+        try:
+            refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
+            tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
+        except Exception as e:
+            print(f"Picks chuyen gia chua cap nhat duoc ({type(e).__name__}); dung picks da xac minh.")
     excel_ok = write_report(tables, report_path)
     if not excel_ok:
         print(f"CANH BAO: {report_path} dang mo trong Excel - dong file roi bam lai de cap nhat Excel.")
@@ -402,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--report", default="reports/actions_report.xlsx")
     a.add_argument("--site", default="site")
     sub.add_parser("telegram-setup", help="find the chat id after you pressed Start in the bot, send a test message")
-    n = sub.add_parser("news", help="refresh news only for highlighted NFL/NCAAF games and rebuild the dashboard")
+    n = sub.add_parser("news", help="refresh news and expert winners for highlighted football games, then rebuild")
     n.add_argument("--db", default="data/actions.db")
     n.add_argument("--site", default="site")
     n.add_argument("--report", default="reports/actions_report.xlsx")
@@ -412,6 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         return telegram_setup(Path.cwd())
     if args.cmd == "news":
         from actions_tracker.match_news import eligible_games, load_news, refresh_news
+        from actions_tracker.media_picks import load_picks as load_media_picks, refresh_picks
         conn = db.connect(Path(args.db))
         try:
             now = utc_now()
@@ -419,12 +426,16 @@ def main(argv: list[str] | None = None) -> int:
             count = refresh_news(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
                                  force=args.force)
             tables["Match_News"] = load_news(conn, tables["Upcoming_Board"], now)
+            media_count = refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
+                                        force=args.force)
+            tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
             status = [dict(row) for row in conn.execute("SELECT * FROM league_status ORDER BY league")]
             remaining = db.get_meta(conn, "odds_api_remaining")
             build_site(tables, status, Path(args.site), Path(args.report), now,
                        {"odds_api_remaining": int(remaining) if remaining is not None else None})
             games = eligible_games(conn, tables["Upcoming_Board"], now)
             print(f"Tin tuc: {len(games)} tran to vang; {len(tables['Match_News'])} tom tat; {count} tin cap nhat.")
+            print(f"Winner: {len(tables['Media_Picks'])} picks chuyen gia; {media_count} picks cap nhat.")
             return 0
         finally:
             conn.close()

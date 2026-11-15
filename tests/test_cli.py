@@ -85,16 +85,19 @@ def test_offline_end_to_end(tmp_path):
 
 
 def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, monkeypatch):
-    from actions_tracker import match_news
-    calls = []
+    from actions_tracker import match_news, media_picks
+    calls, media_calls = [], []
     monkeypatch.setattr("actions_tracker.cli.utc_now", lambda: NOW)
     monkeypatch.setattr("actions_tracker.cli.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("picks collected")))
     monkeypatch.setattr(match_news, "refresh_news", lambda conn, board, now, **kw: calls.append((now, kw["force"])) or 0)
+    monkeypatch.setattr(media_picks, "refresh_picks", lambda conn, board, now, **kw: media_calls.append((now, kw["force"])) or 0)
     assert main(["news", "--db", str(tmp_path / "a.db"), "--site", str(tmp_path / "site"),
                  "--report", str(tmp_path / "r.xlsx"), "--force"]) == 0
     assert calls == [(NOW, True)]
+    assert media_calls == [(NOW, True)]
     html = (tmp_path / "site" / "index.html").read_text("utf-8")
     assert '"Match_News":[]' in html and 'label: "Tin tức"' in html
+    assert '"Media_Picks":[]' in html and 'label: "Chuyên gia chọn thắng"' in html
 
 
 def test_lines_for_upcoming_and_scores_for_past(tmp_path):

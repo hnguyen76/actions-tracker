@@ -22,7 +22,14 @@ Trong **Kèo sắp tới**, cột **Tin tức** sau **Vì sao** tóm tắt có l
 chỉ ở các kèo tô vàng (từ 8 expert trên cùng market). Tin có link nguồn, tối đa 2 ý mỗi nhóm;
 không có tin xác minh thì để trống. Các lần cập nhật trực tuyến tự làm mới tin công khai từ RotoWire,
 có cache 1 giờ và bỏ tin đã quá hạn. Có thể bổ sung tin đã kiểm chứng từ PFF, 247Sports và NFL.com.
-Chạy riêng phần tin và dựng lại dashboard, không lấy lại picks/odds:
+
+Cột **Chuyên gia chọn thắng** bên cạnh **Tin tức** hiển thị winner của các chuyên gia truyền thông,
+có số người chọn mỗi đội, danh sách tên và link nguồn. Chỉ lấy **Straight Up / đội thắng trận**;
+các picks ATS không được đổi thành winner. Cùng một chuyên gia/trận chỉ tính một lần dù bài được đăng lại.
+Nguồn tự động là CBS Sports và NFL.com; có thể bổ sung picks College GameDay/Yahoo đã xác minh.
+Các lượt chọn này có bộ đếm riêng với expert Action Network, chỉ ở trận NFL/NCAAF tô vàng.
+
+Chạy riêng phần tin và picks chuyên gia, rồi dựng lại dashboard; không dùng credit The Odds API:
 
 ```bash
 .venv/Scripts/python -m actions_tracker news
