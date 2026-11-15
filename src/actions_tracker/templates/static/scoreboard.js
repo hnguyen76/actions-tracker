@@ -101,7 +101,6 @@
       clock = situation.clock + " · " + (situation.period > 4 ? periodName(situation.period) : "Hiệp " + situation.period);
     }
     const clockNode = node("strong", "asb-clock", clock);
-    clockNode.title = "Đồng hồ ESPN · đồng bộ theo nguồn mỗi 5 giây";
     meta.append(clockNode);
     const stamp = new Date(game.updated_at);
     const checked = game.updated_at && Number.isFinite(stamp.getTime())

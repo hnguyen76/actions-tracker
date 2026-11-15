@@ -14,7 +14,7 @@
 <link rel="icon" href="icon-180.png">
 <title>Actions Expert Tracker</title>
 <link rel="stylesheet" href="scoreboard.css?v=live-20261115">
-<script src="scoreboard.js?v=live-20261115"></script>
+<script src="scoreboard.js?v=clean-20261115"></script>
 <script src="live-scores.js?v=live-20261115"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -128,12 +128,6 @@ section.panel.active { display: block; }
 .board-details > summary h2 { display: inline; }
 .board-details > summary::after { content: "  ▾"; color: var(--muted); }
 .board-details[open] > summary { margin-bottom: 10px; }
-details.howto { margin: -4px 0 12px; color: var(--ink-2); font-size: 15px; }
-details.howto summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 14px; width: max-content; list-style: none; }
-details.howto summary::-webkit-details-marker { display: none; }
-details.howto summary::before { content: "ⓘ  "; }
-details.howto[open] summary { margin-bottom: 6px; }
-details.howto p { margin: 0 0 8px; max-width: 110ch; }
 .card p.note { margin: 0 0 16px; color: var(--ink-2); font-size: 15px; max-width: 110ch; }
 .chart-box { position: relative; height: 340px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -348,7 +342,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
 </header>
 <div class="wrap">
   <div hidden class="kpis" id="kpis"></div>
-  <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ — hãy bấm nút <b>Actions - Cap nhat</b> trên Desktop (hoặc kiểm tra điện thoại chạy tự động).</div>
+  <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ</div>
   <div hidden class="data-health" id="data-health" aria-label="Chất lượng dữ liệu"></div>
 
   <div class="toolbar" id="toolbar">
@@ -383,33 +377,25 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
         <div class="day-chips" id="decide-days"></div>
       </div>
       <div class="verdict" id="decide-verdict"></div>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <h3 class="decide-sub" id="decide-h-spread">Spread</h3>
       <div class="table-scroll" id="decide-table-spread"></div>
       <h3 class="decide-sub" id="decide-h-total">Total</h3>
       <div class="table-scroll" id="decide-table-total"></div>
-      <p class="decide-note" id="decide-total-note" hidden></p>
       <h3 class="decide-sub" id="decide-h-ml" hidden>Moneyline</h3>
       <div class="table-scroll" id="decide-table-ml" hidden></div>
-      <details class="howto" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
-      <details class="howto"><summary>Cách hệ thống quyết định</summary><p><b>Đặt</b> chỉ khi kèo khớp một quy tắc có ít nhất 100 kết quả ghi trước, thắng ≥ 55% và cận dưới CI 95% vượt mức hòa vốn −110 — mức cược 1 unit. <b>Theo dõi</b> = khớp quy tắc đang kiểm chứng: ghi lại, chưa đặt tiền thật. <b>Bỏ qua</b> = chỉ có consensus của expert, hai quy tắc ngược nhau, hoặc quy tắc đã bị loại. Kèo đổi đến lần cập nhật cuối trước giờ đá — bấm cập nhật gần giờ đá rồi mới quyết.</p></details>
+      <details class="board-details" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
     </div>
     <div class="card" id="inplay-card" hidden>
       <h2>Đang đá &amp; chờ kết quả</h2>
-      <p class="decide-note">Kèo theo cách của bạn ở các trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live: ESPN, tự lấy mỗi 5 giây khi mở trang; tỉ số cuối chờ hệ thống chấm vào thống kê.</p>
-      <p class="decide-note" id="live-score-status" role="status" aria-live="polite"></p>
       <div id="live-scoreboards"></div>
       <div class="table-scroll" id="inplay-table"></div>
     </div>
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Chỉ các kèo có từ 3 expert trở lên. <b>Lịch sử (live)</b> = win% của side đa số ở các kèo đã qua cùng giải, loại kèo và mức đồng thuận, từ dữ liệu nút bấm (mỗi expert 1 phiếu). <b>Lịch sử mùa</b> = cùng nhóm đó và cùng nhóm ngày (Thứ 2–6 / Thứ 7–CN) trong NFL tuần 1–9, NCAAF tuần 1–10, đếm theo số picks trên thẻ By Game và line Action Network — cách đếm khác, không cộng hai cột với nhau. Dưới 20 kèo = chưa đủ mẫu.</p></details>
-      <p class="decide-note"><span class="low-n"></span> = chưa đủ mẫu (dưới 20 kèo)</p>
       <div class="table-scroll" id="upcoming-table"></div>
     </div>
     <details class="card board-details">
-      <summary><h2>Tất cả trận có picks — mở chi tiết</h2></summary>
-      <details class="howto"><summary>Cách đọc</summary><p>Mọi kèo sắp đá có ít nhất 1 expert, kể cả khi hai bên bằng nhau (<b>chia đôi</b>) hoặc chưa đủ 3 expert (<b>ít picks</b>) — những kèo này không có ở bảng trên. Số trong tên side = line trung vị các expert bên đó đã lấy.</p></details>
+      <summary><h2>Tất cả trận có picks</h2></summary>
       <div class="table-scroll" id="board-table"></div>
     </details>
   </section>
@@ -417,20 +403,16 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-rules">
     <div class="card mine">
       <h2>Cách của bạn — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Kèo <b>spread</b> NFL và NCAAF có <b>từ 5 picks trở lên</b> và một bên nhiều hơn: trận <b>Thứ 2–6</b> (giờ miền Đông) đặt bên đám đông chọn; trận <b>Thứ 7–CN</b> đặt bên còn lại. <b>Nhìn lại cả mùa</b> = áp cách này vào dữ liệu tuần 1 đến nay (đếm số picks trên thẻ By Game, đã biết kết quả). <b>Live</b> = kèo hệ thống thấy trước giờ đá (mỗi expert một phiếu), chấm theo line đóng cửa. NCAAF cũng đang được kiểm chứng như quy tắc 4 ở bảng dưới; chưa đủ 100 kèo thì chỉ theo dõi, chưa đặt tiền thật.</p></details>
       <div class="table-scroll" id="mine-summary"></div>
       <h3 class="decide-sub">Các kèo theo cách này</h3>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="mine-plays"></div>
     </div>
     <div class="card">
       <h2>Quy tắc đang kiểm chứng — kèo ghi trước giờ đá</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Ba quy tắc đầu được chốt ngày 12/11/2026, quy tắc 4 (NCAAF spread Thứ 2–6 theo đa số / Thứ 7–CN đánh ngược) và quy tắc 5 (NFL spread theo đa số khi ≥ 10 expert một phía) ngày 14/11/2026, đều từ dữ liệu cả mùa, và <b>không chỉnh sửa trong lúc kiểm chứng</b>. Mỗi lần cập nhật, hệ thống ghi các kèo sắp đá khớp quy tắc; trạng thái ở lần cập nhật cuối trước giờ đá là kèo chính thức, sau đó đóng băng. <b>Nhìn lại cả mùa</b> = kết quả khi áp quy tắc vào quá khứ (đã biết kết quả, đếm theo số picks trên thẻ) — chỉ để tham khảo. <b>Ghi trước</b> = kết quả thật của các kèo đã ghi trước giờ đá. Line lúc ghi và line tham chiếu cuối được giữ riêng.</p><p>Một quy tắc chỉ có thể <b>Đạt</b> khi đủ 100 kèo, win% ≥ 55% và cận dưới CI 95% vượt 52,4%. Trước đó chỉ là paper test.</p></details>
       <div class="table-scroll" id="rules-summary"></div>
     </div>
     <div class="card">
       <h2>Kèo đang chờ kết quả</h2>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="rules-pending"></div>
     </div>
     <div class="card">
@@ -442,13 +424,11 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-past">
     <div class="card">
       <h2>Thứ 2 – Thứ 6</h2>
-      <details class="howto"><summary>Cách đọc</summary><p><b>Nguồn: dữ liệu live</b> (picks thu bằng nút bấm; mỗi expert tính 1 lần mỗi kèo; chấm theo line đóng cửa (ESPN · DraftKings), thiếu thì median line của expert). Không gộp với tab "Lịch sử mùa".</p><p>Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p></details>
       <div class="table-scroll" id="past-chart-wk"></div>
       <div class="table-scroll" id="past-table-wk"></div>
     </div>
     <div class="card">
       <h2>Thứ 7 – Chủ nhật</h2>
-      <p class="note">Cùng cách đọc như trên, cho các trận cuối tuần.</p>
       <div class="table-scroll" id="past-chart-we"></div>
       <div class="table-scroll" id="past-table-we"></div>
     </div>
@@ -458,7 +438,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <div class="card">
       <h2>Biểu đồ cả mùa — NFL + NCAAF</h2>
       <p class="note" id="season-chart-coverage"></p>
-      <details class="howto"><summary>Cách đọc</summary><p><b>Nguồn: lịch sử mùa</b> — số <b>picks trên thẻ By Game</b>, tỉ số và line từ scoreboard Action Network. Một expert có thể có nhiều picks; đây không phải số expert riêng biệt. Chỉ kèo đã chấm có từ 3 picks, một side nhiều hơn. Ngày theo giờ miền Đông Mỹ.</p><p>Mỗi dòng là một kèo; vị trí = % picks chọn side đa số. Xanh = side đa số thắng, đỏ = thua, xám = hòa; cả hai nhóm ngày đều chấm side đa số. Thống kê dưới/từ 75% tính riêng <b>từng tuần, nhóm kèo và nhóm ngày</b>, bao gồm mọi trang biểu đồ.</p></details>
       <div class="filters season-chart-controls">
         <label>Tuần<select id="season-chart-week"><option value="ALL">Tất cả từ tuần 1</option></select></label>
         <label>Kèo mỗi trang biểu đồ<select id="season-chart-size"><option value="25">25</option><option value="50" selected>50</option></select></label>
@@ -471,7 +450,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-consensus">
     <div class="card">
       <h2>Win% của side đa số theo mức đồng thuận</h2>
-      <p class="note">Chấm = win%; thanh dọc = CI 95%. Chấm rỗng = chưa đủ mẫu (n &lt; 20). Đường nét đứt là hòa vốn −110 và không áp dụng cho Moneyline.</p>
       <div class="chart-box"><canvas id="consensus-chart" aria-label="Biểu đồ win% consensus"></canvas></div>
     </div>
     <div class="card">
@@ -483,7 +461,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-experts">
     <div class="card">
       <h2>Expert đang xanh thì pick tiếp theo có hay thua?</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Mỗi pick được gắn phong độ của expert <b>lúc pick, trước giờ đá</b> (theo Action Network: units 30 ngày trong giải đó và chuỗi thắng/thua). Chấm: win% của các pick đó, thanh ngang = CI 95%, đường nét đứt = hòa vốn 52,4%. Chấm rỗng = chưa đủ 20 picks. Chỉ có dữ liệu từ 11/11/2026 trở đi.</p></details>
       <div class="grid2">
         <div><p class="note"><b>Thứ 2–6</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
         <div><p class="note"><b>Thứ 7–CN</b></p><div class="table-scroll" id="form-chart-we"></div></div>
@@ -492,7 +469,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card">
       <h2>Expert</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Xếp hạng theo ROI khi đủ 20 picks đã chấm; expert chưa đủ mẫu nằm phía dưới. Bấm vào một expert để xem thói quen chọn side và phong độ gần đây. <b>CLV</b> = trung bình số điểm line expert lấy tốt hơn (+) hay tệ hơn (−) line đóng cửa ở cùng side (spread và total; line đóng cửa = lần cập nhật cuối trước giờ đá), kèm số lần tốt hơn. Expert có tay nghề thật thường có CLV dương — chỉ số này ổn định hơn win% khi mẫu còn nhỏ.</p></details>
       <div class="table-scroll" id="leaderboard-table"></div>
     </div>
     <div class="card" id="expert-detail" hidden>
@@ -507,7 +483,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-trend">
     <div class="card">
       <h2>Win% theo tuần (tất cả giải)</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Consensus ≥60% · Top 10 expert: mỗi tuần xếp hạng lại chỉ bằng picks <b>trước</b> tuần đó (ROI, ≥ 20 picks), không nhìn trước kết quả. Đường nét đứt = hòa vốn 52,4%. Dữ liệu live.</p></details>
       <div class="chart-box"><canvas id="trend-chart" aria-label="Biểu đồ xu hướng theo tuần"></canvas></div>
     </div>
     <div class="card">
@@ -519,12 +494,10 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-history">
     <div class="card">
       <h2>Lịch sử mùa — consensus theo số picks trên thẻ By Game</h2>
-      <details class="howto"><summary>Cách đọc</summary><p><b>Khác phương pháp với tab "Kèo đã qua"</b>: ở đây đếm <b>số picks</b> hiển thị trên thẻ By Game của từng tuần (một expert có thể được tính nhiều lần, không có tên expert); tỉ số và line đóng cửa lấy từ <b>scoreboard Action Network</b> (ngoại lệ một lần cho lịch sử). Kèo cần ≥ 3 picks và một side nhiều hơn. Ngày theo giờ miền Đông Mỹ.</p></details>
       <div class="table-scroll" id="hist-summary"></div>
     </div>
     <div class="card">
       <h2>Theo tuần</h2>
-      <p class="note">Theo side đa số mỗi tuần. NFL và NCAAF đánh số tuần riêng.</p>
       <div class="table-scroll" id="hist-weekly"></div>
     </div>
     <div class="card">
@@ -537,7 +510,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-nba">
     <div class="card">
       <h2>NBA — kèo sắp đá có từ 7 picks trở lên</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Chỉ NBA, chỉ kèo (spread, total, moneyline) có <b>tổng từ 7 picks trở lên</b> — mỗi expert một phiếu, lấy pick cuối trước giờ đá. Không theo bộ lọc Giải/Loại kèo ở trên. Kèo đã đá được chấm theo line đóng cửa (ESPN · DraftKings), thiếu thì dùng median line của expert.</p></details>
       <div class="table-scroll" id="nba-up"></div>
     </div>
     <div class="card">
@@ -547,7 +519,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card">
       <h2>NBA — tất cả trận sắp đá có picks</h2>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="nba-all"></div>
     </div>
   </section>
@@ -555,7 +526,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-season">
     <div class="card">
       <h2>Cách của bạn áp vào cả mùa — tuần 1 đến nay</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Kèo <b>spread</b> có <b>từ 5 picks trở lên</b> và một bên nhiều hơn. Trận <b>Thứ 2–6</b> (giờ miền Đông) đặt bên đám đông; trận <b>Thứ 7–CN</b> đặt bên còn lại — kể cả khi tất cả expert cùng một bên. Chấm theo line đóng cửa. <b>Nguồn "lịch sử"</b> = số picks trên thẻ By Game của từng tuần (một expert có thể được đếm nhiều lần), tỉ số và line từ scoreboard Action Network; <b>"live"</b> = kèo hệ thống ghi trước giờ đá (mỗi expert một phiếu) cho các trận chưa có trong dữ liệu lịch sử. Đây là nhìn lại khi đã biết kết quả — không phải bằng chứng sẽ thắng tiếp. Hòa vốn ở −110 là 52,4%.</p></details>
     </div>
     <div class="card">
       <h2>NFL — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
@@ -565,7 +535,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h3 class="decide-sub">Theo tuần</h3>
       <div class="table-scroll" id="season-weeks-nfl"></div>
       <h3 class="decide-sub">Từng kèo</h3>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="season-plays-nfl"></div>
     </div>
     <div class="card">
@@ -576,21 +545,18 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <h3 class="decide-sub">Theo tuần</h3>
       <div class="table-scroll" id="season-weeks-ncaaf"></div>
       <h3 class="decide-sub">Từng kèo</h3>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="season-plays-ncaaf"></div>
     </div>
   </section>
 
   <section class="panel" id="tab-forecast">
     <div class="card decide">
-      <h2>Dự báo theo cách của bạn — kiểm tra trước khi tin</h2>
-      <details class="howto"><summary>Cách dự báo</summary><p>Mỗi kèo của cách bạn (spread, ≥ 5 picks; Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược) được xếp vào một <b>tình huống</b>: giải × nhóm ngày × đồng thuận (n/n) hay không × số picks (5–7, 8–9, 10+). Xác suất thắng = tỉ lệ thắng trong quá khứ của tình huống cụ thể nhất có ≥ 20 kèo, <b>kéo về 50%</b> bằng 20 kèo 50/50 để mẫu nhỏ không trông quá đẹp. <b>EV</b> = lời/lỗ kỳ vọng cho 1 unit ở odds hiện có. <b>Kiểm tra</b> (walk-forward): dự báo từng tuần chỉ bằng các tuần trước đó rồi chấm — nếu kèo dự báo "trên hòa vốn" không thắng trên 52,4% thì dự báo chưa có giá trị. Lịch sử đếm số picks trên thẻ By Game; live đếm mỗi expert một phiếu, nên nhóm số picks của kèo live thường thấp hơn.</p></details>
+      <h2>Dự báo theo cách của bạn</h2>
       <div class="verdict" id="fc-verdict"></div>
       <div class="table-scroll" id="fc-backtest"></div>
     </div>
     <div class="card">
       <h2>Kèo sắp đá — xác suất thắng ước tính</h2>
-      <div class="hot-legend"><i></i>Tô vàng = kèo có từ 8 picks trở lên</div>
       <div class="table-scroll" id="fc-up"></div>
     </div>
     <div class="card">
@@ -611,7 +577,6 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <div class="sheet-grid" id="sheet-grid"></div>
   </div>
 
-  <footer>Picks và % public (NCAAF): Action Network (trang công khai, tự thu thập). Tỉ số, điểm live và line dữ liệu live: ESPN (line DraftKings, miễn phí); dữ liệu trước 14/11/2026: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
 </div>
 
 <script>
@@ -687,7 +652,7 @@ const DATA = /*__DATA__*/null;
     if (size) list = list.slice(st.page * size, (st.page + 1) * size);
     const redraw = () => renderTable(target, rows, columns, onRow, opts);
     const thead = el("thead", {}, el("tr", {}, ...columns.map((c, i) => {
-      const th = el("th", { class: (c.num ? "num " : "") + "sortable", tabindex: "0", title: "Bấm để sắp xếp",
+      const th = el("th", { class: (c.num ? "num " : "") + "sortable", tabindex: "0",
         "aria-sort": st.col === i ? (st.dir > 0 ? "ascending" : "descending") : "none" },
         c.label + (st.col === i ? (st.dir > 0 ? " ▲" : " ▼") : ""));
       const go = () => { st.dir = st.col === i ? -st.dir : (c.num ? -1 : 1); st.col = i; st.page = 0; redraw(); };
@@ -946,7 +911,7 @@ const DATA = /*__DATA__*/null;
                 timeZone: /^\d{4}-\d{2}-\d{2}$/.test(item.published_at) ? "UTC" : "America/New_York",
               }) : "";
               li.append(el("a", { class: "news-source", href: url.href, target: "_blank", rel: "noopener noreferrer",
-                text: item.source || "Nguồn", title: publishedDate ? `Đăng ${publishedDate}` : "Đọc nguồn" }));
+                text: item.source || "Nguồn", title: publishedDate ? `Đăng ${publishedDate}` : "" }));
             }
           } catch (_) { }
           list.append(li);
@@ -989,8 +954,7 @@ const DATA = /*__DATA__*/null;
     for (const note of sourceNotes) host.append(el("div", { class: "media-picks-note schedule-note", text: note }));
     for (const team of teams) {
       const mine = picks.filter((x) => x.pick_team === team).sort((a, b) => a.expert.localeCompare(b.expert));
-      const count = el("b", { class: "media-team-name", text: `${team}: ${mine.length}/${picks.length}`,
-        title: "Trong các chuyên gia có picks thắng trận đã xác minh" });
+      const count = el("b", { class: "media-team-name", text: `${team}: ${mine.length}/${picks.length}` });
       if (!mine.length) {
         host.append(el("div", { class: "media-team" }, count));
         continue;
@@ -1004,7 +968,7 @@ const DATA = /*__DATA__*/null;
         try {
           const url = new URL(item.source_url);
           if (["https:", "http:"].includes(url.protocol)) name = el("a", { class: "media-expert-link", href: url.href,
-            target: "_blank", rel: "noopener noreferrer", text: item.expert, title: "Đọc pick thắng trận của chuyên gia" });
+            target: "_blank", rel: "noopener noreferrer", text: item.expert });
         } catch (_) { }
         li.append(name, el("span", { class: "media-source", text: item.source || "" }));
         list.append(li);
@@ -1047,9 +1011,6 @@ const DATA = /*__DATA__*/null;
     // experts with a pick on that game x market (the board counts every expert, also on split markets)
     const experts = new Map(board.map((r) => [`${r.game_id}|${r.market}`, Number(r.total_votes) || 0]));
     const nExp = (r) => experts.get(`${r.game_id}|${r.market}`) || 0;
-    const actAll = rows.filter((r) => r.action !== "skip" || r.rule_ids);
-    // totals are shown only with at least TOTAL_MIN_EXPERTS experts on them (display filter; the rule test still logs all)
-    const totalsLow = actAll.filter((r) => r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS);
     // a total with >= TOTAL_MIN_EXPERTS experts is always listed in the Total section, even with no rule behind it
     const bigTotal = (r) => r.market === "total" && nExp(r) >= TOTAL_MIN_EXPERTS;
     const act = rows.filter((r) => ((r.action !== "skip" || r.rule_ids) && !(r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS))
@@ -1062,8 +1023,7 @@ const DATA = /*__DATA__*/null;
     if (state.day && bets.length) {
       const units = bets.reduce((a, r) => a + r.stake_u, 0);
       verdict.className = "verdict go";
-      verdict.append(el("div", { class: "verdict-main", text: `Đặt ${bets.length} kèo · tổng ${num(units, 1)} unit` }),
-        el("div", { class: "verdict-sub", text: "Chỉ những kèo khớp quy tắc đã đạt kiểm chứng. Mọi kèo khác: không đặt." }));
+      verdict.append(el("div", { class: "verdict-main", text: `Đặt ${bets.length} kèo · tổng ${num(units, 1)} unit` }));
     }
     verdict.hidden = !bets.length;  // only shown when there is a real bet (a rule passed its test)
     const actionPill = (r) => el("span", { class: "pill " + (ACTION[r.action] || ACTION.skip).cls,
@@ -1087,12 +1047,8 @@ const DATA = /*__DATA__*/null;
       if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
     section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
-    section("total", `Chưa có kèo total nào có từ ${TOTAL_MIN_EXPERTS} expert trở lên — có là hiện ở đây.`);
+    section("total", "Chưa có kèo total.");
     section("ml", "");
-    const note = document.getElementById("decide-total-note");
-    note.hidden = !totalsLow.length;
-    note.textContent = `Ẩn ${totalsLow.length} kèo total khớp quy tắc nhưng có dưới ${TOTAL_MIN_EXPERTS} expert (vẫn được ghi để kiểm chứng): `
-      + totalsLow.map((r) => `${r.match} ${r.pick}`).join(", ") + ".";
     const sk = document.getElementById("decide-skips");
     sk.hidden = !skips.length;
     sk.querySelector("summary").textContent = `${skips.length} kèo chỉ có consensus — bỏ qua`;
@@ -1108,7 +1064,6 @@ const DATA = /*__DATA__*/null;
   function inPlayCard() {
     const rows = rawFilter(liveInPlayRows());
     document.getElementById("inplay-card").hidden = !rows.length;
-    liveScoreStatus();
     if (window.ActionsScoreboard) {
       const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
       const cards = new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
@@ -1494,8 +1449,7 @@ const DATA = /*__DATA__*/null;
       const latest = rows.map((r) => String(r.et_date || "")).sort().pop();
       return `${leagueName(lg)}: tuần ${range} · mới nhất ${latest || "–"}`;
     });
-    document.getElementById("season-chart-coverage").textContent = coverage.join(". ")
-      + ". Từ tuần 1 đến dữ liệu đã thu; tuần cuối có thể chưa đủ trận.";
+    document.getElementById("season-chart-coverage").textContent = coverage.join(" · ");
 
     const filtered = rawFilter(history);
     const week = document.getElementById("season-chart-week"), size = document.getElementById("season-chart-size");
@@ -1521,9 +1475,9 @@ const DATA = /*__DATA__*/null;
     }
     const supported = state.league === "ALL" || ["nfl", "ncaaf"].includes(state.league);
     document.getElementById("season-chart-selected").textContent = !supported
-      ? "Tab này chỉ có lịch sử NFL và NCAAF. Chọn Tất cả, NFL hoặc NCAAF ở bộ lọc Giải."
-      : !rows.length ? "Chưa có kèo đã chấm khớp bộ lọc Giải, Loại kèo và Tuần."
-      : `${num(rows.length)} kèo đã chấm · ${week.value === "ALL" ? "tất cả tuần đã thu; mở từng tuần bên dưới" : "tuần " + week.value}. NFL và NCAAF đánh số tuần riêng. Thống kê dưới/từ 75% tính riêng từng tuần, nhóm kèo và nhóm ngày, bao gồm mọi trang.`;
+      ? "Chưa có dữ liệu cho bộ lọc này."
+      : !rows.length ? "Chưa có kèo đã chấm."
+      : `${num(rows.length)} kèo đã chấm${week.value === "ALL" ? "" : " · tuần " + week.value}`;
     groups.hidden = !rows.length;
     groups.replaceChildren();
     const label = (r) => `${leagueName(r.league)} · T${r.week} · ${pickLabel(r)}`;
@@ -1554,7 +1508,7 @@ const DATA = /*__DATA__*/null;
       ]) {
         const sectionRows = weekRows.filter((r) => section.markets.includes(r.market)), sectionKey = `w${w}-${section.key}`;
         const sectionNode = el("section", { class: "season-chart-category", id: `season-chart-${sectionKey}-section`, "data-category": section.key },
-          el("h3", { text: section.name }), el("p", { class: "note", id: `season-chart-${sectionKey}-count`, text: `${num(sectionRows.length)} kèo đã chấm trong tuần ${w}, theo bộ lọc đang chọn.` }));
+          el("h3", { text: section.name }), el("p", { class: "note", id: `season-chart-${sectionKey}-count`, text: `${num(sectionRows.length)} kèo đã chấm` }));
         sectionNode.hidden = !sectionRows.length;
         weekNode.append(sectionNode);
         for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
@@ -1579,7 +1533,7 @@ const DATA = /*__DATA__*/null;
           pager.append(prev, el("span", { text: `Trang ${page + 1}/${pages} · kèo ${num(first + 1)}–${num(Math.min(first + pageSize, part.length))}/${num(part.length)}` }), next);
         }
         const detail = el("details", { class: "board-details season-chart-details", id: `season-chart-${sectionKey}-details`, "data-detail": sectionKey },
-          el("summary", { text: `Danh sách ${section.name} — mở chi tiết` }), el("div", { class: "table-scroll", id: `season-chart-${sectionKey}-table` }));
+          el("summary", { text: `Danh sách ${section.name}` }), el("div", { class: "table-scroll", id: `season-chart-${sectionKey}-table` }));
         detail.open = !!seasonChartState.openDetails[sectionKey];
         sectionNode.append(detail);
         renderTable(`season-chart-${sectionKey}-table`, sectionRows.slice().sort((a, b) => String(a.et_date).localeCompare(String(b.et_date))
@@ -1774,7 +1728,7 @@ const DATA = /*__DATA__*/null;
       { label: "Picks", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
     ], null, HOT);
     if (!up.length) document.getElementById("nba-up").replaceChildren(el("div", { class: "empty",
-      text: `Chưa có kèo NBA sắp đá nào có từ ${NBA_MIN_PICKS} picks. Hiện mỗi kèo NBA thường chỉ có 2–4 expert — có là hiện ở đây.` }));
+      text: `Chưa có kèo NBA sắp đá từ ${NBA_MIN_PICKS} picks.` }));
     const past = T("Past_Plays").filter((r) => r.league === "nba" && Number(r.total_votes) >= NBA_MIN_PICKS);
     const w = past.filter((r) => r.side_result === "win").length, l = past.filter((r) => r.side_result === "loss").length,
       pu = past.filter((r) => r.side_result === "push").length;
@@ -1782,9 +1736,7 @@ const DATA = /*__DATA__*/null;
     sum.className = "verdict";
     sum.replaceChildren(el("div", { class: "verdict-main", text: past.length
         ? `Theo đa số: ${w}-${l}-${pu} · ${w + l ? pct(w / (w + l)) : "–"}` : "Chưa có kèo nào đã chấm" }),
-      el("div", { class: "verdict-sub", text: past.length
-        ? `${past.length} kèo NBA có từ ${NBA_MIN_PICKS} picks. Hòa vốn ở −110 là 52,4%; dưới 20 kèo là chưa đủ mẫu.`
-        : `Kèo NBA có từ ${NBA_MIN_PICKS} picks sẽ được chấm ở đây sau khi đá xong.` }));
+      el("div", { class: "verdict-sub", text: `${num(past.length)} kèo` }));
     renderTable("nba-past", past, [
       { label: "Ngày", value: (r) => r.et_date, sort: (r) => r.start_time },
       { label: "Trận", value: (r) => r.match },
@@ -1868,9 +1820,7 @@ const DATA = /*__DATA__*/null;
     v.replaceChildren(
       el("div", { class: "verdict-main", text: !bet || !bet.n ? "Chưa đủ dữ liệu để kiểm tra dự báo"
         : good ? `Dự báo có ích: kèo dự báo trên hòa vốn đi ${bet.wins}-${bet.losses} (${pct(bet.win_pct)})`
-        : `Dự báo CHƯA đáng tin: kèo dự báo trên hòa vốn chỉ đi ${bet.wins}-${bet.losses} (${pct(bet.win_pct)})` }),
-      el("div", { class: "verdict-sub", text: "Kiểm tra: dự báo từng tuần chỉ bằng dữ liệu các tuần trước rồi chấm kết quả thật. "
-        + (good ? "Vẫn chỉ là nhìn lại — tiếp tục theo dõi trên kèo mới." : "Tình huống thắng nhiều trong quá khứ không thắng nhiều hơn ở tuần sau — % bên dưới chỉ mô tả quá khứ, đừng dùng để đặt tiền.") }));
+        : `Dự báo CHƯA đáng tin: kèo dự báo trên hòa vốn chỉ đi ${bet.wins}-${bet.losses} (${pct(bet.win_pct)})` }));
     renderTable("fc-backtest", B, [
       { label: "Giải", value: (r) => LG[r.league] || r.league, cls: (r) => (r.league === "ALL" ? "strong" : "") },
       { label: "Dự báo lúc đó", value: (r) => r.p_bucket, cls: (r) => (r.p_bucket.startsWith("Trên") ? "strong" : "") },
@@ -2036,7 +1986,7 @@ const DATA = /*__DATA__*/null;
   }
 
   // Direct scores are an overlay; published snapshots remain authoritative for grading/statistics.
-  const browserLive = { scores: new Map(), busy: false, timer: null, lastCheck: null, failed: false, errors: 0 };
+  const browserLive = { scores: new Map(), busy: false, timer: null, errors: 0 };
   const LIVE_POLL_MS = 5000;
   function liveInPlayRows() {
     const plays = new Map(T("In_Play").filter((r) => r.source === "Cách của bạn").map((r) => [Number(r.game_id), r]));
@@ -2050,15 +2000,6 @@ const DATA = /*__DATA__*/null;
       if (!s || s.graded || !["live", "final"].includes(s.state) || !Number.isInteger(s.away_score) || !Number.isInteger(s.home_score)) return [];
       return [{ ...r, ...s, now: coverNow(r, s) }];
     }).sort((a, b) => (a.state === "live" ? 0 : 1) - (b.state === "live" ? 0 : 1) || Date.parse(a.start_time) - Date.parse(b.start_time));
-  }
-  function liveScoreStatus() {
-    const note = document.getElementById("live-score-status");
-    if (!note) return;
-    const time = browserLive.lastCheck ? new Date(browserLive.lastCheck).toLocaleTimeString("vi-VN", { hour12: false }) : null;
-    note.textContent = browserLive.failed
-      ? `Chưa lấy được điểm mới cho một số trận; giữ điểm lần trước.${time ? " Lần kiểm tra thành công: " + time + "." : ""} Đang thử lại.`
-      : time ? `ESPN · tự lấy mỗi 5 giây · kiểm tra lúc ${time}.`
-      : "Điểm từ lượt quét gần nhất; đang kết nối ESPN để cập nhật mỗi 5 giây.";
   }
   function liveCandidateGames() {
     const ids = new Set(T("My_Method").filter((r) => r.status !== "graded").map((r) => Number(r.game_id)));
@@ -2090,7 +2031,7 @@ const DATA = /*__DATA__*/null;
     browserLive.busy = true;
     try {
       const games = liveCandidateGames();
-      if (!games.length) { browserLive.failed = false; browserLive.errors = 0; liveScoreStatus(); return; }
+      if (!games.length) { browserLive.errors = 0; return; }
       if (!window.ActionsLiveScores) throw new Error("Scoreboard unavailable");
       const result = await ActionsLiveScores.fetchGames(games);
       let changed = false;
@@ -2100,12 +2041,9 @@ const DATA = /*__DATA__*/null;
         if (!before || JSON.stringify({ ...before, updated_at: null }) !== JSON.stringify({ ...s, updated_at: null })) changed = true;
         browserLive.scores.set(s.game_id, s);
       }
-      browserLive.failed = result.failed.length > 0;
       browserLive.errors = result.scores.length ? 0 : browserLive.errors + 1;
-      if (result.scores.length) browserLive.lastCheck = new Date().toISOString();
       if (changed) redrawLiveCard();
-      liveScoreStatus();
-    } catch (e) { browserLive.failed = true; browserLive.errors += 1; liveScoreStatus(); }
+    } catch (e) { browserLive.errors += 1; }
     finally {
       browserLive.busy = false;
       scheduleLiveScores(Math.min(60000, LIVE_POLL_MS * 2 ** Math.min(browserLive.errors, 4)));
