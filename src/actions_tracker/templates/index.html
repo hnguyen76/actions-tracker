@@ -206,6 +206,9 @@ td.media-picks-cell { white-space: normal; min-width: 250px; max-width: 330px; v
 .media-team > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .media-team-name { font-size: 13px; color: var(--ink); }
 .media-preview { color: var(--ink-2); font-size: 11.5px; margin-left: 5px; overflow-wrap: anywhere; }
+.ats-line-breakdown { display: block; margin: 3px 0 0; }
+.ats-expert-pick { margin-left: 6px; font-weight: 600; white-space: nowrap; }
+.ats-capture-note { color: var(--warning); display: block; margin-left: 0; }
 .media-experts { margin: 5px 0 0; padding-left: 17px; color: var(--ink-2); }
 .media-experts li + li { margin-top: 3px; }
 .media-expert-link { color: var(--accent); text-decoration: none; }
@@ -925,36 +928,63 @@ const DATA = /*__DATA__*/null;
   let mediaPicksByGame = null;
   const mediaExpertKey = (name) => String(name || "").trim().normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  // CBS experts against the spread: "SF -3,5: 6/7 · Dubin, Wilson +4" (the side the user bets is marked ⭐)
+  // One vote per named expert; team totals retain the different lines each expert selected.
   let atsByGame = null;
+  const atsLine = (line) => line === 0 ? "PK" : (line > 0 ? "+" : "") + line.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+  const atsStamp = (pick) => Date.parse(pick.modified_at || pick.published_at || pick.fetched_at || "") || 0;
   function atsPicksCell(r) {
     if (!["nfl", "ncaaf"].includes(r.league)) return "–";
     if (!atsByGame) {
       atsByGame = new Map();
       for (const x of T("Media_ATS")) {
-        const k = `${x.league}|${x.game_id}`;
-        if (!atsByGame.has(k)) atsByGame.set(k, []);
-        atsByGame.get(k).push(x);
+        const expert = String(x.expert || "").trim(), expertKey = mediaExpertKey(x.expert_key || expert);
+        const team = String(x.pick_team || "").trim().toUpperCase(), gameId = Number(x.game_id);
+        if (!expert || !expertKey || !team || !["nfl", "ncaaf"].includes(x.league) || !Number.isInteger(gameId) || gameId <= 0
+          || x.line === null || x.line === undefined || typeof x.line === "string" && !x.line.trim()
+          || typeof x.line === "boolean" || !Number.isFinite(Number(x.line))) continue;
+        const k = `${x.league}|${gameId}`;
+        if (!atsByGame.has(k)) atsByGame.set(k, new Map());
+        const experts = atsByGame.get(k), prior = experts.get(expertKey);
+        if (!prior || atsStamp(x) > atsStamp(prior)
+          || atsStamp(x) === atsStamp(prior) && (Date.parse(x.fetched_at) || 0) > (Date.parse(prior.fetched_at) || 0)) {
+          experts.set(expertKey, { ...x, expert, pick_team: team, line: Number(x.line), source: String(x.source || "Nguồn").trim() || "Nguồn" });
+        }
       }
     }
-    const picks = atsByGame.get(`${r.league}|${r.game_id}`) || [];
+    const board = boardOf(r) || r;
+    const teams = new Set([board.away_abbr, board.home_abbr].filter(Boolean).map((x) => String(x).toUpperCase()));
+    const experts = atsByGame.get(`${r.league}|${Number(r.game_id)}`);
+    const picks = experts ? [...experts.values()].filter((x) => !teams.size || teams.has(x.pick_team)) : [];
     if (!picks.length) return el("span", { class: "news-empty", text: "Chưa có picks spread" });
+    const sources = new Set(picks.map((x) => x.source));
     const host = el("div", { class: "media-picks" },
-      el("div", { class: "media-picks-note", text: `Chọn theo spread · ${picks.length} chuyên gia CBS` }));
+      el("div", { class: "media-picks-note", text: `${picks.length} chuyên gia · ${sources.size} nguồn` }));
     const mineTeam = String(r.pick || "").split(" ")[0].toUpperCase();
     const sides = [...new Set(picks.map((x) => x.pick_team))]
-      .sort((a, b) => picks.filter((x) => x.pick_team === b).length - picks.filter((x) => x.pick_team === a).length);
+      .sort((a, b) => picks.filter((x) => x.pick_team === b).length - picks.filter((x) => x.pick_team === a).length || a.localeCompare(b));
     for (const team of sides) {
       const mine = picks.filter((x) => x.pick_team === team).sort((a, b) => a.expert.localeCompare(b.expert));
-      const line = mine[0].line;
-      const lineText = line === null || line === undefined ? "" : " " + (line > 0 ? "+" : "") + String(line).replace(".", ",");
-      const label = `${team}${lineText}: ${mine.length}/${picks.length}` + (team === mineTeam ? " ⭐" : "");
+      const lines = new Map();
+      for (const pick of mine) lines.set(pick.line, (lines.get(pick.line) || 0) + 1);
+      const breakdown = [...lines].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([line, count]) => `${atsLine(line)} (${count})`).join(" · ");
+      const label = `${team}: ${mine.length}/${picks.length}` + (team === mineTeam ? " ⭐" : "");
       const shortNames = mine.slice(0, 2).map((x) => x.expert.split(/\s+/).pop()).join(", ");
-      const list = el("ul", { class: "media-experts" }, ...mine.map((x) => el("li", {},
-        el("a", { class: "media-expert-link", href: x.source_url, target: "_blank", rel: "noopener noreferrer", text: x.expert }),
-        el("span", { class: "media-source", text: "CBS Sports" }))));
+      const list = el("ul", { class: "media-experts" }, ...mine.map((x) => {
+        let source = el("span", { class: "media-source", text: x.source });
+        try {
+          const url = new URL(x.source_url);
+          if (url.protocol === "https:" && !url.username && !url.password) source = el("a", {
+            class: "media-source media-expert-link", href: url.href, target: "_blank", rel: "noopener noreferrer", text: x.source,
+          });
+        } catch (_) { }
+        const row = el("li", {}, el("span", { text: x.expert }), " ",
+          el("b", { class: "ats-expert-pick", text: `${x.pick_team} ${atsLine(x.line)}` }), source);
+        if (x.source_note) row.append(el("span", { class: "media-source ats-capture-note", text: String(x.source_note).slice(0, 160) }));
+        return row;
+      }));
       host.append(el("details", { class: "media-team" }, el("summary", {}, el("b", { class: "media-team-name", text: label }),
-        el("span", { class: "media-preview", text: shortNames + (mine.length > 2 ? ` +${mine.length - 2}` : "") })), list));
+        el("span", { class: "media-preview", text: shortNames + (mine.length > 2 ? ` +${mine.length - 2}` : "") }),
+        el("span", { class: "media-preview ats-line-breakdown", text: breakdown })), list));
     }
     return host;
   }

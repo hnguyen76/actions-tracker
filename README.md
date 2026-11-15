@@ -42,6 +42,12 @@ Các lượt chọn này có bộ đếm riêng với expert Action Network, ch�
 Cùng cột cũng có trong bảng **Cách của bạn — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược**
 ở tab **Quy tắc**, dùng dữ liệu đã xác minh của các trận sắp đá tương ứng.
 
+Cột **Chuyên gia chọn spread** giữ picks ATS riêng với winner và gom thêm các bài có tên tác giả
+từ Covers, Sporting News, SportsBettingDime và NBC Sports, cùng bảng CBS hiện có. Mỗi chuyên gia/trận
+chỉ tính một lần; giữ nguyên đội và line của từng người, kèm nguồn. Không chuyển tỉ số dự đoán thành ATS,
+không tính props, total, kèo hiệp hoặc picks của mô hình AI vào số chuyên gia. Nguồn tự làm mới khi quét,
+có cache 1 giờ; thiếu bài ATS xác minh thì không tạo picks.
+
 Tab **Biểu đồ cả mùa** xem NFL và NCAAF từ tuần 1 đến dữ liệu đã thu, chia **Thứ 2–6** và
 **Thứ 7–CN**, với ngưỡng đồng thuận 75%. **Over/Under** và **kèo đội (Spread/Moneyline)**
 có biểu đồ và bảng chi tiết riêng trong từng tuần, xếp từ tuần 1. Có bộ lọc tuần, giải,

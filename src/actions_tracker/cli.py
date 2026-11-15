@@ -6,6 +6,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from time import monotonic
 
 import pandas as pd
 
@@ -293,8 +294,10 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         try:
             refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
             from actions_tracker.media_ats import load_ats, refresh_ats
+            ats_started = monotonic()
             refresh_ats(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
-            tables["Media_ATS"] = load_ats(conn, tables["Upcoming_Board"], now)
+            ats_asof = _shift(now, seconds=int(monotonic() - ats_started) + 1)
+            tables["Media_ATS"] = load_ats(conn, tables["Upcoming_Board"], ats_asof)
             tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
         except Exception as e:
             print(f"Picks chuyen gia chua cap nhat duoc ({type(e).__name__}); dung picks da xac minh.")
@@ -465,9 +468,11 @@ def main(argv: list[str] | None = None) -> int:
                                  force=args.force)
             tables["Match_News"] = load_news(conn, tables["Upcoming_Board"], now)
             from actions_tracker.media_ats import load_ats, refresh_ats
+            ats_started = monotonic()
             ats_count = refresh_ats(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)), force=args.force)
-            tables["Media_ATS"] = load_ats(conn, tables["Upcoming_Board"], now)
-            print(f"Spread chuyen gia (CBS): {len(tables['Media_ATS'])} picks; {ats_count} cap nhat.")
+            ats_asof = _shift(now, seconds=int(monotonic() - ats_started) + 1)
+            tables["Media_ATS"] = load_ats(conn, tables["Upcoming_Board"], ats_asof)
+            print(f"Spread chuyen gia: {len(tables['Media_ATS'])} picks; {ats_count} cap nhat.")
             media_count = refresh_picks(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
                                         force=args.force)
             tables["Media_Picks"] = load_media_picks(conn, tables["Upcoming_Board"], now)
