@@ -43,6 +43,11 @@ def build_site(tables: dict[str, pd.DataFrame], status: list[dict], out_dir: Pat
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "index.html"
     out.write_text(template.replace(PLACEHOLDER, data), encoding="utf-8")
+    static = resources.files("actions_tracker").joinpath("templates/static")
+    if static.is_dir():  # home-screen icons and the web app manifest (iPhone "Add to Home Screen")
+        for f in static.iterdir():
+            if f.is_file():
+                (out_dir / f.name).write_bytes(f.read_bytes())
     if xlsx is not None and Path(xlsx).exists():
         shutil.copyfile(xlsx, out_dir / "actions_report.xlsx")
     return out

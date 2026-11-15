@@ -16,7 +16,7 @@ dev = ["pytest>=8"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-actions_tracker = ["templates/*.html"]
+actions_tracker = ["templates/*.html", "templates/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
