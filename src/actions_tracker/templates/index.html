@@ -307,7 +307,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="card" id="inplay-card" hidden>
       <h2>Đang đá &amp; chờ kết quả</h2>
-      <p class="decide-note">Kèo của bạn và các quy tắc ở trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live: ESPN; chấm chính thức khi có tỉ số cuối của The Odds API.</p>
+      <p class="decide-note">Kèo của bạn và các quy tắc ở trận đã bắt đầu. <b>Hiện tại</b> = nếu trận kết thúc với tỉ số này thì kèo thắng hay thua. Điểm live và tỉ số cuối: ESPN — trận xong là chấm ngay.</p>
       <div class="table-scroll" id="inplay-table"></div>
     </div>
     <div class="card">
@@ -351,7 +351,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-past">
     <div class="card">
       <h2>Thứ 2 – Thứ 6</h2>
-      <details class="howto"><summary>Cách đọc</summary><p><b>Nguồn: dữ liệu live</b> (picks thu bằng nút bấm; mỗi expert tính 1 lần mỗi kèo; chấm theo line đóng cửa The Odds API, thiếu thì median line của expert). Không gộp với tab "Lịch sử mùa".</p><p>Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p></details>
+      <details class="howto"><summary>Cách đọc</summary><p><b>Nguồn: dữ liệu live</b> (picks thu bằng nút bấm; mỗi expert tính 1 lần mỗi kèo; chấm theo line đóng cửa (ESPN · DraftKings), thiếu thì median line của expert). Không gộp với tab "Lịch sử mùa".</p><p>Kèo đã có kết quả, có từ 3 expert. Mỗi dòng một kèo; vị trí = % expert chọn side đa số; xanh = side đa số thắng, đỏ = thua. Ngày theo giờ miền Đông Mỹ.</p></details>
       <div class="table-scroll" id="past-chart-wk"></div>
       <div class="table-scroll" id="past-table-wk"></div>
     </div>
@@ -432,7 +432,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <section class="panel" id="tab-nba">
     <div class="card">
       <h2>NBA — kèo sắp đá có từ 7 picks trở lên</h2>
-      <details class="howto"><summary>Cách đọc</summary><p>Chỉ NBA, chỉ kèo (spread, total, moneyline) có <b>tổng từ 7 picks trở lên</b> — mỗi expert một phiếu, lấy pick cuối trước giờ đá. Không theo bộ lọc Giải/Loại kèo ở trên. Kèo đã đá được chấm theo line đóng cửa (The Odds API), thiếu thì dùng median line của expert.</p></details>
+      <details class="howto"><summary>Cách đọc</summary><p>Chỉ NBA, chỉ kèo (spread, total, moneyline) có <b>tổng từ 7 picks trở lên</b> — mỗi expert một phiếu, lấy pick cuối trước giờ đá. Không theo bộ lọc Giải/Loại kèo ở trên. Kèo đã đá được chấm theo line đóng cửa (ESPN · DraftKings), thiếu thì dùng median line của expert.</p></details>
       <div class="table-scroll" id="nba-up"></div>
     </div>
     <div class="card">
@@ -494,7 +494,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
   </section>
 
-  <footer>Picks và % public (NCAAF): Action Network (trang công khai, tự thu thập). Tỉ số và line dữ liệu live: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
+  <footer>Picks và % public (NCAAF): Action Network (trang công khai, tự thu thập). Tỉ số, điểm live và line dữ liệu live: ESPN (line DraftKings, miễn phí); dữ liệu trước 14/11/2026: The Odds API. Tab "Lịch sử mùa": số picks trên thẻ By Game + scoreboard Action Network (ngoại lệ lịch sử). Chỉ để tham khảo cá nhân.</footer>
 </div>
 
 <script>
@@ -637,7 +637,7 @@ const DATA = /*__DATA__*/null;
       item(`Đã loại ${num(q.excluded_late_picks || 0)} picks sau giờ đá`, (q.excluded_late_picks || 0) > 0),
       item(`Tuổi line giữa: ${q.median_close_age_h === null || q.median_close_age_h === undefined ? "–" : num(q.median_close_age_h, 1) + "h"}`,
         (q.median_close_age_h || 0) > 3),
-      item(`Odds API: ${credits === null || credits === undefined ? "–" : num(credits)} credits`, false),
+      item("Tỉ số & line: ESPN (miễn phí)", false),
     );
   }
 

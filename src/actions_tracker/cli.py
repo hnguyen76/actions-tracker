@@ -256,14 +256,15 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             errors += _collect_rules(conn, fetcher, league, now)
         if odds_api is not None:
             errors += _collect_odds(conn, odds_api, league, now, budget)
-        if live_get is not None:  # live scores for the "Điểm" column; never fails the league
+        if live_get is not None:  # ESPN (free): lines before kickoff, live and final scores
             from actions_tracker import live
             try:
-                n = live.collect_live(conn, league, now, get=live_get)
-                if n:
-                    print(f"[{league}] diem live: {n} tran")
+                c = live.collect_espn(conn, league, now, get=live_get)
+                if c["priced_of"] or c["scored_of"]:
+                    print(f"[{league}] ESPN: line {c['lines']}/{c['priced_of']} tran sap da, "
+                          f"live {c['live']}, ket qua moi {c['final']}")
             except live.LiveError as e:
-                print(f"[{league}] diem live: loi {e}")
+                errors.append(FetchError(f"ESPN {e}"))
         if errors:
             failed += 1
             parse_failed |= any(isinstance(e, ParseError) for e in errors)
@@ -273,9 +274,9 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             print(f"[{league}] LOI: {message}")
         else:
             db.mark_league(conn, league, True, now)
-    if odds_api is None:
-        print("CANH BAO: chua cau hinh ODDS_API_KEY - chi luu picks, khong co ti so/line.")
-    elif odds_api.remaining is not None:
+    if odds_api is None and live_get is None:
+        print("CANH BAO: khong co nguon ti so/line (ESPN tat, chua co ODDS_API_KEY) - chi luu picks.")
+    elif odds_api is not None and odds_api.remaining is not None:
         db.set_meta(conn, "odds_api_remaining", str(odds_api.remaining))
         print(f"The Odds API con {odds_api.remaining} credit.")
 
@@ -314,7 +315,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         return 3
     if leagues and failed == len(leagues):
         return 1
-    if odds_api is None:
+    if odds_api is None and live_get is None:
         return 5
     if not excel_ok:
         return 4
@@ -322,7 +323,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
 
 
 def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now_fn, odds_api,
-          telegram: tuple[str | None, str | None], post=None, news_fetcher=None) -> int:
+          telegram: tuple[str | None, str | None], post=None, news_fetcher=None, live_get=None) -> int:
     """Announce games that start soon on Telegram. Exit codes: 0 sent or nothing due, 6 Telegram not set up
     or sending failed (games stay un-announced and are retried on the next run while they have not started)."""
     from actions_tracker import alerts
@@ -338,7 +339,8 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
               "chay `python -m actions_tracker telegram-setup`.")
         return 6
     run(db_path, report_path, site_dir, leagues, fetcher, now_fn(), odds_api, budget=True,
-        telegram=telegram, **({"news_fetcher": news_fetcher} if news_fetcher is not None else {}))
+        telegram=telegram, live_get=live_get,
+        **({"news_fetcher": news_fetcher} if news_fetcher is not None else {}))
     conn = db.connect(db_path)
     now = now_fn()
     due = alerts.due_games(conn, now)
@@ -389,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--db", default="data/actions.db")
     r.add_argument("--report", default="reports/actions_report.xlsx")
     r.add_argument("--site", default="site")
+    r.add_argument("--odds-api", action="store_true",
+                   help="also use The Odds API (paid credits); by default lines and scores come from ESPN (free)")
     r.add_argument("--budget", action="store_true",
                    help="hourly schedule: fetch lines only before kickoffs and scores sparingly (saves credits)")
     r.add_argument("--offline", help="folder with {league}_picks.html and odds_{league}_{scores|odds}.json")
@@ -428,12 +432,14 @@ def main(argv: list[str] | None = None) -> int:
     if getattr(args, "offline", None):
         fetcher, api = OfflineFetcher(Path(args.offline)), OfflineOddsApi(Path(args.offline))
     else:
-        key = load_key(Path.cwd())
+        # The Odds API costs credits: only used when asked (--odds-api); ESPN (free) supplies lines and scores
+        key = load_key(Path.cwd()) if getattr(args, "odds_api", False) else None
         fetcher, api = Fetcher(), (OddsApi(key) if key else None)
     if args.cmd == "alert":
         from actions_tracker.alerts import load_telegram
         return alert(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now, api,
-                     load_telegram(Path.cwd()), news_fetcher=Fetcher(delay=(0.3, 0.8)))
+                     load_telegram(Path.cwd()), news_fetcher=Fetcher(delay=(0.3, 0.8)),
+                     live_get=None if getattr(args, "offline", None) else requests.get)
     from actions_tracker.alerts import load_telegram
     tg = None if getattr(args, "offline", None) else load_telegram(Path.cwd())
     return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget,

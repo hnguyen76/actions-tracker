@@ -37,6 +37,7 @@ def _db(tmp_path):
 
 def test_parse_scoreboard():
     ev = live.parse_scoreboard(BOARD)
+    assert ev[0].pop("lines") == []
     assert ev[0] == {"event_id": "1", "commence_time": "2026-11-14T23:15Z", "home_name": "Kentucky Wildcats",
                      "away_name": "Florida Gators", "home_score": 14, "away_score": 10, "state": "in",
                      "detail": "6:09 - 2nd"}
@@ -72,3 +73,38 @@ def test_espn_final_grades_the_game(tmp_path):
     live.collect_live(c, "ncaaf", NOW, get=lambda url, **k: R())
     g = dict(c.execute("SELECT status, away_score, home_score FROM games WHERE id = 1").fetchone())
     assert g == {"status": "complete", "away_score": 10, "home_score": 14}
+
+
+
+ODDS = [{"provider": {"name": "DraftKings"}, "spread": -3.0, "overUnder": 49.5,
+         "pointSpread": {"home": {"close": {"line": "-3", "odds": "-102"}}, "away": {"close": {"line": "+3", "odds": "-118"}}},
+         "total": {"over": {"close": {"line": "o49.5", "odds": "-112"}}, "under": {"close": {"line": "u49.5", "odds": "-108"}}},
+         "moneyline": {"home": {"close": {"odds": "-155"}}, "away": {"close": {"odds": "+130"}}}}]
+
+
+def test_parse_odds_draftkings():
+    got = {(x["market"], x["side"]): (x["line"], x["odds"]) for x in live.parse_odds(ODDS)}
+    assert got == {("spread", "home"): (-3.0, -102), ("spread", "away"): (3.0, -118), ("total", "over"): (49.5, -112),
+                   ("total", "under"): (49.5, -108), ("ml", "home"): (None, -155), ("ml", "away"): (None, 130)}
+    # only the summary fields -> spread from the home number, total from overUnder
+    got = {(x["market"], x["side"]): x["line"] for x in live.parse_odds([{"spread": 2.5, "overUnder": 75.5}])}
+    assert got == {("spread", "home"): 2.5, ("spread", "away"): -2.5, ("total", "over"): 75.5, ("total", "under"): 75.5}
+
+
+def test_lines_stored_before_kickoff_only(tmp_path):
+    c = _db(tmp_path)
+    board = {"events": [dict(BOARD["events"][1], competitions=[dict(BOARD["events"][1]["competitions"][0], odds=ODDS)])]}
+
+    class R:
+        status_code = 200
+
+        def json(self):
+            return board
+    counts = live.collect_espn(c, "ncaaf", NOW, get=lambda url, **k: R())
+    assert counts["lines"] == 1
+    rows = {(r["market"], r["side"]): r["line"] for r in c.execute("SELECT * FROM closing_lines WHERE game_id = 2")}
+    assert rows[("spread", "home")] == -3.0 and rows[("total", "over")] == 49.5
+    # after kickoff the closing line no longer moves
+    live.collect_espn(c, "ncaaf", "2026-11-15T01:00:00.000Z", get=lambda url, **k: R())
+    assert c.execute("SELECT captured_at FROM closing_lines WHERE game_id = 2 AND market = 'spread' AND side = 'home'"
+                     ).fetchone()[0] == NOW
