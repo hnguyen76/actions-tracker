@@ -30,7 +30,8 @@ def test_build_tables_empty_db_without_public(tmp_path):
                       "Upcoming_Board", "Match_News", "Rule_Summary", "Rule_Plays", "Expert_CLV", "Decisions", "Data_Quality",
                       "My_Method", "My_Method_Summary",
                       "My_Method_Season", "My_Method_Season_Summary",
-                      "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells"}
+                      "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells",
+                      "Scores"}
     assert all(df.empty for name, df in t.items() if name not in {"Rule_Summary", "Data_Quality", "My_Method_Summary", "My_Method_Season_Summary",
                                                                   "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells"})
     assert len(t["My_Method_Summary"]) == 9 and (t["My_Method_Summary"].n == 0).all()

@@ -127,6 +127,10 @@ tr.selected, tr.selected:hover { background: var(--accent-wash); }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
 .low-n { color: var(--muted); }
+.score { white-space: nowrap; }
+.score.live i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--loss); margin-right: 6px;
+  vertical-align: 1px; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
 .low-n::after { content: " *"; color: var(--warning); font-weight: 700; }
 .badge { display: inline-block; font-size: 12px; font-weight: 500; color: var(--muted); border: 1px solid var(--border-strong); border-radius: 999px; padding: 1px 8px; margin-left: 8px; vertical-align: 1px; }
 .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; border-radius: 999px; padding: 3px 11px;
@@ -1247,6 +1251,18 @@ const DATA = /*__DATA__*/null;
   const GROUP_LABEL = { "T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN", ALL: "Cả tuần" };
   const DECISION = { collecting: ["Đang ghi", "info"], pass: ["Đạt", "win"], fail: ["Bỏ", "loss"], watch: ["Theo dõi tiếp", "dim"] };
 
+  let scoreMap = null;
+  const SCORE_COL = { label: "Điểm", sort: (r) => { const x = scoreOf(r); return x ? x.state : ""; }, value: (r) => {
+    const x = scoreOf(r);
+    if (!x) return el("span", { class: "muted", text: "–" });
+    const txt = `${num(x.away_score)}-${num(x.home_score)}`;
+    if (x.state === "live") return el("span", { class: "score live" }, el("i"), el("b", { text: txt }), el("span", { class: "muted", text: " · " + (x.detail || "live") }));
+    return el("span", { class: "score" }, el("b", { text: txt }));
+  } };
+  const scoreOf = (r) => {
+    if (!scoreMap) scoreMap = new Map(T("Scores").map((x) => [Number(x.game_id), x]));
+    return scoreMap.get(Number(r.game_id));
+  };
   const DG_LABEL = { "T2-6": "Thứ 2–6 · theo đám đông", "T7-CN": "Thứ 7–CN · đánh ngược", ALL: "Cả tuần" };
   function mineCard() {
     const lg = (r) => state.league === "ALL" || r.league === state.league || r.league === "ALL";
@@ -1268,6 +1284,7 @@ const DATA = /*__DATA__*/null;
       { label: "Cách đánh", value: (r) => (r.method === "follow" ? "Theo (T2–6)" : "Ngược (T7–CN)") },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
       { label: "Kết quả", value: (r) => (r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
+      SCORE_COL,
     ], null, withHot({ pageSize: 25 }));
   }
 
@@ -1311,6 +1328,7 @@ const DATA = /*__DATA__*/null;
       { label: "Line lúc ghi", value: (r) => bet(r, "entry_line"), sort: (r) => r.pick },
       { label: "Căn cứ", value: (r) => r.basis || "–" },
       { label: "Ghi lúc", value: (r) => fmtTime(r.logged_at), sort: (r) => r.logged_at },
+      SCORE_COL,
     ], null, withHot({ pageSize: 50 }));
     renderTable("rules-graded", plays.filter((r) => r.status === "graded"), [
       { label: "Ngày", value: (r) => r.et_date },
@@ -1321,6 +1339,7 @@ const DATA = /*__DATA__*/null;
       { label: "Line tham chiếu cuối", value: (r) => bet(r, "line") },
       { label: "Căn cứ", value: (r) => r.basis || "–" },
       { label: "Kết quả", value: (r) => resultPill(r.result), sort: (r) => r.result },
+      SCORE_COL,
       { label: "Units", num: true, value: (r) => (r.units === null ? "–" : (r.units > 0 ? "+" : "") + num(r.units, 2)), cls: (r) => roiCls(r.units), sort: (r) => r.units },
     ], null, withHot({ pageSize: 50 }));
   }

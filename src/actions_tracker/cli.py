@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pandas as pd
 
+import requests
+
 from actions_tracker import db
 from actions_tracker.analysis import build_tables
 from actions_tracker.build_site import build_site
@@ -242,7 +244,8 @@ def _ungraded_past_games(conn, league: str, now: str) -> int:
 
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,
-        odds_api=None, budget: bool = False, telegram: tuple | None = None, news_fetcher=None) -> int:
+        odds_api=None, budget: bool = False, telegram: tuple | None = None, news_fetcher=None,
+        live_get=None) -> int:
     """Exit codes: 0 ok, 1 every league failed, 2 page structure changed, 3 unexpected error,
     4 Excel file open, 5 no The Odds API key."""
     conn = db.connect(db_path)
@@ -253,6 +256,14 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             errors += _collect_rules(conn, fetcher, league, now)
         if odds_api is not None:
             errors += _collect_odds(conn, odds_api, league, now, budget)
+        if live_get is not None:  # live scores for the "Điểm" column; never fails the league
+            from actions_tracker import live
+            try:
+                n = live.collect_live(conn, league, now, get=live_get)
+                if n:
+                    print(f"[{league}] diem live: {n} tran")
+            except live.LiveError as e:
+                print(f"[{league}] diem live: loi {e}")
         if errors:
             failed += 1
             parse_failed |= any(isinstance(e, ParseError) for e in errors)
@@ -426,7 +437,8 @@ def main(argv: list[str] | None = None) -> int:
     from actions_tracker.alerts import load_telegram
     tg = None if getattr(args, "offline", None) else load_telegram(Path.cwd())
     return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget,
-               telegram=tg, news_fetcher=None if getattr(args, "offline", None) else Fetcher(delay=(0.3, 0.8)))
+               telegram=tg, news_fetcher=None if getattr(args, "offline", None) else Fetcher(delay=(0.3, 0.8)),
+               live_get=None if getattr(args, "offline", None) else requests.get)
 
 
 if __name__ == "__main__":
