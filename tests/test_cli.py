@@ -101,6 +101,7 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert '"Match_News":[]' in html and '"Tin tức"' in html
     assert '"Media_Picks":[]' in html and 'label: "Chuyên gia chọn winner"' in html
     assert 'class: "live-card-pregame"' in html and 'liveDecisionDetail(game)' in html
+    assert 'const DECISION_HOT' in html and 'Object.assign({}, DECISION_HOT, { detail: decisionDetail })' in html
 
 
 def test_lines_for_upcoming_and_scores_for_past(tmp_path):

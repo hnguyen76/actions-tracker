@@ -935,6 +935,8 @@ const DATA = /*__DATA__*/null;
     return statusOf(r) === "majority";
   };
   const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
+  // Decision card: attention follows sample size alone; 8+ expert picks is yellow even when split.
+  const DECISION_HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS ? "hot" : "") };
   const withHot = (opts) => Object.assign({}, opts || {}, HOT);
   let matchNewsByGame = null;
   function matchNewsCell(r) {
@@ -1266,7 +1268,7 @@ const DATA = /*__DATA__*/null;
       const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
       h.replaceChildren(MARKET_LABEL[market] || market, el("span", { class: "count", text: `${list.length} kèo` }));
       if (market === "ml") { h.hidden = host.hidden = !list.length; }
-      renderTable("decide-table-" + market, list, cols, null, Object.assign({}, HOT, { detail: decisionDetail }));
+      renderTable("decide-table-" + market, list, cols, null, Object.assign({}, DECISION_HOT, { detail: decisionDetail }));
       if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
     section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
