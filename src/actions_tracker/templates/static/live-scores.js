@@ -87,6 +87,12 @@
     const distance = boundedInteger(point.distance, 0, 99);
     const down = boundedInteger(point.down, 1, 4);
     const first = distance === null ? null : Math.max(0, Math.min(100, ball + (side === "away" ? distance : -distance)));
+    // where the drive began: the spot of its first scrimmage play (a kickoff is measured for the kicking team)
+    const opening = drive.plays.find((p) => p && typeof p === "object" && p.start && typeof p.start === "object"
+      && !/kickoff/i.test(String(p.type && p.type.text || ""))
+      && (!p.start.team || String(p.start.team.id || "") === teamId)
+      && boundedInteger(p.start.yardsToEndzone, 0, 100) !== null);
+    const startYards = opening ? boundedInteger(opening.start.yardsToEndzone, 0, 100) : null;
     const statYardage = typeof play.statYardage === "number" && Number.isFinite(play.statYardage)
       && play.statYardage >= -99 && play.statYardage <= 99 ? play.statYardage : null;
     const logo = Array.isArray(drive.team && drive.team.logos)
@@ -99,6 +105,7 @@
       down_distance: cleanText(point.shortDownDistanceText, 50),
       spot: cleanText(point.possessionText, 50),
       ball_x: ball,
+      start_x: startYards === null ? null : side === "away" ? 100 - startYards : startYards,
       first_down_x: first,
       last_play: cleanText(play.text, 500),
       play_clock: cleanText(play.clock && play.clock.displayValue, 12),

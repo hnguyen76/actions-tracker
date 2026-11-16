@@ -12,7 +12,7 @@ Mục **Đang đá & chờ kết quả** lấy điểm trực tiếp từ scoreb
 khi trang đang mở, độc lập với lịch quét/đăng website 5 phút. Hiển thị đội cầm bóng, down & distance,
 vị trí bóng, đồng hồ/hiệp và điểm từng hiệp khi ESPN có dữ liệu. Trang giữ điểm lần trước nếu lỗi,
 thử lại chậm dần và ngừng lấy khi bị ẩn. Nhịp lấy 5 giây không bảo đảm độ trễ 5 giây của nguồn.
-Với NFL/NCAAF, sân minh họa lấy current drive của ESPN tối đa mỗi **10 giây**, gồm vị trí bóng,
+Với NFL/NCAAF, sân minh họa (phối cảnh, nền màu hai đội) lấy current drive của ESPN tối đa mỗi **10 giây**, gồm vị trí bóng, đoạn drive đã đi từ điểm bắt đầu,
 vạch first down, số yard và play gần nhất; phần này tự ẩn khi ESPN không có play-by-play.
 Ngay dưới bảng điểm/sân live, mỗi trận giữ nguyên tín hiệu, tin tức, chuyên gia spread/winner,
 thời tiết và thông tin quyết định đã có trước giờ đá; trên điện thoại phần này mở sẵn và có thể thu gọn.
