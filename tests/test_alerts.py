@@ -78,6 +78,8 @@ def test_alert_sends_once_then_stays_quiet(tmp_path, monkeypatch):
     assert runs == [{"budget": True}] and len(sent) == 1 and sent[0][1]["chat_id"] == "42"
     assert alert(*args, ("TOKEN", "42"), post=post) == 0      # already announced -> no new message, no collection
     assert len(sent) == 1 and len(runs) == 1
+    check = db.connect(tmp_path / "a.db")
+    assert check.execute("SELECT value FROM meta WHERE key=?", (alerts.DELIVERY_ERROR_KEY,)).fetchone() is None
 
 
 def test_alert_without_telegram_config_does_not_mark_sent(tmp_path, capsys):
@@ -94,7 +96,10 @@ def test_telegram_failure_keeps_games_due(tmp_path, monkeypatch):
     monkeypatch.setattr("actions_tracker.cli.build_tables", lambda *a: _tables())
     args = (tmp_path / "a.db", tmp_path / "r.xlsx", tmp_path / "site", ["ncaaf"], None, lambda: NOW, None)
     assert alert(*args, ("TOKEN", "42"), post=lambda url, **k: _Resp(401)) == 6
-    assert len(alerts.due_games(db.connect(tmp_path / "a.db"), NOW)) == 2
+    c = db.connect(tmp_path / "a.db")
+    assert len(alerts.due_games(c, NOW)) == 2
+    error = c.execute("SELECT value FROM meta WHERE key=?", (alerts.DELIVERY_ERROR_KEY,)).fetchone()[0]
+    assert error == f"{NOW}|HTTP 401: "
 
 
 def test_telegram_retries_rate_limit_then_succeeds():
