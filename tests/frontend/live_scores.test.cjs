@@ -84,6 +84,15 @@ test('big plays come from the last two drives and name the team that gained', ()
     {id:'9104',kind:'field_goal_missed',side:'away',text:'Field Goal Missed'}]);
   assert.deepEqual(api.parseBigPlays(summary,e,'other'),[]);
 });
+test('big plays: a return touchdown is left to the score jump; a play listed twice counts once', () => {
+  const e=api.parseEvent(event());
+  const drive={team:{id:'17'},plays:[
+    {id:'9201',type:{text:'Pass Interception Return'},scoringPlay:true,text:'Pass intercepted, returned 40 yards.'},
+    {id:'9202',type:{text:'Fumble Recovery (Opponent)'},text:'Fumble recovered by DET, returned for a TOUCHDOWN.'},
+    {id:'9203',type:{text:'Pass Interception Return'},text:'Pass intercepted by DET.'}]};
+  const summary={header:{id:e.event_id},drives:{previous:[drive],current:drive}};
+  assert.deepEqual(api.parseBigPlays(summary,e,e.event_id),[{id:'9203',kind:'interception',side:'home',text:'Pass intercepted by DET.'}]);
+});
 test('drive parser rejects the wrong event, unknown offense and unusable positions', () => {
   const e=api.parseEvent(event());
   assert.equal(api.parseDrive(driveSummary('other'),e,e.event_id),null);

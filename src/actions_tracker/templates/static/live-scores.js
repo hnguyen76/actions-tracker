@@ -80,13 +80,17 @@
   function parseBigPlays(summary, event, eventId) {
     if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return [];
     const drives = summary.drives || {}, previous = Array.isArray(drives.previous) ? drives.previous : [];
-    const out = [];
+    const out = [], seen = new Set();
     for (const drive of [previous[previous.length - 1], drives.current]) {
       const offense = drive && Array.isArray(drive.plays) ? driveSide(summary, event, drive) : null;
       if (!offense) continue;
       for (const play of drive.plays) {
         const id = play && /^\d+$/.test(String(play.id || "")) ? String(play.id) : null;
-        const match = id && BIG_PLAY_KINDS.find(([pattern]) => pattern.test(String(play.type && play.type.text || "")));
+        if (!id || seen.has(id)) continue;  // ESPN may list the current drive in "previous" too
+        seen.add(id);
+        // a return touchdown (typed or only flagged/described as one) is announced by the score jump
+        if (play.scoringPlay === true || /touchdown|\bTD\b/i.test(String(play.text || ""))) continue;
+        const match = BIG_PLAY_KINDS.find(([pattern]) => pattern.test(String(play.type && play.type.text || "")));
         if (match && match[1]) out.push({ id, kind: match[1], side: offense === "away" ? "home" : "away", text: cleanText(play.text, 300) });
       }
     }

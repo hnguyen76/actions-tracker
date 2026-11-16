@@ -140,3 +140,34 @@ test('observe: red zone is a small top line for 3 seconds, no overlay, no vibrat
   hide();
   assert.equal(env.find('bp-toast').length, 0);
 });
+
+test('detect: cards whose data is older than 30 s are skipped; the next fresh look starts over quietly', () => {
+  const { detect } = load(), m = new Map(), t = 1e6, at = (ms) => new Date(ms).toISOString();
+  detect(m, [card({ updated_at: at(t) })], t);
+  // phone wakes up after 10 minutes, the first poll fails and only the old data is there
+  assert.deepEqual(plain(detect(m, [card({ updated_at: at(t) })], t + 600000)), []);
+  assert.deepEqual(plain(detect(m, [card({ home_score: 24, away_score: 21, updated_at: at(t + 610000), drive: { big_plays: [pick] } })], t + 610000)), []);
+  assert.deepEqual(plain(detect(m, [card({ home_score: 31, away_score: 21, updated_at: at(t + 615000), drive: { big_plays: [pick] } })], t + 615000)),
+    [{ game_id: 1, kind: 'touchdown', side: 'home' }]);
+});
+
+test('detect: the same play listed twice in one poll is one alert', () => {
+  const { detect } = load(), m = new Map();
+  detect(m, [card()], 1e6);
+  assert.deepEqual(plain(detect(m, [card({ drive: { big_plays: [pick, pick] } })], 1e6 + 5000)),
+    [{ game_id: 1, kind: 'interception', side: 'home' }]);
+});
+
+test('observe never throws, so a bad card cannot slow the live score polling', () => {
+  const { api } = page();
+  assert.doesNotThrow(() => api.observe([{ game_id: 1, get situation() { throw new Error('bad ESPN data'); } }]));
+});
+
+test('sound: an interrupted audio context (iPhone after a lock or a call) is resumed on the next tap', () => {
+  const listeners = {};
+  let resumed = 0;
+  class AC { constructor() { this.state = 'interrupted'; } resume() { resumed += 1; } }
+  load({ document: { addEventListener: (type, fn) => { listeners[type] = fn; } }, AudioContext: AC });
+  listeners.pointerdown();
+  assert.equal(resumed, 1);
+});

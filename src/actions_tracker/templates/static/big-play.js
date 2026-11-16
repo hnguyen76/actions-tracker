@@ -4,6 +4,7 @@
 (function (root) {
   "use strict";
   const STALE_MS = 60000;  // a look older than this (tab hidden, phone asleep) starts over without alerts
+  const FRESH_DATA_MS = 30000;  // a card whose score is older than this (failed poll after a wake-up) is left alone
   const RED_ZONE_REPEAT_MS = 180000;  // the same team back in the red zone this soon (penalty out and in) is the same drive
 
   // One jump of a team's score: 6-8 is a touchdown (with or without the try), 3 a field goal; 1-2 are tries/safeties.
@@ -17,6 +18,8 @@
   function detect(memory, games, now) {
     const events = [];
     for (const g of games || []) {
+      const dataAt = Date.parse(g.updated_at);
+      if (Number.isFinite(dataAt) && now - dataAt > FRESH_DATA_MS) continue;  // neither alert nor re-baseline on old data
       const id = Number(g.game_id), away = score(g.away_score), home = score(g.home_score);
       const plays = g.drive && Array.isArray(g.drive.big_plays) ? g.drive.big_plays : [];
       const seen = memory.get(id);
@@ -26,7 +29,11 @@
           const kind = before !== null && after !== null ? scoreKind(before, after) : null;
           if (kind) events.push({ game_id: id, kind, side });
         }
-        for (const p of plays) if (p && p.id && !seen.plays.has(p.id)) events.push({ game_id: id, kind: p.kind, side: p.side });
+        for (const p of plays) {
+          if (!p || !p.id || seen.plays.has(p.id)) continue;
+          seen.plays.add(p.id);  // a play listed twice in one poll is still one alert
+          events.push({ game_id: id, kind: p.kind, side: p.side });
+        }
       }
       // red zone: only the moment a team gets in (ESPN without the flag is "unknown", not "out")
       const situation = g.situation || {};
@@ -114,7 +121,10 @@
     try {
       const AC = root.AudioContext || root.webkitAudioContext;
       if (!audio && AC) audio = new AC();
-      if (audio && audio.state === "suspended") audio.resume();
+      if (audio && audio.state !== "running") {  // "suspended", or "interrupted" on iPhone after a lock or a call
+        const resumed = audio.resume();
+        if (resumed && resumed.catch) resumed.catch(() => {});
+      }
     } catch (e) { audio = null; }
   };
   if (root.document && root.document.addEventListener) {
@@ -197,12 +207,14 @@
   // cards: the merged live cards of the games on the "Đang đá" card, after each live poll
   const memory = new Map();
   function observe(cards) {
-    const byId = new Map((cards || []).map((c) => [Number(c.game_id), c]));
-    for (const event of detect(memory, cards, Date.now())) {
-      const card = byId.get(event.game_id);
-      if (card && event.kind === "red_zone") toast(event, card);
-      else if (card) announce(event, card);
-    }
+    try {
+      const byId = new Map((cards || []).map((c) => [Number(c.game_id), c]));
+      for (const event of detect(memory, cards, Date.now())) {
+        const card = byId.get(event.game_id);
+        if (card && event.kind === "red_zone") toast(event, card);
+        else if (card) announce(event, card);
+      }
+    } catch (error) { /* an alert must never break or slow the live score polling */ }
   }
 
   root.ActionsBigPlay = { detect, observe, announce, toast };
