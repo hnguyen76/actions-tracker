@@ -15,7 +15,7 @@ thử lại chậm dần và ngừng lấy khi bị ẩn. Nhịp lấy 5 giây k
 Với NFL/NCAAF, sân minh họa (phối cảnh, nền màu hai đội) lấy current drive của ESPN tối đa mỗi **10 giây**, gồm vị trí bóng, đoạn drive đã đi từ điểm bắt đầu,
 vạch first down, số yard và play gần nhất; phần này tự ẩn khi ESPN không có play-by-play.
 Ngay dưới bảng điểm/sân live, mỗi trận giữ nguyên tín hiệu, tin tức, chuyên gia spread/winner,
-thời tiết và thông tin quyết định đã có trước giờ đá; trên điện thoại phần này mở sẵn và có thể thu gọn.
+thời tiết và thông tin quyết định đã có trước giờ đá; phần này đóng sẵn, bấm “Thông tin trước trận” để mở.
 Tỉ số cuối trên trình duyệt chờ lượt chấm của hệ thống trước khi vào thống kê.
 Halftime có đồng hồ **ước tính** từ mốc `End of Half` hiệp 2 của ESPN: mùa thường NFL 13 phút,
 NCAAF 20 phút. Đồng hồ chạy theo thời gian thực, dừng khi ESPN báo hiệp 3; quá mốc dự kiến thì

@@ -183,8 +183,12 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .signals .sig.info { color: var(--ink-2); }
 @media (max-width: 1200px) { .detail-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .detail-h { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px; }
-.live-card-pregame { border-top: 1px solid var(--border); padding: 14px 16px 16px; }
-.live-card-pregame > .detail-h { margin-bottom: 10px; }
+.live-card-pregame { border-top: 1px solid var(--border); padding: 12px 16px; }
+.live-card-pregame > summary { display: flex; justify-content: space-between; align-items: center; margin: 0; cursor: pointer; list-style: none; }
+.live-card-pregame > summary::-webkit-details-marker { display: none; }
+.live-card-pregame > summary::after { content: "▾"; font-size: 13px; transition: transform .15s; }
+.live-card-pregame[open] > summary { margin-bottom: 10px; }
+.live-card-pregame[open] > summary::after { transform: rotate(180deg); }
 .live-card-pregame .detail-grid { border-top: 0; padding-top: 0; }
 @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 .wx { display: grid; gap: 4px; font-size: 13.5px; }
@@ -1351,8 +1355,9 @@ const DATA = /*__DATA__*/null;
       ActionsScoreboard.render(scoreHost, [...cards.values()]);
       for (const game of cards.values()) {
         const card = [...scoreHost.querySelectorAll(".asb-card")].find((node) => Number(node.dataset.gameId) === Number(game.game_id));
-        if (card && !card.querySelector(".live-card-pregame")) card.append(el("section", { class: "live-card-pregame", "aria-label": "Thông tin trước trận" },
-          el("div", { class: "detail-h", text: "Thông tin trước trận" }), liveDecisionDetail(game)));
+        // closed by default to keep the live card short; the viewer opens it when needed (kept open across live updates)
+        if (card && !card.querySelector(".live-card-pregame")) card.append(el("details", { class: "live-card-pregame" },
+          el("summary", { class: "detail-h", text: "Thông tin trước trận" }), liveDecisionDetail(game)));
       }
     }
   }
