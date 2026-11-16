@@ -6,6 +6,10 @@
 .asb-updated { text-align: right; font-variant-numeric: tabular-nums; }
 .asb-clock { color: var(--ink); font-size: 16px; text-align: center; }
 .asb-halftime { color: var(--warning); font-variant-numeric: tabular-nums; }
+/* live game clock: coral glow in step with the TV dot (same 2.4 s rhythm and phase) */
+.asb-live-clock { animation: asb-live-pulse 2.4s ease-in-out infinite; }
+@keyframes asb-live-pulse { 0%, 100% { color: #ff5a5f; text-shadow: 0 0 12px rgb(255 90 95 / 45%); } 50% { color: var(--ink); text-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .asb-live-clock { animation: none; } }
 .asb-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 250px) minmax(0, 1fr); align-items: center; gap: 22px; }
 .asb-team { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .asb-home { flex-direction: row-reverse; text-align: right; }

@@ -2609,6 +2609,8 @@ const DATA = /*__DATA__*/null;
 
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
   theme(); header(); filters(); tabs(); mobileNav();
+  // the TV dot pulses on the same wall-clock phase as the live game clocks (scoreboard.js pulseDelay)
+  for (const dot of document.querySelectorAll(".live-tv-dot")) dot.style.animationDelay = window.ActionsScoreboard ? ActionsScoreboard.pulseDelay() : "0ms";
   render();
   refreshLiveScores();
 })();
