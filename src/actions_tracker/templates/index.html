@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="scoreboard.css?v=__STATIC_V__">
 <script src="scoreboard.js?v=__STATIC_V__"></script>
 <script src="live-scores.js?v=__STATIC_V__"></script>
+<script src="big-play.js?v=__STATIC_V__"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1338,10 +1339,14 @@ const DATA = /*__DATA__*/null;
     ], null, HOT);
   }
 
+  // one card per live game: the play row + the stored live game (colours, ESPN id) + the freshest score/drive
+  function liveCards(rows) {
+    const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
+    return new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
+  }
   function renderLiveScoreboards(rows) {
     if (window.ActionsScoreboard) {
-      const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
-      const cards = new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
+      const cards = liveCards(rows);
       const scoreHost = document.getElementById("live-scoreboards");
       ActionsScoreboard.render(scoreHost, [...cards.values()]);
       for (const game of cards.values()) {
@@ -2454,6 +2459,8 @@ const DATA = /*__DATA__*/null;
       }
       browserLive.errors = result.scores.length ? 0 : browserLive.errors + 1;
       if (changed) updateLiveCard();
+      // full-screen alert for a new touchdown / field goal / turnover in a game with a play (big-play.js)
+      if (window.ActionsBigPlay) ActionsBigPlay.observe([...liveCards(rawFilter(liveInPlayRows())).values()]);
     } catch (e) { browserLive.errors += 1; }
     finally {
       browserLive.busy = false;
