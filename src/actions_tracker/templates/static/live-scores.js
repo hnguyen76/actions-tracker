@@ -4,7 +4,7 @@
   // Regular-season baselines: NFL Rule 4-1-3 (13m), NCAA Rule 3-2-1-b (20m).
   // The referee's actual restart can differ; these are explicitly labelled estimates.
   const HALFTIME_MINUTES = { nfl: 13, ncaaf: 20 };
-  const DRIVE_POLL_MS = 10000;
+  const DRIVE_POLL_MS = 5000;
   const halftimeCache = new Map();
   const driveCache = new Map();
   const ALIASES = {
@@ -57,6 +57,29 @@
     return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
   };
   const cleanText = (value, limit = 500) => typeof value === "string" && value.trim() ? value.trim().slice(0, limit) : null;
+  const clockSeconds = (value) => {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
+    if (!match || Number(match[2]) > 59) return null;
+    return Number(match[1]) * 60 + Number(match[2]);
+  };
+  function clockTiming(play, drive) {
+    const shown = cleanText(play && play.clock && play.clock.displayValue, 12);
+    const seconds = clockSeconds(shown), anchor = Date.parse(play && play.wallclock);
+    const period = boundedInteger(play && play.period && play.period.number, 1, 20);
+    if (seconds === null || !Number.isFinite(anchor) || period === null) {
+      return { clock_running: false, clock_ends_at: null, clock_period: period };
+    }
+    const type = cleanText(play.type && play.type.text, 60) || "";
+    const description = cleanText(play.text, 500) || "";
+    const definitelyStopped = drive.isScore === true || play.scoringPlay === true || play.isPenalty === true
+      || play.isTurnover === true || /timeout|two[ -]minute warning|end of (?:quarter|half|game)|incomplete|spike|no play|touchdown|field goal|extra point|safety|out of bounds|\b(?:ran|pushed) ob\b/i.test(type + " " + description);
+    const continues = /^(?:rush|pass reception|sack)$/i.test(type) && !definitelyStopped && seconds > 0;
+    return {
+      clock_running: continues,
+      clock_ends_at: continues ? new Date(anchor + seconds * 1000).toISOString() : null,
+      clock_period: period,
+    };
+  }
   function parseDrive(summary, event, eventId) {
     if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return null;
     const drive = summary.drives && summary.drives.current;
@@ -71,6 +94,7 @@
     const teamId = drive.team && /^\d+$/.test(String(drive.team.id || "")) ? String(drive.team.id) : null;
     const side = teamId && teamId === awayId ? "away" : teamId && teamId === homeId ? "home" : null;
     if (!side) return null;
+    const clockPlay = [...drive.plays].reverse().find((candidate) => candidate && typeof candidate === "object") || null;
     let play = null, point = null;
     for (let i = drive.plays.length - 1; i >= 0; i--) {
       const candidate = drive.plays[i];
@@ -87,8 +111,9 @@
     const distance = boundedInteger(point.distance, 0, 99);
     const down = boundedInteger(point.down, 1, 4);
     const first = distance === null ? null : Math.max(0, Math.min(100, ball + (side === "away" ? distance : -distance)));
-    const statYardage = typeof play.statYardage === "number" && Number.isFinite(play.statYardage)
-      && play.statYardage >= -99 && play.statYardage <= 99 ? play.statYardage : null;
+    const statYardage = typeof clockPlay.statYardage === "number" && Number.isFinite(clockPlay.statYardage)
+      && clockPlay.statYardage >= -99 && clockPlay.statYardage <= 99 ? clockPlay.statYardage : null;
+    const timing = clockTiming(clockPlay, drive);
     const logo = Array.isArray(drive.team && drive.team.logos)
       ? drive.team.logos.map((x) => x && x.href).find((href) => /^https:\/\/[^/]*\.espncdn\.com\//i.test(String(href || ""))) || null : null;
     return {
@@ -100,10 +125,11 @@
       spot: cleanText(point.possessionText, 50),
       ball_x: ball,
       first_down_x: first,
-      last_play: cleanText(play.text, 500),
-      play_clock: cleanText(play.clock && play.clock.displayValue, 12),
-      play_type: cleanText(play.type && play.type.text, 50),
+      last_play: cleanText(clockPlay.text, 500),
+      play_clock: cleanText(clockPlay.clock && clockPlay.clock.displayValue, 12),
+      play_type: cleanText(clockPlay.type && clockPlay.type.text, 50),
       play_yards: statYardage,
+      ...timing,
       down,
       distance,
       updated_at: new Date().toISOString(),
@@ -190,7 +216,15 @@
             situation = { ...situation, is_halftime: true, halftime_ends_at: await estimateHalftime(game, e, fetcher) };
           } else if (!e.is_halftime) {
             halftimeCache.delete(game.league + "/" + e.event_id);
-            if (e.state === "live") drive = await fetchDrive(game, e, fetcher);
+            if (e.state === "live") {
+              drive = await fetchDrive(game, e, fetcher);
+              const sameClock = drive && situation && drive.play_clock === situation.clock
+                && drive.clock_period === situation.period;
+              situation = situation ? { ...situation,
+                clock_running: sameClock && drive.clock_running === true,
+                clock_ends_at: sameClock && drive.clock_running === true ? drive.clock_ends_at : null,
+              } : situation;
+            }
           }
           if (e.state !== "live") driveCache.delete(game.league + "/" + e.event_id);
           result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,

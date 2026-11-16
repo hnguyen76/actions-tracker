@@ -4,7 +4,7 @@
 .asb-meta { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 16px; }
 .asb-league, .asb-updated { color: var(--muted); font-size: 12px; }
 .asb-updated { text-align: right; font-variant-numeric: tabular-nums; }
-.asb-clock { color: var(--ink); font-size: 16px; text-align: center; }
+.asb-clock { color: var(--ink); font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; }
 .asb-halftime { color: var(--warning); font-variant-numeric: tabular-nums; }
 .asb-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 250px) minmax(0, 1fr); align-items: center; gap: 22px; }
 .asb-team { display: flex; align-items: center; gap: 14px; min-width: 0; }
