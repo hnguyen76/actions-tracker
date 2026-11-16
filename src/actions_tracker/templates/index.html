@@ -154,7 +154,7 @@ section.panel.active { display: block; }
 .live-tv-line { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .live-tv-dot { fill: #ff4d4f; animation: live-pulse 2.4s ease-in-out infinite; }
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
-@media (prefers-reduced-motion: reduce) { .live-tv-dot { animation: none; } }
+/* the dot only fades (no movement), so it keeps pulsing with Reduce Motion, like iOS cross-fades */
 .board-details > summary { cursor: pointer; list-style: none; }
 .board-details > summary::-webkit-details-marker { display: none; }
 .board-details > summary h2 { display: inline; }
@@ -2545,6 +2545,7 @@ const DATA = /*__DATA__*/null;
   }
 
   // Picks and settled statistics still pull the published snapshot every 3 minutes.
+  const SITE_V = "__STATIC_V__";  // this page's version (build_site.site_version)
   const DATA_REFRESH_MS = 180000;
   let nextDataRefresh = Date.now() + DATA_REFRESH_MS;
   let dataRefreshing = false;
@@ -2561,6 +2562,12 @@ const DATA = /*__DATA__*/null;
       const res = await fetch(location.pathname + "?t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) return;
       const html = await res.text();
+      // a new design was published (template or scripts changed): load it, an open page would keep the old code
+      const published = (html.match(/scoreboard\.js\?v=([0-9a-f]{10})/) || [])[1];
+      if (published && /^[0-9a-f]{10}$/.test(SITE_V) && published !== SITE_V) {
+        location.replace(location.pathname + "?v=" + published);
+        return;
+      }
       const i = html.indexOf("const DATA = ");
       if (i < 0) return;
       const j = html.indexOf("\n", i);
