@@ -104,6 +104,14 @@ body {
 .season-thanksgiving .logo-caught-ball { animation: logo-catch 24s step-end infinite; }
 .season-thanksgiving .logo-turkey-leg-a { transform-box: fill-box; transform-origin: top center; animation: logo-leg-a 24s linear infinite; }
 .season-thanksgiving .logo-turkey-leg-b { transform-box: fill-box; transform-origin: top center; animation: logo-leg-b 24s linear infinite; }
+.logo-fall { display: none; }
+.season-thanksgiving .logo-fall { display: inline; }
+.logo-fall-leaf { opacity: 0; transform-box: fill-box; transform-origin: center; will-change: transform, opacity; }
+.season-thanksgiving .logo-fall-a { animation: logo-leaf-a 10.8s -2.4s linear infinite; }
+.season-thanksgiving .logo-fall-b { animation: logo-leaf-b 13.2s -8.1s linear infinite; }
+.season-thanksgiving .logo-fall-c { animation: logo-leaf-c 11.7s -5.5s linear infinite; }
+.season-thanksgiving .logo-fall-d { animation: logo-leaf-d 14.6s -11.2s linear infinite; }
+.season-thanksgiving .logo-fall-e { animation: logo-leaf-e 12.5s -1.1s linear infinite; }
 @keyframes logo-static-cycle { 0%, 72%, 100% { opacity: 1; } 74%, 94% { opacity: 0; } }
 @keyframes logo-play-cycle { 0%, 72%, 96%, 100% { opacity: 0; } 74%, 94% { opacity: 1; } }
 @keyframes logo-qb-throw {
@@ -128,6 +136,36 @@ body {
 @keyframes logo-catch { 0%, 84% { opacity: 0; } 85%, 95% { opacity: 1; } 96%, 100% { opacity: 0; } }
 @keyframes logo-leg-a { 0%, 84% { transform: rotate(0); } 86%, 90%, 94% { transform: rotate(24deg); } 88%, 92% { transform: rotate(-24deg); } }
 @keyframes logo-leg-b { 0%, 84% { transform: rotate(0); } 86%, 90%, 94% { transform: rotate(-24deg); } 88%, 92% { transform: rotate(24deg); } }
+@keyframes logo-leaf-a {
+  0% { opacity: 0; transform: translate(0, -3px) rotate(0); }
+  12% { opacity: .9; }
+  78% { opacity: .82; }
+  100% { opacity: 0; transform: translate(18px, 62px) rotate(290deg); }
+}
+@keyframes logo-leaf-b {
+  0% { opacity: 0; transform: translate(0, -5px) rotate(-20deg); }
+  14% { opacity: .82; }
+  80% { opacity: .72; }
+  100% { opacity: 0; transform: translate(-14px, 61px) rotate(-330deg); }
+}
+@keyframes logo-leaf-c {
+  0% { opacity: 0; transform: translate(0, -4px) rotate(10deg); }
+  10% { opacity: .88; }
+  76% { opacity: .76; }
+  100% { opacity: 0; transform: translate(11px, 60px) rotate(360deg); }
+}
+@keyframes logo-leaf-d {
+  0% { opacity: 0; transform: translate(0, -3px) rotate(0); }
+  16% { opacity: .74; }
+  82% { opacity: .68; }
+  100% { opacity: 0; transform: translate(-19px, 63px) rotate(-280deg); }
+}
+@keyframes logo-leaf-e {
+  0% { opacity: 0; transform: translate(0, -4px) rotate(20deg); }
+  12% { opacity: .8; }
+  77% { opacity: .7; }
+  100% { opacity: 0; transform: translate(9px, 61px) rotate(310deg); }
+}
 .actions { align-items: center; }
 .btn {
   min-height: 40px;
@@ -383,5 +421,5 @@ footer { padding-bottom: 52px; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-qb-arm, .season-thanksgiving .logo-pass-ball,
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
   .season-thanksgiving .logo-turkey-leg-a, .season-thanksgiving .logo-turkey-leg-b { animation: none; }
-  .season-thanksgiving .logo-play { display: none; }
+  .season-thanksgiving .logo-play, .season-thanksgiving .logo-fall { display: none; }
 }
