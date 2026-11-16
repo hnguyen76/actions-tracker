@@ -34,6 +34,11 @@
           seen.plays.add(p.id);  // a play listed twice in one poll is still one alert
           events.push({ game_id: id, kind: p.kind, side: p.side });
         }
+      } else if (seen) {
+        // back after a gap (phone locked, another app): no replay of the plays, one line with the score change
+        const up = (before, after) => (Number.isFinite(before) && after !== null && after > before ? after - before : 0);
+        const dAway = up(seen.away, away), dHome = up(seen.home, home);
+        if (dAway || dHome) events.push({ game_id: id, kind: "catch_up", away: dAway, home: dHome });
       }
       // red zone: only the moment a team gets in (ESPN without the flag is "unknown", not "out")
       const situation = g.situation || {};
@@ -190,18 +195,43 @@
   function announce(event, card) { queue.push([event, card]); next(); }
 
   // red zone: one small line at the top for 3 s (no sound, no vibration, never blocks the page)
-  const TOAST_MS = 3000;
+  const TOAST_MS = 3000, CATCH_UP_MS = 6000;
+  // small top lines (red zone, catch-up) stack in one tray instead of covering each other
+  let tray = null;
+  const topLine = (cls, ms, previous) => {
+    if (!tray || !tray.parentNode) { tray = el("div", "bp-tray"); root.document.body.append(tray); }
+    if (previous) previous.remove();
+    const node = el("div", cls);
+    node.setAttribute("role", "status");
+    tray.append(node);
+    root.setTimeout(() => node.remove(), ms);
+    return node;
+  };
   let toastNode = null;
   function toast(event, card) {
-    if (toastNode) toastNode.remove();
     const situation = card.situation || {};
     const parts = [event.side ? abbr(card, event.side) : null, situation.down_distance, situation.possession_text].filter(Boolean);
-    const node = el("div", "bp-toast");
-    node.setAttribute("role", "status");
-    node.append(el("b", "", "RED ZONE"), el("span", "", parts.length ? " · " + parts.join(" · ") : ""));
-    root.document.body.append(node);
-    toastNode = node;
-    root.setTimeout(() => { node.remove(); if (toastNode === node) toastNode = null; }, TOAST_MS);
+    toastNode = topLine("bp-toast", TOAST_MS, toastNode);
+    toastNode.append(el("b", "", "RED ZONE"), el("span", "", parts.length ? " · " + parts.join(" · ") : ""));
+  }
+  // "TD  PIT 11 – 31 CIN": the new score after a gap, the changed number flashing (green helps the bet, red hurts it)
+  let catchNode = null;
+  function catchUp(items) {
+    if (!items.length) return;
+    catchNode = topLine("bp-toast bp-catchup", CATCH_UP_MS, catchNode);
+    for (const [event, card] of items) {
+      const line = el("div", "bp-line");
+      const one = event.away && !event.home ? event.away : event.home && !event.away ? event.home : 0;
+      const tag = one >= 6 && one <= 8 ? "TD" : one === 3 ? "FG" : "";
+      if (tag) line.append(el("b", "bp-tag", tag));
+      const num = (side) => {
+        if (!event[side]) return el("span", "bp-num", String(card[side + "_score"]));
+        const tone = card.bet_side === side ? " bp-up-good" : card.bet_side === "home" || card.bet_side === "away" ? " bp-up-bad" : "";
+        return el("span", "bp-num bp-flash" + tone, String(card[side + "_score"]));
+      };
+      line.append(el("span", "", abbr(card, "away") + " "), num("away"), el("span", "", " – "), num("home"), el("span", "", " " + abbr(card, "home")));
+      catchNode.append(line);
+    }
   }
 
   // cards: the merged live cards of the games on the "Đang đá" card, after each live poll
@@ -209,11 +239,15 @@
   function observe(cards) {
     try {
       const byId = new Map((cards || []).map((c) => [Number(c.game_id), c]));
+      const missed = [];
       for (const event of detect(memory, cards, Date.now())) {
         const card = byId.get(event.game_id);
-        if (card && event.kind === "red_zone") toast(event, card);
-        else if (card) announce(event, card);
+        if (!card) continue;
+        if (event.kind === "red_zone") toast(event, card);
+        else if (event.kind === "catch_up") missed.push([event, card]);
+        else announce(event, card);
       }
+      catchUp(missed);
     } catch (error) { /* an alert must never break or slow the live score polling */ }
   }
 

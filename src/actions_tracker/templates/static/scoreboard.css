@@ -150,10 +150,21 @@
 @keyframes bp-flash { from { opacity: .45; } to { opacity: 0; } }
 @keyframes bp-pop { from { transform: scale(.6); opacity: 0; } }
 @keyframes bp-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
-/* red zone: a small line at the top for 3 s, never blocks taps */
-.bp-toast { position: fixed; z-index: 9998; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 0; right: 0; width: max-content;
-  max-width: 92vw; margin: 0 auto; padding: 8px 16px; border-radius: 999px; pointer-events: none; color: #fff; background: #d32f2f;
+/* small top lines (red zone 3 s, catch-up 6 s) stacked in one tray; they never block taps */
+.bp-tray { position: fixed; z-index: 9998; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 0; right: 0; display: flex;
+  flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.bp-toast { width: max-content; max-width: 92vw; padding: 8px 16px; border-radius: 999px; color: #fff; background: #d32f2f;
   font-size: 14px; letter-spacing: .02em; box-shadow: 0 6px 18px rgb(0 0 0 / 40%); animation: bp-toast 3s ease forwards; }
+/* catch-up after a gap: "TD  PIT 11 – 31 CIN", the changed number flashing */
+.bp-catchup { display: grid; gap: 4px; border-radius: 14px; background: rgb(18 23 35 / 96%); border: 1px solid rgb(255 255 255 / 12%);
+  font-size: 15px; font-variant-numeric: tabular-nums; animation-duration: 6s; }
+.bp-line { display: block; white-space: nowrap; }
+.bp-tag { margin-right: 10px; color: #ffcc1f; }
+.bp-num { font-weight: 800; }
+.bp-up-good { color: #2fd27a; }
+.bp-up-bad { color: #ff5a5f; }
+.bp-num.bp-flash { animation: bp-num-flash .8s ease-in-out infinite alternate; }
+@keyframes bp-num-flash { from { opacity: 1; text-shadow: 0 0 10px currentColor; } to { opacity: .25; text-shadow: none; } }
 .bp-toast b { font-weight: 800; letter-spacing: .06em; }
 @keyframes bp-toast { 0% { opacity: 0; transform: translateY(-12px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .bp-overlay, .bp-card, .bp-bad .bp-card, .bp-overlay::before, .bp-toast { animation: none; } }

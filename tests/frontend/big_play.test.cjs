@@ -34,11 +34,12 @@ test('detect: first look only records, then score jumps and new big plays become
   assert.deepEqual(plain(detect(m, [card({ home_score: 21, away_score: 17, drive: { big_plays: [lost] } })], t += 5000)), []);
 });
 
-test('detect: a look older than 60 s re-baselines quietly; a walk-off field goal still counts at final', () => {
+test('detect: back after more than 60 s, one catch-up of the score change (no replay of plays); a walk-off field goal still counts at final', () => {
   const { detect } = load(), m = new Map();
   const t = 1e6;
   detect(m, [card()], t);
-  assert.deepEqual(plain(detect(m, [card({ home_score: 21, drive: { big_plays: [pick] } })], t + 61000)), []);
+  assert.deepEqual(plain(detect(m, [card({ home_score: 21, drive: { big_plays: [pick] } })], t + 61000)),
+    [{ game_id: 1, kind: 'catch_up', away: 0, home: 7 }]);
   assert.deepEqual(plain(detect(m, [card({ home_score: 24, state: 'final', drive: { big_plays: [pick] } })], t + 66000)),
     [{ game_id: 1, kind: 'field_goal', side: 'home' }]);
 });
@@ -141,12 +142,13 @@ test('observe: red zone is a small top line for 3 seconds, no overlay, no vibrat
   assert.equal(env.find('bp-toast').length, 0);
 });
 
-test('detect: cards whose data is older than 30 s are skipped; the next fresh look starts over quietly', () => {
+test('detect: cards whose data is older than 30 s are skipped; the next fresh look sums up what changed', () => {
   const { detect } = load(), m = new Map(), t = 1e6, at = (ms) => new Date(ms).toISOString();
   detect(m, [card({ updated_at: at(t) })], t);
   // phone wakes up after 10 minutes, the first poll fails and only the old data is there
   assert.deepEqual(plain(detect(m, [card({ updated_at: at(t) })], t + 600000)), []);
-  assert.deepEqual(plain(detect(m, [card({ home_score: 24, away_score: 21, updated_at: at(t + 610000), drive: { big_plays: [pick] } })], t + 610000)), []);
+  assert.deepEqual(plain(detect(m, [card({ home_score: 24, away_score: 21, updated_at: at(t + 610000), drive: { big_plays: [pick] } })], t + 610000)),
+    [{ game_id: 1, kind: 'catch_up', away: 7, home: 10 }]);
   assert.deepEqual(plain(detect(m, [card({ home_score: 31, away_score: 21, updated_at: at(t + 615000), drive: { big_plays: [pick] } })], t + 615000)),
     [{ game_id: 1, kind: 'touchdown', side: 'home' }]);
 });
@@ -170,4 +172,37 @@ test('sound: an interrupted audio context (iPhone after a lock or a call) is res
   load({ document: { addEventListener: (type, fn) => { listeners[type] = fn; } }, AudioContext: AC });
   listeners.pointerdown();
   assert.equal(resumed, 1);
+});
+
+test('detect: back after a gap with the same score (or a lower one) says nothing', () => {
+  const { detect } = load(), m = new Map(), t = 1e6;
+  detect(m, [card({ home_score: 21 })], t);
+  assert.deepEqual(plain(detect(m, [card({ home_score: 21 })], t + 120000)), []);
+  assert.deepEqual(plain(detect(m, [card({ home_score: 14 })], t + 240000)), []);
+});
+
+test('observe: back after a gap, a short top line with the new score; the changed number flashes in the bet colour', () => {
+  const env = fakeDom(), vib = [], timers = [];
+  let now = 1e6;
+  const api = load({ document: env.document, navigator: { vibrate: (p) => vib.push(p) }, matchMedia: () => ({ matches: false }),
+    requestAnimationFrame: () => 0, setTimeout: (fn, ms) => { timers.push([fn, ms]); return timers.length; }, clearTimeout() {},
+    ActionsScoreboard: { betStatus: () => null }, Date: class extends Date { static now() { return now; } } });
+  api.observe([live({ away_score: 3, home_score: 31 })]);
+  now += 120000;                                      // phone locked / another app: the page saw nothing for 2 minutes
+  api.observe([live({ away_score: 11, home_score: 31 })]);
+  const line = env.find('bp-toast');
+  assert.equal(line.length, 1);
+  assert.match(line[0].textContent, /^TD/);
+  assert.match(line[0].textContent, /PIT 11 – 31 CIN$/);
+  assert.doesNotMatch(line[0].textContent, /rời trang/);
+  const flash = env.find('bp-flash');
+  assert.equal(flash.length, 1);
+  assert.equal(flash[0].textContent, '11');
+  assert.ok(flash[0].classList.contains('bp-up-bad'));   // PIT scored, the bet is CIN
+  assert.equal(env.find('bp-overlay').length, 0);
+  assert.equal(vib.length, 0);
+  const [hide, ms] = timers.find(([, d]) => d === 6000) || [];
+  assert.equal(ms, 6000);
+  hide();
+  assert.equal(env.find('bp-toast').length, 0);
 });

@@ -24,6 +24,11 @@ in English (spread, total, moneyline, favorite, underdog, fade).
   "Sửa Cách của bạn" section of the project skill `.claude/skills/bettingskill/SKILL.md` (back-test first).
 - Analysis and reports: use the `bettingskill` project skill.
 
+## Design (owner's preference)
+- Keep every design simple, with as few words as possible: numbers, colours and icons over sentences
+  (e.g. "CIN -4,5  23,5" in green/red instead of "Bạn đặt CIN -4,5 · ĐANG THẮNG · hơn 23,5 điểm").
+- Say "banh", not "bóng".
+
 ## Checks before finishing
-- `pip install -e .[dev]` then `python -m pytest -q` (all must pass) and `node --test tests/frontend/`.
+- `pip install -e .[dev]` then `python -m pytest -q` (all must pass) and `node --test tests/frontend/*.test.cjs`.
 - Keep changes small and say in Vietnamese what changed on the page.
