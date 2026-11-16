@@ -76,6 +76,58 @@ body {
 }
 .topbar .wrap { min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
 .brand-mark { height: 46px; filter: drop-shadow(0 3px 9px rgba(0, 0, 0, .12)); }
+.logo-play { opacity: 0; }
+.logo-play-ground { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-linecap: round; }
+.logo-qb-head, .logo-qb-body { fill: var(--accent); }
+.logo-qb-helmet { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; }
+.logo-qb-limbs, .logo-qb-arm { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.logo-pass-ball ellipse, .logo-caught-ball ellipse { fill: #8a4b2a; stroke: #5b2d16; stroke-width: .8; }
+.logo-pass-ball path, .logo-caught-ball path { fill: none; stroke: #fff; stroke-width: 1; stroke-linecap: round; }
+.logo-turkey-tail ellipse:nth-child(1) { fill: var(--tg-1); }
+.logo-turkey-tail ellipse:nth-child(2) { fill: var(--tg-2); }
+.logo-turkey-tail ellipse:nth-child(3) { fill: var(--tg-3); }
+.logo-turkey-tail ellipse:nth-child(4) { fill: var(--tg-4); }
+.logo-turkey-body { fill: #8a4b2a; }
+.logo-turkey-head { fill: #a0603a; }
+.logo-turkey-beak { fill: var(--tg-2); }
+.logo-turkey-eye { fill: var(--ink); }
+.logo-turkey-wattle { fill: var(--tg-3); }
+.logo-turkey-leg { fill: none; stroke: var(--tg-2); stroke-width: 2; stroke-linecap: round; }
+.logo-caught-ball { opacity: 0; }
+
+/* A short Thanksgiving doodle every 24 s: throw, catch, then the turkey runs the ball out. */
+.season-thanksgiving .brand-static { animation: logo-static-cycle 24s ease-in-out infinite; }
+.season-thanksgiving .logo-play { animation: logo-play-cycle 24s ease-in-out infinite; }
+.season-thanksgiving .logo-qb-arm { transform-box: fill-box; transform-origin: left center; animation: logo-qb-throw 24s ease-in-out infinite; }
+.season-thanksgiving .logo-pass-ball { transform-box: fill-box; transform-origin: center; animation: logo-pass 24s cubic-bezier(.3, .1, .45, 1) infinite; }
+.season-thanksgiving .logo-turkey-runner { transform-box: fill-box; transform-origin: center bottom; animation: logo-turkey-run 24s ease-in-out infinite; }
+.season-thanksgiving .logo-caught-ball { animation: logo-catch 24s step-end infinite; }
+.season-thanksgiving .logo-turkey-leg-a { transform-box: fill-box; transform-origin: top center; animation: logo-leg-a 24s linear infinite; }
+.season-thanksgiving .logo-turkey-leg-b { transform-box: fill-box; transform-origin: top center; animation: logo-leg-b 24s linear infinite; }
+@keyframes logo-static-cycle { 0%, 72%, 100% { opacity: 1; } 74%, 94% { opacity: 0; } }
+@keyframes logo-play-cycle { 0%, 72%, 96%, 100% { opacity: 0; } 74%, 94% { opacity: 1; } }
+@keyframes logo-qb-throw {
+  0%, 75%, 82%, 100% { transform: rotate(0); }
+  77% { transform: rotate(-24deg); }
+  79% { transform: rotate(34deg); }
+}
+@keyframes logo-pass {
+  0%, 76% { opacity: 0; transform: translate(0, 0) rotate(-22deg); }
+  77% { opacity: 1; transform: translate(0, 0) rotate(-22deg); }
+  80% { opacity: 1; transform: translate(43px, -13px) rotate(100deg); }
+  84% { opacity: 1; transform: translate(94px, 10px) rotate(245deg); }
+  85%, 100% { opacity: 0; transform: translate(101px, 13px) rotate(270deg); }
+}
+@keyframes logo-turkey-run {
+  0%, 82% { transform: translate(0, 0) rotate(0); }
+  84% { transform: translate(-3px, -5px) rotate(-9deg); }
+  86% { transform: translate(0, 0) rotate(5deg); }
+  92% { transform: translate(34px, 0) rotate(3deg); }
+  95%, 100% { transform: translate(43px, 0) rotate(0); }
+}
+@keyframes logo-catch { 0%, 84% { opacity: 0; } 85%, 95% { opacity: 1; } 96%, 100% { opacity: 0; } }
+@keyframes logo-leg-a { 0%, 84% { transform: rotate(0); } 86%, 90%, 94% { transform: rotate(24deg); } 88%, 92% { transform: rotate(-24deg); } }
+@keyframes logo-leg-b { 0%, 84% { transform: rotate(0); } 86%, 90%, 94% { transform: rotate(-24deg); } 88%, 92% { transform: rotate(24deg); } }
 .actions { align-items: center; }
 .btn {
   min-height: 40px;
@@ -327,4 +379,9 @@ footer { padding-bottom: 52px; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, nav.tabs button, tbody tr { transition: none; }
+  .season-thanksgiving .brand-static { animation: none; opacity: 1; }
+  .season-thanksgiving .logo-play, .season-thanksgiving .logo-qb-arm, .season-thanksgiving .logo-pass-ball,
+  .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
+  .season-thanksgiving .logo-turkey-leg-a, .season-thanksgiving .logo-turkey-leg-b { animation: none; }
+  .season-thanksgiving .logo-play { display: none; }
 }

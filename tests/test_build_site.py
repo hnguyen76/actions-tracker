@@ -42,6 +42,16 @@ def test_live_score_assets_are_published_with_dashboard(tmp_path):
         assert (out.parent / asset).is_file()
 
 
+def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'class="logo-play"' in html and 'class="brand-static"' in html
+    assert ".season-thanksgiving .logo-play" in css and "24s ease-in-out infinite" in css
+    assert "@media (prefers-reduced-motion: reduce)" in css
+    assert ".season-thanksgiving .logo-play { display: none; }" in css
+
+
 def test_mobile_game_cards_start_collapsed_and_are_keyboard_accessible(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert 'Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" })' in html
