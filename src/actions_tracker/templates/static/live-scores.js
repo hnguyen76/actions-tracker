@@ -103,6 +103,8 @@
     const side = driveSide(summary, event, drive);
     if (!side) return null;
     const teamId = String(drive.team.id);
+    // the latest play is shown as "last play"; the position comes from the latest play that describes it,
+    // because a timeout or a quarter break carries a yard line but no down & distance or spot text
     let play = null, point = null;
     for (let i = drive.plays.length - 1; i >= 0; i--) {
       const candidate = drive.plays[i];
@@ -111,7 +113,9 @@
       const start = candidate.start && typeof candidate.start === "object" ? candidate.start : null;
       const candidatePoint = end && boundedInteger(end.yardsToEndzone, 0, 100) !== null ? end
         : start && boundedInteger(start.yardsToEndzone, 0, 100) !== null ? start : null;
-      if (candidatePoint) { play = candidate; point = candidatePoint; break; }
+      if (!candidatePoint) continue;
+      if (!play) { play = candidate; point = candidatePoint; }
+      if (cleanText(candidatePoint.possessionText) || cleanText(candidatePoint.shortDownDistanceText)) { point = candidatePoint; break; }
     }
     if (!play || !point) return null;
     const yardsToEndzone = boundedInteger(point.yardsToEndzone, 0, 100);
