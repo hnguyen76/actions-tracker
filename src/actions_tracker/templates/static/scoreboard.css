@@ -11,6 +11,7 @@
 .asb-home { flex-direction: row-reverse; text-align: right; }
 .asb-identity { flex: 1; min-width: 0; }
 .asb-name { color: var(--ink); font-weight: 700; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+.asb-logo { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; margin-right: 8px; }
 .asb-abbr { display: block; color: var(--ink-2); font-size: 12px; margin-top: 4px; }
 .asb-score { color: var(--ink); font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .asb-possession { display: inline-block; width: 11px; height: 7px; margin-left: 7px; vertical-align: middle; border-radius: 50%; background: var(--warning); transform: rotate(-25deg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent); }
@@ -77,7 +78,8 @@
   .asb-main { align-items: stretch; }
   .asb-team, .asb-home { flex-direction: column; align-items: center; text-align: center; gap: 8px; }
   .asb-identity { width: 100%; }
-  .asb-name { font-size: 14px; }
+  .asb-name { font-size: 15px; }
+  .asb-logo { width: 26px; height: 26px; margin-right: 6px; }
   .asb-score { font-size: 40px; }
   .asb-quarters { grid-column: 1 / -1; grid-row: 2; justify-self: center; width: 100%; max-width: 330px; }
   .asb-quarters-empty { display: none; }

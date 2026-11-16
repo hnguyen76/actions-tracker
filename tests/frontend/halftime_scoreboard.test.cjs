@@ -124,7 +124,7 @@ test('live football renders an accessible drive field and hides it when drive da
       first_down_x: 62, distance: 6, play_yards: -5, play_clock: '2:12', play_type: 'Penalty', last_play: 'Illegal Formation.' },
   })]);
   assert.equal(h.nodes('asb-drive').length, 1);
-  assert.equal(h.nodes('asb-field')[0].attributes['aria-label'], 'DET cầm bóng, 3rd & 6, bóng tại DET 32');
+  assert.equal(h.nodes('asb-field')[0].attributes['aria-label'], 'DET cầm banh, 3rd & 6, banh tại DET 32');
   // perspective field: 120 yards incl. end zones, the top edge 92.5% of the bottom; marker and drive bar at mid height
   assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:64.44%');
   const first = h.nodes('asb-first-down')[0].attributes;
@@ -157,6 +157,7 @@ test('bet strip: the state pill with the margin beside it, no ATS explanation li
   const h = harness();
   h.api.render(h.host, [game({ detail: '0:00 - 2nd', away_abbr: 'PIT', home_abbr: 'CIN', away_score: 3, home_score: 24,
     bet_side: 'home', market: 'spread', line: -4.5 })]);
+  assert.equal(h.nodes('asb-bet-pick')[0].textContent, 'CIN -4,5');
   assert.equal(h.nodes('asb-bet-state')[0].textContent, 'ĐANG THẮNG');
   assert.equal(h.nodes('asb-bet-margin')[0].textContent, 'hơn 16,5 điểm');
   assert.equal(h.nodes('asb-bet-ats').length, 0);
@@ -168,4 +169,18 @@ test('at halftime the card shows the second-half line; it is gone once the 2nd h
   assert.equal(h.nodes('asb-2h')[0].textContent, 'Line hiệp 2 · PIT -1,5 · CIN +1,5 · Total 23,5');
   h.api.render(h.host, [game({ ...g, detail: '15:00 - 3rd', situation: { period: 3, clock: '15:00' } })]);
   assert.equal(h.nodes('asb-2h').length, 0);
+});
+
+test('team names: ESPN logo and nickname replace the long name; full name until ESPN data arrives', () => {
+  const h = harness();
+  const logo = 'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/pit.png';
+  h.api.render(h.host, [game({ detail: '12:15 - 3rd', away_name: 'Pittsburgh Steelers', home_name: 'Cincinnati Bengals', away_abbr: 'PIT', home_abbr: 'CIN',
+    situation: { period: 3, clock: '12:15', away_nick: 'Steelers', away_logo: logo, home_nick: 'Bengals', home_logo: 'http://evil.example/cin.png' } })]);
+  const names = h.nodes('asb-name').map((n) => n.textContent);
+  assert.deepEqual(names, ['Steelers', 'Bengals']);
+  const logos = h.nodes('asb-logo');
+  assert.equal(logos.length, 1);
+  assert.equal(logos[0].attributes.src, logo);
+  h.api.render(h.host, [game({ detail: '12:15 - 3rd', away_name: 'Pittsburgh Steelers', home_name: 'Cincinnati Bengals', situation: { period: 3, clock: '12:15' } })]);
+  assert.deepEqual(h.nodes('asb-name').map((n) => n.textContent), ['Pittsburgh Steelers', 'Cincinnati Bengals']);
 });

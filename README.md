@@ -9,15 +9,15 @@ ESPN miễn phí (dữ liệu cũ có The Odds API) và phân tích:
 Dashboard: https://hnguyen76.github.io/actions-tracker/
 
 Mục **Đang đá & chờ kết quả** lấy điểm trực tiếp từ scoreboard công khai của ESPN mỗi **5 giây**
-khi trang đang mở, độc lập với lịch quét/đăng website 5 phút. Hiển thị đội cầm bóng, down & distance,
-vị trí bóng, đồng hồ/hiệp và điểm từng hiệp khi ESPN có dữ liệu. Trang giữ điểm lần trước nếu lỗi,
+khi trang đang mở, độc lập với lịch quét/đăng website 5 phút. Hiển thị đội cầm banh, down & distance,
+vị trí banh, đồng hồ/hiệp và điểm từng hiệp khi ESPN có dữ liệu. Trang giữ điểm lần trước nếu lỗi,
 thử lại chậm dần và ngừng lấy khi bị ẩn. Nhịp lấy 5 giây không bảo đảm độ trễ 5 giây của nguồn.
-Với NFL/NCAAF, sân minh họa (phối cảnh, nền màu hai đội) lấy current drive của ESPN tối đa mỗi **10 giây**, gồm vị trí bóng, đoạn drive đã đi từ điểm bắt đầu,
+Với NFL/NCAAF, sân minh họa (phối cảnh, nền màu hai đội) lấy current drive của ESPN tối đa mỗi **10 giây**, gồm vị trí banh, đoạn drive đã đi từ điểm bắt đầu,
 vạch first down, số yard và play gần nhất; phần này tự ẩn khi ESPN không có play-by-play.
 Ngay dưới bảng điểm/sân live, mỗi trận giữ nguyên tín hiệu, tin tức, chuyên gia spread/winner,
 thời tiết và thông tin quyết định đã có trước giờ đá; phần này đóng sẵn, bấm “Thông tin trước trận” để mở.
 Tỉ số cuối trên trình duyệt chờ lượt chấm của hệ thống trước khi vào thống kê.
-Khi trang đang mở, trận đang có kèo nào có **touchdown, field goal (vào/trượt), interception hoặc fumble mất bóng**
+Khi trang đang mở, trận đang có kèo nào có **touchdown, field goal (vào/trượt), interception hoặc fumble mất banh**
 thì hiện cảnh báo toàn màn hình có pháo hoa màu đội, tỉ số và kèo của bạn (xanh = có lợi, đỏ = bất lợi), kêu “ting”
 sau khi đã chạm trang một lần và rung trên Android (iPhone không cho trang web rung); chạm để tắt, tự tắt sau 4 giây.
 Vào **red zone** thì chỉ hiện một dòng nhỏ trên cùng trong 3 giây. Chỉ báo play xảy ra khi trang đang mở, mỗi play một lần.

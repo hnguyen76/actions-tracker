@@ -421,7 +421,7 @@ def telegram_setup(root: Path, get=None, post=None) -> int:
             return 6
         (Path(root) / alerts.CHAT_FILE).write_text(chat, "utf-8")
         alerts.send_telegram(token, chat, "✅ Actions Expert Tracker đã kết nối. Bạn sẽ nhận danh sách kèo "
-                             "khoảng 15 phút trước mỗi giờ bóng lăn.", **({"post": post} if post else {}))
+                             "khoảng 15 phút trước mỗi giờ banh lăn.", **({"post": post} if post else {}))
     except alerts.TelegramError as e:
         print(f"LOI Telegram: {e}")
         return 6

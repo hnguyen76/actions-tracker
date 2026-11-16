@@ -280,3 +280,13 @@ test('at halftime the live second-half odds are fetched (once a minute) and atta
   assert.equal(calls2.filter(x=>x.includes('/odds')).length,0);
   assert.equal(third.scores[0].second_half,undefined);
 });
+test('ESPN nickname and espncdn logo are kept on the situation', () => {
+  const raw=event();
+  raw.competitions[0].competitors[0].team={...raw.competitions[0].competitors[0].team,name:'Patriots',logo:'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/ne.png'};
+  raw.competitions[0].competitors[1].team={...raw.competitions[0].competitors[1].team,name:'Lions',logo:'http://example.com/det.png'};
+  const s=api.parseEvent(raw).situation;
+  assert.equal(s.away_nick,'Patriots');
+  assert.equal(s.home_nick,'Lions');
+  assert.equal(s.away_logo,'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/ne.png');
+  assert.equal(s.home_logo,null);
+});
