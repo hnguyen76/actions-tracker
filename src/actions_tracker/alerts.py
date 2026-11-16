@@ -31,6 +31,7 @@ _MARKET = {"spread": "Spread", "total": "Total", "ml": "Moneyline"}
 _ORDER = {"bet": 0, "paper": 1, "conflict": 2, "skip": 3}
 
 _SCHEMA = "CREATE TABLE IF NOT EXISTS alerts_sent(game_id INTEGER PRIMARY KEY, sent_at TEXT)"
+DELIVERY_ERROR_KEY = "telegram_alert_error"
 
 
 def _iso(ts: pd.Timestamp) -> str:
@@ -52,6 +53,18 @@ def mark_sent(conn: sqlite3.Connection, game_ids: list[int], now: str) -> None:
     conn.execute(_SCHEMA)
     conn.executemany("INSERT OR IGNORE INTO alerts_sent(game_id, sent_at) VALUES (?, ?)",
                      [(int(g), now) for g in game_ids])
+    conn.commit()
+
+
+def record_delivery_error(conn: sqlite3.Connection, now: str, error: Exception) -> None:
+    """Persist a safe, short diagnostic so an unattended phone failure can be inspected remotely."""
+    value = f"{now}|{str(error)[:200]}"
+    conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)", (DELIVERY_ERROR_KEY, value))
+    conn.commit()
+
+
+def clear_delivery_error(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM meta WHERE key = ?", (DELIVERY_ERROR_KEY,))
     conn.commit()
 
 

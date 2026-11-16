@@ -367,9 +367,11 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
             alerts.send_telegram(token, chat, text, **({"post": post} if post else {}))
     except alerts.TelegramError as e:
         print(f"LOI Telegram: {e}")
+        alerts.record_delivery_error(conn, now, e)
         conn.close()
         return 6
     alerts.mark_sent(conn, [g["id"] for g in due], now)
+    alerts.clear_delivery_error(conn)
     conn.close()
     print(f"Da gui Telegram: {len(due)} tran.")
     return 0
