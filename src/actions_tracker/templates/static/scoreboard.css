@@ -110,3 +110,38 @@
 .asb-bet-loss .asb-bet-state { color: var(--loss); background: color-mix(in srgb, var(--loss) 16%, transparent); }
 .asb-bet-push .asb-bet-state { color: var(--ink-2); background: var(--surface-2); }
 @media (max-width: 600px) { .asb-bet { font-size: 12.5px; } .asb-bet-ats { flex-basis: 100%; order: 3; } }
+
+/* big-play alert (big-play.js): full screen, tap anywhere to dismiss; green helps the bet side, red hurts it */
+.bp-overlay { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 24px; cursor: pointer;
+  background: radial-gradient(circle at 50% 45%, rgb(10 14 26 / 72%), rgb(4 6 12 / 92%)); animation: bp-in .25s ease-out;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-tap-highlight-color: transparent; }
+.bp-good { --bp-tone: #2fd27a; }
+.bp-bad { --bp-tone: #ff5a5f; }
+.bp-neutral { --bp-tone: #ffd34d; }
+.bp-overlay::before { content: ""; position: absolute; inset: 0; background: var(--bp-tone); opacity: 0; pointer-events: none;
+  animation: bp-flash .8s ease-out; }
+.bp-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.bp-card { position: relative; min-width: min(320px, 86vw); max-width: 92vw; padding: 22px 26px 16px; border-radius: 18px; text-align: center;
+  background: rgb(13 17 29 / 97%); border: 2px solid var(--bp-tone);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--bp-tone) 18%, transparent), 0 18px 50px rgb(0 0 0 / 55%);
+  animation: bp-pop .45s cubic-bezier(.2, 1.4, .4, 1); }
+.bp-bad .bp-card { animation: bp-pop .45s cubic-bezier(.2, 1.4, .4, 1), bp-shake .5s .45s; }
+.bp-kind { color: #fff; font-size: clamp(30px, 9vw, 64px); font-weight: 900; line-height: 1; letter-spacing: .04em;
+  text-shadow: 0 0 18px var(--bp-tone); }
+.bp-team { margin-top: 10px; color: var(--bp-tone); font-size: clamp(18px, 5vw, 28px); font-weight: 800; }
+.bp-score { margin-top: 8px; color: rgb(255 255 255 / 86%); font-size: 17px; font-variant-numeric: tabular-nums; }
+.bp-bet { display: inline-block; margin-top: 12px; padding: 7px 14px; border-radius: 999px; color: #0b0f19; background: var(--bp-tone);
+  font-size: 14px; font-weight: 700; }
+.bp-hint { margin-top: 12px; color: rgb(255 255 255 / 45%); font-size: 11px; }
+@keyframes bp-in { from { opacity: 0; } }
+@keyframes bp-flash { from { opacity: .45; } to { opacity: 0; } }
+@keyframes bp-pop { from { transform: scale(.6); opacity: 0; } }
+@keyframes bp-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+/* red zone: a small line at the top for 3 s, never blocks taps */
+.bp-toast { position: fixed; z-index: 9998; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 0; right: 0; width: max-content;
+  max-width: 92vw; margin: 0 auto; padding: 8px 16px; border-radius: 999px; pointer-events: none; color: #fff; background: #d32f2f;
+  font-size: 14px; letter-spacing: .02em; box-shadow: 0 6px 18px rgb(0 0 0 / 40%); animation: bp-toast 3s ease forwards; }
+.bp-toast b { font-weight: 800; letter-spacing: .06em; }
+@keyframes bp-toast { 0% { opacity: 0; transform: translateY(-12px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bp-overlay, .bp-card, .bp-bad .bp-card, .bp-overlay::before, .bp-toast { animation: none; } }

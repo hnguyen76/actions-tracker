@@ -15,8 +15,12 @@ thử lại chậm dần và ngừng lấy khi bị ẩn. Nhịp lấy 5 giây k
 Với NFL/NCAAF, sân minh họa (phối cảnh, nền màu hai đội) lấy current drive của ESPN tối đa mỗi **10 giây**, gồm vị trí bóng, đoạn drive đã đi từ điểm bắt đầu,
 vạch first down, số yard và play gần nhất; phần này tự ẩn khi ESPN không có play-by-play.
 Ngay dưới bảng điểm/sân live, mỗi trận giữ nguyên tín hiệu, tin tức, chuyên gia spread/winner,
-thời tiết và thông tin quyết định đã có trước giờ đá; trên điện thoại phần này mở sẵn và có thể thu gọn.
+thời tiết và thông tin quyết định đã có trước giờ đá; phần này đóng sẵn, bấm “Thông tin trước trận” để mở.
 Tỉ số cuối trên trình duyệt chờ lượt chấm của hệ thống trước khi vào thống kê.
+Khi trang đang mở, trận đang có kèo nào có **touchdown, field goal (vào/trượt), interception hoặc fumble mất bóng**
+thì hiện cảnh báo toàn màn hình có pháo hoa màu đội, tỉ số và kèo của bạn (xanh = có lợi, đỏ = bất lợi), kêu “ting”
+sau khi đã chạm trang một lần và rung trên Android (iPhone không cho trang web rung); chạm để tắt, tự tắt sau 4 giây.
+Vào **red zone** thì chỉ hiện một dòng nhỏ trên cùng trong 3 giây. Chỉ báo play xảy ra khi trang đang mở, mỗi play một lần.
 Halftime có đồng hồ **ước tính** từ mốc `End of Half` hiệp 2 của ESPN: mùa thường NFL 13 phút,
 NCAAF 20 phút. Đồng hồ chạy theo thời gian thực, dừng khi ESPN báo hiệp 3; quá mốc dự kiến thì
 hiện “chờ 3rd”. Thiếu mốc kết thúc hiệp 2 hoặc ngoài mùa thường thì chỉ hiện trạng thái halftime.
