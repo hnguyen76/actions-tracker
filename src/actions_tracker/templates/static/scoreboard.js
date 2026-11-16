@@ -273,15 +273,26 @@
     return null;
   }
 
+  // "CIN -4,5  23,5": the pick in green (winning) or red (losing), the margin beside it pulsing on the page rhythm
+  // while the game is live; the words ("đang thắng") are kept for screen readers and the tooltip
   function betStrip(game) {
     const b = betStatus(game);
     if (!b) return null;
-    const label = { win: "ĐANG THẮNG", loss: "ĐANG THUA", push: "ĐANG HÒA" }[b.state];
+    const final = game.state === "final";
+    const word = (final ? { win: "thắng", loss: "thua", push: "hòa" } : { win: "đang thắng", loss: "đang thua", push: "đang hòa" })[b.state];
     const strip = node("div", "asb-bet asb-bet-" + b.state);
-    const result = node("span", "asb-bet-result");  // the pill and the margin stay together on one line
-    result.append(node("strong", "asb-bet-state", game.state === "final" ? { win: "THẮNG", loss: "THUA", push: "HÒA" }[b.state] : label));
-    if (b.state !== "push") result.append(node("span", "asb-bet-margin", b.margin));
-    strip.append(node("span", "asb-bet-pick", b.pick), result);
+    const label = b.pick + " " + word + (b.state === "push" ? "" : " " + b.margin);
+    strip.setAttribute("aria-label", label);
+    strip.setAttribute("title", label);
+    strip.append(node("span", "asb-bet-pick", b.pick));
+    if (b.state !== "push") {
+      const margin = node("span", "asb-bet-margin", b.margin);
+      if (game.state === "live") {
+        margin.classList.add("asb-bet-flash");
+        margin.setAttribute("style", "animation-delay:" + pulseDelay());
+      }
+      strip.append(margin);
+    }
     return strip;
   }
 
