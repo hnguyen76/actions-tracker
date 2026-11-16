@@ -4,6 +4,7 @@
 2. NFL key numbers 3 and 7                                         5. quarterback injury status
 3. form of the experts on the same side (30-day units at pick)     6. same-situation season rate (forecast)
 7. public tickets vs money (Action Network public page)
+The cover forecast (6) is listed first, and only when it is for the side being bet.
 These are descriptive aids, not tested rules.
 """
 
@@ -35,6 +36,12 @@ def _fmt(x) -> str:
 
 def _num(x) -> str:
     return f"{x:g}".replace(".", ",")
+
+
+def _fc_side(f) -> str | None:
+    """home / away for the team a forecast row bets ("PIT@CIN", pick "CIN" -> home)."""
+    away, _, home = str(f.match).partition("@")
+    return "home" if f.pick == home else "away" if f.pick == away else None
 
 
 def _key_number(line) -> tuple[str, str] | None:
@@ -72,6 +79,12 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             continue
         game = g_by.get(gid)
         out = []
+        # 6. same situation over the season (user's method plays only): the cover forecast, shown first
+        f = fc.get(gid)
+        if market == "spread" and f is not None and _fc_side(f) == side:
+            line = "" if f.line is None or pd.isna(f.line) else " " + _fmt(f.line)
+            out.append(("⚪", f"Dự báo cover {f.pick}{line}: {f.p_win * 100:.0f}% ({int(f.basis_n)} kèo tương tự)"
+                              " — chưa kiểm chứng"))
         # 1. line movement
         o, c = opn.get((gid, market, side)), cur.get((gid, market, side))
         if o is not None and c is not None and not pd.isna(o) and not pd.isna(c) and abs(c - o) >= 0.5:
@@ -111,10 +124,6 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             cold = int((mine_e["units_30"] <= -3).sum())
             if len(mine_e):
                 out.append(("⚪", f"Expert cùng bên bạn: {len(mine_e)} người · {hot} đang lời, {cold} đang lỗ (30 ngày)"))
-        # 6. same situation over the season (user's method plays only)
-        f = fc.get(gid)
-        if market == "spread" and f is not None:
-            out.append(("⚪", f"Tình huống tương tự cả mùa: {f.p_win * 100:.0f}% ({int(f.basis_n)} kèo) — chưa kiểm chứng"))
         # 7. public tickets vs money
         p = pub.get((gid, market, side))
         if p is not None and not pd.isna(p.tickets_pct) and not pd.isna(p.money_pct):

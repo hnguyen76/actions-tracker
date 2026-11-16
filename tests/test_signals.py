@@ -10,6 +10,32 @@ def _df(rows, cols):
     return pd.DataFrame(rows, columns=cols)
 
 
+FC_COLS = ["game_id", "match", "pick", "line", "p_win", "basis_n"]
+_NO = dict(games=_df([], ["id", "league"]), current=_df([], ["game_id", "market", "side", "line"]),
+           opening=_df([], ["game_id", "market", "side", "line"]),
+           context=_df([], ["game_id", "home_rest_days", "away_rest_days", "home_qb", "away_qb"]),
+           public=_df([], ["game_id", "market", "side", "tickets_pct", "money_pct"]),
+           expert_sides=_df([], ["game_id", "market", "side", "units_30"]))
+
+
+def test_cover_forecast_is_the_first_signal_for_the_side_bet():
+    decisions = _df([dict(game_id=7, market="spread", bet_side="home")], ["game_id", "market", "bet_side"])
+    games = _df([dict(id=7, league="nfl")], ["id", "league"])
+    current = _df([dict(game_id=7, market="spread", side="home", line=-3.5)], ["game_id", "market", "side", "line"])
+    forecast = _df([dict(game_id=7, match="PIT@CIN", pick="CIN", line=-3.5, p_win=0.390244, basis_n=21)], FC_COLS)
+    s = signals(decisions, **{**_NO, "games": games, "current": current}, forecast=forecast)
+    first = s.sort_values("order").iloc[0]
+    assert (first.tone, first.text) == ("⚪", "Dự báo cover CIN -3,5: 39% (21 kèo tương tự) — chưa kiểm chứng")
+    assert len(s) == 2  # the key-number signal is still there, after the forecast
+
+
+def test_cover_forecast_left_out_when_it_is_for_the_other_side():
+    decisions = _df([dict(game_id=7, market="spread", bet_side="away")], ["game_id", "market", "bet_side"])
+    forecast = _df([dict(game_id=7, match="PIT@CIN", pick="CIN", line=-3.5, p_win=0.39, basis_n=21)], FC_COLS)
+    s = signals(decisions, **_NO, forecast=forecast)
+    assert s.empty
+
+
 def test_signals_for_the_side_bet():
     decisions = _df([dict(game_id=1, market="spread", bet_side="home"), dict(game_id=2, market="total", bet_side="under")],
                     ["game_id", "market", "bet_side"])
@@ -24,7 +50,7 @@ def test_signals_for_the_side_bet():
                  ["game_id", "market", "side", "tickets_pct", "money_pct"])
     experts = _df([dict(game_id=1, market="spread", side="home", units_30=5), dict(game_id=1, market="spread", side="home", units_30=-4),
                    dict(game_id=1, market="spread", side="away", units_30=1)], ["game_id", "market", "side", "units_30"])
-    forecast = _df([dict(game_id=1, p_win=0.57, basis_n=36)], ["game_id", "p_win", "basis_n"])
+    forecast = _df([dict(game_id=1, match="AAA@BBB", pick="BBB", line=3.5, p_win=0.57, basis_n=36)], FC_COLS)
     s = signals(decisions, games, current, opening, context, public, experts, forecast)
     assert list(s.columns) == SIGNAL_COLS
     one = list(zip(s[s.game_id == 1].tone, s[s.game_id == 1].text))
