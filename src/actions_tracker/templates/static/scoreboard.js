@@ -15,6 +15,10 @@
     const value = competitor && competitor.team && competitor.team.color;
     return typeof value === "string" && /^[0-9a-f]{6}$/i.test(value) ? "#" + value.toLowerCase() : null;
   };
+  // nickname ("Steelers", "Crimson Tide") and the ESPN scoreboard logo shown in place of the long team name
+  const teamNick = (competitor) => text(competitor && competitor.team && competitor.team.name);
+  const espnImage = (url) => (typeof url === "string" && /^https:\/\/[^/]*\.espncdn\.com\//i.test(url) ? url : null);
+  const teamLogo = (competitor) => espnImage(competitor && competitor.team && competitor.team.logo);
   const periodScores = (competitor) => {
     const scores = [];
     for (const row of competitor && Array.isArray(competitor.linescores) ? competitor.linescores : []) {
@@ -51,6 +55,10 @@
       home_espn_id: homeId,
       away_color: teamColor(away),
       home_color: teamColor(home),
+      away_nick: teamNick(away),
+      home_nick: teamNick(home),
+      away_logo: teamLogo(away),
+      home_logo: teamLogo(home),
     };
     return result.is_halftime || [result.possession, result.possession_text, result.down_distance, result.red_zone, result.period, result.clock, result.away_period_scores, result.home_period_scores]
       .some((value) => value !== null) ? result : null;
@@ -182,7 +190,7 @@
 
     const facts = node("div", "asb-drive-facts");
     const down = text(drive.down_distance), spot = text(drive.spot);
-    facts.append(node("strong", "", [down, spot].filter(Boolean).join(" · ") || "Đang cập nhật vị trí bóng"));
+    facts.append(node("strong", "", [down, spot].filter(Boolean).join(" · ") || "Đang cập nhật vị trí banh"));
 
     const field = node("div", "asb-field");
     const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
@@ -191,7 +199,7 @@
     const offenseColor = drive.team_side === "away" ? awayColor : homeColor;
     field.setAttribute("style", `--asb-away-color:${awayColor};--asb-home-color:${homeColor};--asb-offense-color:${offenseColor}`);
     field.setAttribute("role", "img");
-    field.setAttribute("aria-label", [drive.team_abbr && drive.team_abbr + " cầm bóng", down, spot && "bóng tại " + spot].filter(Boolean).join(", "));
+    field.setAttribute("aria-label", [drive.team_abbr && drive.team_abbr + " cầm banh", down, spot && "banh tại " + spot].filter(Boolean).join(", "));
     const pitch = node("div", "asb-pitch");
     const turf = node("div", "asb-turf");
     turf.append(fieldSvg(drive));
@@ -204,7 +212,7 @@
     }
     const marker = node("span", "asb-ball-marker");
     marker.setAttribute("style", "left:" + fieldPct(ball));
-    marker.setAttribute("title", `${text(drive.team_abbr) || abbreviation(game, drive.team_side)} · ${spot || "vị trí bóng"}`);
+    marker.setAttribute("title", `${text(drive.team_abbr) || abbreviation(game, drive.team_side)} · ${spot || "vị trí banh"}`);
     marker.append(node("span", "asb-football-icon"));
     turf.append(marker);
     const numbers = node("div", "asb-yard-numbers");
@@ -267,7 +275,7 @@
     const result = node("span", "asb-bet-result");  // the pill and the margin stay together on one line
     result.append(node("strong", "asb-bet-state", game.state === "final" ? { win: "THẮNG", loss: "THUA", push: "HÒA" }[b.state] : label));
     if (b.state !== "push") result.append(node("span", "asb-bet-margin", b.margin));
-    strip.append(node("span", "asb-bet-pick", "Bạn đặt " + b.pick), result);
+    strip.append(node("span", "asb-bet-pick", b.pick), result);
     return strip;
   }
 
@@ -323,14 +331,25 @@
     for (const side of ["away", "home"]) {
       const section = node("div", "asb-team asb-" + side);
       const identity = node("div", "asb-identity");
-      const name = text(game[side + "_name"]) || abbreviation(game, side);
+      // ESPN logo + nickname once the live data is there; the full name until then
+      const name = text(situation[side + "_nick"]) || text(game[side + "_name"]) || abbreviation(game, side);
       const title = node("div", "asb-name", name);
+      const logoUrl = espnImage(situation[side + "_logo"]);
+      if (logoUrl) {
+        const logo = node("img", "asb-logo");
+        logo.setAttribute("src", logoUrl);
+        logo.setAttribute("alt", "");
+        logo.setAttribute("loading", "lazy");
+        logo.onerror = () => logo.remove();  // no broken-image box when the logo cannot load
+        title.textContent = "";
+        title.append(logo, node("span", "asb-nick", name));
+      }
       const possesses = live && !halftime && situation.possession === side;
       if (possesses) {
         const dot = node("span", "asb-possession");
         dot.setAttribute("role", "img");
-        dot.setAttribute("aria-label", name + " đang cầm bóng");
-        dot.title = name + " đang cầm bóng";
+        dot.setAttribute("aria-label", name + " đang cầm banh");
+        dot.title = name + " đang cầm banh";
         title.append(dot);
       }
       identity.append(title, node("span", "asb-abbr", abbreviation(game, side)));
@@ -352,10 +371,10 @@
     }
     if (live && !halftime) {
       const items = [];
-      if (situation.possession === "away" || situation.possession === "home") items.push(abbreviation(game, situation.possession) + " đang cầm bóng");
+      if (situation.possession === "away" || situation.possession === "home") items.push(abbreviation(game, situation.possession) + " đang cầm banh");
       const down = text(situation.down_distance), spot = text(situation.possession_text);
       if (down) items.push(down);
-      if (spot && (!down || !down.includes(spot))) items.push("Bóng tại " + spot);
+      if (spot && (!down || !down.includes(spot))) items.push("Banh tại " + spot);
       if (situation.red_zone === true) items.push("Red zone");
       if (items.length) {
         const status = node("div", "asb-situation" + (situation.red_zone === true ? " asb-red-zone" : ""), items.join(" · "));

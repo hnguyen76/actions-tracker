@@ -99,7 +99,7 @@ test('observe: alerts queue one at a time; a turnover against the bet side is sh
   shown = env.find('bp-overlay');
   assert.equal(shown.length, 1);
   assert.match(shown[0].textContent, /INTERCEPTION/);
-  assert.match(shown[0].textContent, /PIT cướp bóng/);
+  assert.match(shown[0].textContent, /PIT cướp banh/);
   assert.ok(shown[0].classList.contains('bp-bad'));
   env.click(shown[0]);
   assert.equal(env.find('bp-overlay').length, 0);

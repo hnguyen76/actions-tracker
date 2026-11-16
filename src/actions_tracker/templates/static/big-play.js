@@ -62,7 +62,7 @@
   const abbr = (card, side) => String(card[side + "_abbr"] || (side === "home" ? "Đội nhà" : "Đội khách"));
   function who(event, card) {
     const team = abbr(card, event.side), loser = abbr(card, other(event.side));
-    return { interception: team + " cướp bóng", fumble_lost: loser + " mất bóng", field_goal_missed: loser + " đá trượt" }[event.kind] || team;
+    return { interception: team + " cướp banh", fumble_lost: loser + " mất banh", field_goal_missed: loser + " đá trượt" }[event.kind] || team;
   }
   // green when the play helps the side the owner bet, red when it hurts
   const tone = (event, card) => (card.bet_side === "home" || card.bet_side === "away"
