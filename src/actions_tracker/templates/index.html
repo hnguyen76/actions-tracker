@@ -226,6 +226,7 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .verdict-sub { color: var(--ink-2); font-size: 15px; margin-top: 4px; }
 .decide-sub { font-size: 17px; font-weight: 700; margin: 18px 0 8px; display: flex; align-items: baseline; gap: 10px; }
 .decide-sub .count { font-size: 14px; font-weight: 500; color: var(--muted); }
+.decide-sub.is-empty { margin: 10px 0 0; font-size: 15px; color: var(--muted); }
 .decide-note { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
 #decide-skips { margin-top: 12px; }
 td.cell-wrap { white-space: normal; min-width: 300px; max-width: 460px; }
@@ -1320,17 +1321,19 @@ const DATA = /*__DATA__*/null;
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
     ];
-    const section = (market, emptyText) => {
+    // a market with no play shrinks to its heading line ("Spread 0 kèo"); the table comes back when there is one
+    const section = (market) => {
       const list = act.filter((r) => r.market === market);
       const h = document.getElementById("decide-h-" + market), host = document.getElementById("decide-table-" + market);
       h.replaceChildren(MARKET_LABEL[market] || market, el("span", { class: "count", text: `${list.length} kèo` }));
-      if (market === "ml") { h.hidden = host.hidden = !list.length; }
+      h.classList.toggle("is-empty", !list.length);
+      host.hidden = !list.length;
+      if (market === "ml") h.hidden = !list.length;
       renderTable("decide-table-" + market, list, cols, null, Object.assign({}, DECISION_HOT, { detail: decisionDetail }));
-      if (!list.length) host.replaceChildren(el("div", { class: "empty", text: emptyText }));
     };
-    section("spread", "Không có kèo spread nào khớp quy tắc ngày này.");
-    section("total", "Chưa có kèo total.");
-    section("ml", "");
+    section("spread");
+    section("total");
+    section("ml");
     const sk = document.getElementById("decide-skips");
     sk.hidden = !skips.length;
     sk.querySelector("summary").textContent = `${skips.length} kèo chỉ có consensus — bỏ qua`;
