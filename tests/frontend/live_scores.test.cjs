@@ -93,6 +93,18 @@ test('big plays: a return touchdown is left to the score jump; a play listed twi
   const summary={header:{id:e.event_id},drives:{previous:[drive],current:drive}};
   assert.deepEqual(api.parseBigPlays(summary,e,e.event_id),[{id:'9203',kind:'interception',side:'home',text:'Pass intercepted by DET.'}]);
 });
+test('a timeout as the last play keeps the down, distance and spot of the latest snap', () => {
+  const e=api.parseEvent(event()), s=driveSummary();
+  s.drives.current.plays.push({id:'777',type:{text:'Official Timeout'},text:'Official Timeout at 05:28.',
+    clock:{displayValue:'5:28'},end:{yardsToEndzone:68}});
+  const d=api.parseDrive(s,e,e.event_id);
+  assert.equal(d.down_distance,'3rd & 6');
+  assert.equal(d.spot,'DET 32');
+  assert.equal(d.ball_x,68);
+  assert.equal(d.first_down_x,62);
+  assert.equal(d.play_type,'Official Timeout');
+  assert.equal(d.last_play,'Official Timeout at 05:28.');
+});
 test('drive parser rejects the wrong event, unknown offense and unusable positions', () => {
   const e=api.parseEvent(event());
   assert.equal(api.parseDrive(driveSummary('other'),e,e.event_id),null);
