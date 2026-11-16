@@ -72,13 +72,8 @@
     return remaining > 0 ? "Halftime · ước tính " + String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0")
       : "Halftime · chờ 3rd";
   };
-  const gameClockLabel = (end, period, now = Date.now()) => {
-    const remaining = Math.max(0, Math.ceil((end - now) / 1000));
-    const clock = String(Math.floor(remaining / 60)) + ":" + String(remaining % 60).padStart(2, "0");
-    return clock + " · " + periodLabel(period);
-  };
-  let scoreboardTicker = null;
-  function updateScoreboardClocks() {
+  let halftimeTicker = null;
+  function updateHalftimeClocks() {
     if (typeof document === "undefined") return;
     let active = false;
     if (!document.hidden) for (const clock of document.querySelectorAll(".asb-halftime[data-halftime-ends-at]")) {
@@ -88,17 +83,10 @@
       clock.textContent = halftimeLabel(end);
       if (end > Date.now()) active = true;
     }
-    if (!document.hidden) for (const clock of document.querySelectorAll(".asb-game-clock[data-clock-ends-at]")) {
-      if (!clock.isConnected || !clock.getClientRects().length) continue;
-      const end = Date.parse(clock.dataset.clockEndsAt), period = integer(clock.dataset.clockPeriod);
-      if (!Number.isFinite(end) || period === null || period < 1 || period > 20) continue;
-      clock.textContent = gameClockLabel(end, period);
-      if (end > Date.now()) active = true;
-    }
-    if (active && scoreboardTicker === null) scoreboardTicker = setInterval(updateScoreboardClocks, 1000);
-    if (!active && scoreboardTicker !== null) { clearInterval(scoreboardTicker); scoreboardTicker = null; }
+    if (active && halftimeTicker === null) halftimeTicker = setInterval(updateHalftimeClocks, 1000);
+    if (!active && halftimeTicker !== null) { clearInterval(halftimeTicker); halftimeTicker = null; }
   }
-  if (typeof document !== "undefined") document.addEventListener("visibilitychange", updateScoreboardClocks);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", updateHalftimeClocks);
 
   function quarterTable(game, situation) {
     const away = Array.isArray(situation.away_period_scores) ? situation.away_period_scores : [];
@@ -277,16 +265,6 @@
       clockNode.dataset.halftimeEndsAt = halftimeEnd;
       clockNode.setAttribute("aria-live", "off");
       clockNode.textContent = halftimeLabel(Date.parse(halftimeEnd));
-    } else {
-      const clockEnd = text(situation.clock_ends_at), parsedEnd = Date.parse(clockEnd);
-      if (live && situation.clock_running === true && period !== null && Number.isFinite(parsedEnd) && parsedEnd > Date.now()) {
-        clockNode.classList.add("asb-game-clock");
-        clockNode.dataset.clockEndsAt = clockEnd;
-        clockNode.dataset.clockPeriod = String(period);
-        clockNode.setAttribute("aria-live", "off");
-        clockNode.setAttribute("title", "Đồng hồ nội suy từ play-by-play ESPN và tự hiệu chỉnh sau mỗi lần quét");
-        clockNode.textContent = gameClockLabel(parsedEnd, period);
-      }
     }
     meta.append(clockNode);
     const stamp = new Date(game.updated_at);
@@ -414,7 +392,7 @@
       for (const card of cards) insertNode(host, card, null);
     }
     host.hidden = !cards.length;
-    updateScoreboardClocks();
+    updateHalftimeClocks();
   }
 
   window.ActionsScoreboard = { parseSituation, render, betStatus };
