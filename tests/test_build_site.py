@@ -37,7 +37,7 @@ def test_empty_tables_render(tmp_path):
 def test_live_score_assets_are_published_with_dashboard(tmp_path):
     out = build_site({}, [], tmp_path / "site", None, "t")
     html = out.read_text("utf-8")
-    for asset in ("live-scores.js", "scoreboard.js", "scoreboard.css"):
+    for asset in ("live-scores.js", "scoreboard.js", "scoreboard.css", "dashboard.css"):
         assert asset in html
         assert (out.parent / asset).is_file()
 
