@@ -188,3 +188,15 @@ test('team names: ESPN logo and nickname replace the long name; full name until 
   h.api.render(h.host, [game({ detail: '12:15 - 3rd', away_name: 'Pittsburgh Steelers', home_name: 'Cincinnati Bengals', situation: { period: 3, clock: '12:15' } })]);
   assert.deepEqual(h.nodes('asb-name').map((n) => n.textContent), ['Pittsburgh Steelers', 'Cincinnati Bengals']);
 });
+test('live clock pulses in step with the TV dot; halftime and final clocks stay still', () => {
+  const h = harness();
+  h.api.render(h.host, [game({ detail: '1:14 - 3rd', situation: { period: 3, clock: '1:14' } })]);
+  const clock = h.nodes('asb-clock')[0];
+  assert.ok(clock.className.split(' ').includes('asb-live-clock'));
+  assert.equal(clock.attributes.style, `animation-delay:-${BASE % 2400}ms`);  // same phase as every other pulse on the page
+  assert.equal(h.api.pulseDelay(), `-${BASE % 2400}ms`);
+  h.api.render(h.host, [game()]);
+  assert.ok(!h.nodes('asb-clock')[0].className.split(' ').includes('asb-live-clock'));
+  h.api.render(h.host, [game({ state: 'final' })]);
+  assert.ok(!h.nodes('asb-clock')[0].className.split(' ').includes('asb-live-clock'));
+});

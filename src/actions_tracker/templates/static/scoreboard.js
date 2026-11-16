@@ -72,6 +72,10 @@
   };
   const league = (game) => String(game.league || "").toUpperCase();
   const abbreviation = (game, side) => text(game[side + "_abbr"]) || text(game[side + "_name"]) || (side === "away" ? "Đội khách" : "Đội nhà");
+  // one rhythm for every live pulse on the page (TV dot, game clock): the phase comes from the wall clock,
+  // so a clock re-drawn every poll stays in step with the TV dot
+  const PULSE_MS = 2400;
+  const pulseDelay = () => `-${Date.now() % PULSE_MS}ms`;
   const periodName = (period) => period <= 4 ? String(period) : period === 5 ? "OT" : "OT" + (period - 4);
   // next to the game clock: 1st 2nd 3rd 4th, then OT, OT2 ...
   const periodLabel = (period) => period > 4 ? periodName(period) : ["1st", "2nd", "3rd", "4th"][period - 1];
@@ -323,6 +327,10 @@
       clockNode.setAttribute("aria-live", "off");
       clockNode.textContent = halftimeLabel(Date.parse(halftimeEnd));
     }
+    if (live && !halftime) {
+      clockNode.classList.add("asb-live-clock");
+      clockNode.setAttribute("style", "animation-delay:" + pulseDelay());
+    }
     meta.append(clockNode);
     const stamp = new Date(game.updated_at);
     const checked = game.updated_at && Number.isFinite(stamp.getTime())
@@ -467,5 +475,5 @@
     updateHalftimeClocks();
   }
 
-  window.ActionsScoreboard = { parseSituation, render, betStatus };
+  window.ActionsScoreboard = { parseSituation, render, betStatus, pulseDelay };
 })();
