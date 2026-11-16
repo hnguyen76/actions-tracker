@@ -116,7 +116,51 @@
     return scroll;
   }
 
-  const fieldPercent = (yard) => (8 + yard * .84).toFixed(2) + "%";
+  // Perspective field drawn in a 1200 x 100 box: 120 yards including both end zones, the far (top) edge 92.5% as wide
+  // as the near (bottom) edge, so yard lines fan out from the 50. The ball and the drive bar sit at mid height.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const FIELD_W = 1200, FIELD_TOP = 4, FIELD_NEAR = 82, FIELD_BASE = 94, FAR_INSET = 45;
+  const fieldUnits = (yard) => Math.max(0, Math.min(120, yard + 10));
+  const nearX = (yard) => fieldUnits(yard) * 10;
+  const farX = (yard) => FAR_INSET + fieldUnits(yard) * (FIELD_W - 2 * FAR_INSET) / 120;
+  // the left side edge at height y (the right one mirrors it), for the rounded corners
+  const sideX = (y) => +(FAR_INSET * (FIELD_NEAR - y) / (FIELD_NEAR - FIELD_TOP)).toFixed(2);
+  const midX = (yard) => (nearX(yard) + farX(yard)) / 2;
+  const fieldPct = (x) => (x / FIELD_W * 100).toFixed(2) + "%";
+  const svgNode = (tag, cls, attrs) => {
+    const result = document.createElementNS(SVG_NS, tag);
+    if (cls) result.classList.add(...cls.split(" "));
+    for (const [k, v] of Object.entries(attrs || {})) result.setAttribute(k, String(v));
+    return result;
+  };
+  const validYard = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 100;
+  function fieldSvg(drive) {
+    const svg = svgNode("svg", "asb-turf-svg", { viewBox: `0 0 ${FIELD_W} 100`, preserveAspectRatio: "none", "aria-hidden": "true", focusable: "false" });
+    const T = FIELD_TOP, N = FIELD_NEAR, B = FIELD_BASE, W = FIELD_W, I = FAR_INSET, r = 12;
+    const a = sideX(T + 10), b = sideX(N - 10);  // where the rounded corners meet the slanted side edges
+    const left = `M${I + r} ${T}`, leftSide = `H${r}Q0 ${N} ${b} ${N - 10}L${a} ${T + 10}Q${I} ${T} ${I + r} ${T}Z`;
+    const rightSide = `H${W - I - r}Q${W - I} ${T} ${W - a} ${T + 10}L${W - b} ${N - 10}Q${W} ${N} ${W - r} ${N}`;
+    svg.append(
+      svgNode("path", "asb-turf-base", { d: `M0 ${N}H${W}V${B - 6}Q${W} ${B} ${W - r} ${B}H${r}Q0 ${B} 0 ${B - 6}Z` }),
+      svgNode("path", "asb-ez-base", { d: `M0 ${N}H${nearX(0)}V${B}H${r}Q0 ${B} 0 ${B - 6}Z` }),
+      svgNode("path", "asb-ez-base", { d: `M${nearX(100)} ${N}H${W}V${B - 6}Q${W} ${B} ${W - r} ${B}H${nearX(100)}Z` }),
+      svgNode("path", "asb-turf-surface", { d: `${left}${rightSide}${leftSide}` }),
+      svgNode("path", "asb-ez", { d: `${left}H${farX(0)}L${nearX(0)} ${N}${leftSide}` }),
+      svgNode("path", "asb-ez", { d: `M${farX(100)} ${T}${rightSide}H${nearX(100)}Z` }));
+    for (let yard = 10; yard <= 90; yard += 10) {
+      svg.append(svgNode("line", "asb-yardline" + (yard === 50 ? " asb-yardline-mid" : ""),
+        { x1: farX(yard), y1: T, x2: nearX(yard), y2: N }));
+    }
+    if (validYard(drive.first_down_x) && drive.distance > 0) {
+      const first = svgNode("line", "asb-first-down", { x1: +farX(drive.first_down_x).toFixed(2), y1: T,
+        x2: +nearX(drive.first_down_x).toFixed(2), y2: N });
+      const title = svgNode("title");
+      title.textContent = "Vạch first down";
+      first.append(title);
+      svg.append(first);
+    }
+    return svg;
+  }
   function driveField(game) {
     const drive = game.drive && typeof game.drive === "object" ? game.drive : null;
     if (!drive || !["NFL", "NCAAF"].includes(league(game)) || !["away", "home"].includes(drive.team_side)
@@ -148,43 +192,29 @@
     field.setAttribute("style", `--asb-away-color:${awayColor};--asb-home-color:${homeColor};--asb-offense-color:${offenseColor}`);
     field.setAttribute("role", "img");
     field.setAttribute("aria-label", [drive.team_abbr && drive.team_abbr + " cầm bóng", down, spot && "bóng tại " + spot].filter(Boolean).join(", "));
+    const pitch = node("div", "asb-pitch");
     const turf = node("div", "asb-turf");
-    turf.append(node("span", "asb-endzone asb-endzone-away", abbreviation(game, "away")));
-    turf.append(node("span", "asb-endzone asb-endzone-home", abbreviation(game, "home")));
-    const labels = [10, 20, 30, 40, 50, 60, 70, 80, 90];
-    for (const yard of labels) {
-      const line = node("span", "asb-yardline");
-      line.setAttribute("style", "left:" + fieldPercent(yard));
-      turf.append(line);
-    }
-    const ballPercent = Number(fieldPercent(drive.ball_x).replace("%", ""));
-    const progress = node("span", "asb-drive-progress asb-drive-progress-" + drive.team_side);
-    progress.setAttribute("style", drive.team_side === "away"
-      ? `left:8%;width:${Math.max(0, ballPercent - 8).toFixed(2)}%`
-      : `left:${ballPercent.toFixed(2)}%;width:${Math.max(0, 92 - ballPercent).toFixed(2)}%`);
-    turf.append(progress);
-    const scrimmage = node("span", "asb-scrimmage");
-    scrimmage.setAttribute("style", "left:" + fieldPercent(drive.ball_x));
-    turf.append(scrimmage);
-    if (typeof drive.first_down_x === "number" && Number.isFinite(drive.first_down_x)
-      && drive.first_down_x >= 0 && drive.first_down_x <= 100 && drive.distance > 0) {
-      const first = node("span", "asb-first-down");
-      first.setAttribute("style", "left:" + fieldPercent(drive.first_down_x));
-      first.setAttribute("title", "Vạch first down");
-      turf.append(first);
+    turf.append(fieldSvg(drive));
+    const ball = midX(drive.ball_x);
+    if (validYard(drive.start_x)) {  // the drive so far: from where it began to the ball
+      const start = midX(drive.start_x);
+      const progress = node("span", "asb-drive-progress");
+      progress.setAttribute("style", `left:${fieldPct(Math.min(start, ball))};width:${fieldPct(Math.abs(start - ball))}`);
+      turf.append(progress);
     }
     const marker = node("span", "asb-ball-marker");
-    marker.setAttribute("style", "left:" + fieldPercent(drive.ball_x));
+    marker.setAttribute("style", "left:" + fieldPct(ball));
     marker.setAttribute("title", `${text(drive.team_abbr) || abbreviation(game, drive.team_side)} · ${spot || "vị trí bóng"}`);
     marker.append(node("span", "asb-football-icon"));
     turf.append(marker);
     const numbers = node("div", "asb-yard-numbers");
-    for (const yard of labels) {
-      const label = node("span", "asb-yard-number", yard === 50 ? "50" : String(yard <= 50 ? yard : 100 - yard));
-      label.setAttribute("style", "left:" + fieldPercent(yard));
+    for (let yard = 10; yard <= 90; yard += 10) {
+      const label = node("span", "asb-yard-number", String(yard <= 50 ? yard : 100 - yard));
+      label.setAttribute("style", "left:" + fieldPct(nearX(yard)));
       numbers.append(label);
     }
-    field.append(facts, turf, numbers);
+    pitch.append(turf, numbers);
+    field.append(facts, pitch);
     section.append(field);
 
     const play = text(drive.last_play);

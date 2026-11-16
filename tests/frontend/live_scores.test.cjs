@@ -55,6 +55,18 @@ test('current drive becomes a normalized field position with the first-down line
   headerOnly.header.competitions=[{competitors:[{homeAway:'away',team:{id:'17'}},{homeAway:'home',team:{id:'8'}}]}];
   assert.equal(api.parseDrive(headerOnly,{event_id:e.event_id,situation:null},e.event_id).team_side,'home');
 });
+test('drive start is the first scrimmage play of the drive, kickoffs left out', () => {
+  const e=api.parseEvent(event());
+  const home=driveSummary();
+  home.drives.current.plays.unshift(
+    {type:{text:'Kickoff'},start:{team:{id:'17'},yardsToEndzone:65},end:{yardsToEndzone:75}},
+    {type:{text:'Rush'},start:{team:{id:'8'},down:1,distance:10,yardsToEndzone:79},end:{yardsToEndzone:75}});
+  assert.equal(api.parseDrive(home,e,e.event_id).start_x,79);
+  const away=driveSummary(e.event_id,'away');
+  away.drives.current.plays.unshift({type:{text:'Pass Reception'},start:{team:{id:'17'},yardsToEndzone:75},end:{yardsToEndzone:70}});
+  assert.equal(api.parseDrive(away,e,e.event_id).start_x,25);
+  assert.equal(api.parseDrive(driveSummary(),e,e.event_id).start_x,null);
+});
 test('drive parser rejects the wrong event, unknown offense and unusable positions', () => {
   const e=api.parseEvent(event());
   assert.equal(api.parseDrive(driveSummary('other'),e,e.event_id),null);

@@ -24,6 +24,7 @@ function harness() {
   const doc = {
     hidden: false,
     createElement: tag => new Element(tag),
+    createElementNS: (ns, tag) => new Element(tag),
     addEventListener: (event, fn) => { const a = listeners.get(event) || []; a.push(fn); listeners.set(event, a); },
     querySelectorAll: () => walk(doc.root).filter(n => n.className.split(/\s+/).includes('asb-halftime') && n.dataset.halftimeEndsAt),
   };
@@ -119,19 +120,30 @@ test('live football renders an accessible drive field and hides it when drive da
     detail: '2:12 - 4th',
     situation: { period: 4, clock: '2:12', possession: 'home', possession_text: 'DET 32', down_distance: '3rd & 6' },
     drive: { team_side: 'home', team_abbr: 'DET', team_logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/det.png',
-      description: '3 plays, 11 yards, 1:28', down_distance: '3rd & 6', spot: 'DET 32', ball_x: 68,
+      description: '3 plays, 11 yards, 1:28', down_distance: '3rd & 6', spot: 'DET 32', ball_x: 68, start_x: 79,
       first_down_x: 62, distance: 6, play_yards: -5, play_clock: '2:12', play_type: 'Penalty', last_play: 'Illegal Formation.' },
   })]);
   assert.equal(h.nodes('asb-drive').length, 1);
   assert.equal(h.nodes('asb-field')[0].attributes['aria-label'], 'DET cầm bóng, 3rd & 6, bóng tại DET 32');
-  assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:65.12%');
-  assert.equal(h.nodes('asb-first-down')[0].attributes.style, 'left:60.08%');
-  assert.equal(h.nodes('asb-drive-progress')[0].attributes.style, 'left:65.12%;width:26.88%');
+  // perspective field: 120 yards incl. end zones, the top edge 92.5% of the bottom; marker and drive bar at mid height
+  assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:64.44%');
+  const first = h.nodes('asb-first-down')[0].attributes;
+  assert.deepEqual([first.x1, first.x2], ['711', '720']);
+  assert.equal(h.nodes('asb-drive-progress')[0].attributes.style, 'left:64.44%;width:8.82%');
   assert.equal(h.nodes('asb-yard-number').length, 9);
+  assert.equal(h.nodes('asb-yard-number')[0].attributes.style, 'left:16.67%');
+  assert.equal(h.nodes('asb-yardline').length, 9);
   assert.equal(h.nodes('asb-drive-facts')[0].textContent, '3rd & 6 · DET 32');
   assert.match(h.nodes('asb-last-play')[0].textContent, /Illegal Formation/);
   h.api.render(h.host, [game({ detail: '2:05 - 4th', situation: { period: 4, clock: '2:05' }, drive: null })]);
   assert.equal(h.nodes('asb-drive').length, 0);
+});
+test('drive bar is left out when the start of the drive is unknown', () => {
+  const h = harness();
+  h.api.render(h.host, [game({ detail: '2:12 - 4th', situation: { period: 4, clock: '2:12' },
+    drive: { team_side: 'away', team_abbr: 'NE', down_distance: '1st & 10', spot: 'NE 39', ball_x: 39, first_down_x: 49, distance: 10 } })]);
+  assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:41.18%');
+  assert.equal(h.nodes('asb-drive-progress').length, 0);
 });
 test('quarter labels read 1st 2nd 3rd 4th and overtime stays OT', () => {
   const h = harness();
