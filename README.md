@@ -24,6 +24,8 @@ Vào **red zone** thì chỉ hiện một dòng nhỏ trên cùng trong 3 giây.
 Halftime có đồng hồ **ước tính** từ mốc `End of Half` hiệp 2 của ESPN: mùa thường NFL 13 phút,
 NCAAF 20 phút. Đồng hồ chạy theo thời gian thực, dừng khi ESPN báo hiệp 3; quá mốc dự kiến thì
 hiện “chờ 3rd”. Thiếu mốc kết thúc hiệp 2 hoặc ngoài mùa thường thì chỉ hiện trạng thái halftime.
+Trong giờ nghỉ, thẻ live hiện thêm **line hiệp 2** (2nd Half Spread hai đội và 2nd Half Total) của DraftKings lấy từ ESPN
+(`sports.core.api.espn.com`, odds “DraftKings - Live Odds” → propBets), làm mới tối đa mỗi phút; vào hiệp 3 là ẩn.
 Nguồn thời lượng: [NFL Rule 4-1-3](https://operations.nfl.com/game-operations-logistics/preparation-safety/game-and-stadium-prep),
 [NCAA Rule 3-2-1-b](https://ncaaorg.s3.amazonaws.com/championships/sports/football/rules/PRMFB_RulesBook.pdf).
 
