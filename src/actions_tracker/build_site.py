@@ -28,6 +28,15 @@ def _records(df: pd.DataFrame) -> list[dict]:
     return [{k: _plain(v) for k, v in row.items()} for row in df.astype(object).to_dict("records")]
 
 
+def site_version(template: str, static_files: list[tuple[str, bytes]]) -> str:
+    """Cache-busting version of the published page: changes whenever the page template or a static file changes.
+    An open dashboard compares it with the published page and reloads itself when a new design is out."""
+    digest = hashlib.sha1(template.encode("utf-8"))
+    for name, content in sorted(static_files):
+        digest.update(name.encode() + content)
+    return digest.hexdigest()[:10]
+
+
 def build_site(tables: dict[str, pd.DataFrame], status: list[dict], out_dir: Path, xlsx: Path | None,
                generated_at: str, meta: dict | None = None) -> Path:
     payload = {
@@ -44,12 +53,8 @@ def build_site(tables: dict[str, pd.DataFrame], status: list[dict], out_dir: Pat
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "index.html"
     static = resources.files("actions_tracker").joinpath("templates/static")
-    digest = hashlib.sha1()  # cache-busting: the version changes whenever a static file changes
-    if static.is_dir():
-        for f in sorted(static.iterdir(), key=lambda f: f.name):
-            if f.is_file():
-                digest.update(f.name.encode() + f.read_bytes())
-    html = template.replace(PLACEHOLDER, data).replace("__STATIC_V__", digest.hexdigest()[:10])
+    files = [(f.name, f.read_bytes()) for f in static.iterdir() if f.is_file()] if static.is_dir() else []
+    html = template.replace(PLACEHOLDER, data).replace("__STATIC_V__", site_version(template, files))
     out.write_text(html, encoding="utf-8")
     static = resources.files("actions_tracker").joinpath("templates/static")
     if static.is_dir():  # home-screen icons and the web app manifest (iPhone "Add to Home Screen")

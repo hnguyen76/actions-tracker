@@ -48,3 +48,12 @@ def test_mobile_game_cards_start_collapsed_and_are_keyboard_accessible(tmp_path)
     assert 'row.setAttribute("aria-expanded", String(row.classList.contains("open")))' in html
     assert 'if (e.key !== "Enter" && e.key !== " ") return' in html
     assert 'open: true' not in html
+
+
+def test_site_version_changes_with_the_template_or_a_static_file():
+    from actions_tracker.build_site import site_version
+    base = site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"2")])
+    assert base == site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"2")])
+    assert len(base) == 10
+    assert site_version("<html>B</html>", [("a.js", b"1"), ("b.css", b"2")]) != base   # a design change in the page itself
+    assert site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"3")]) != base   # a change in a static file
