@@ -97,6 +97,26 @@ def test_telegram_failure_keeps_games_due(tmp_path, monkeypatch):
     assert len(alerts.due_games(db.connect(tmp_path / "a.db"), NOW)) == 2
 
 
+def test_telegram_retries_rate_limit_then_succeeds():
+    responses = [_Resp(429, {"parameters": {"retry_after": 3}}), _Resp()]
+    waits = []
+    alerts.send_telegram("TOKEN", "42", "test", post=lambda *a, **k: responses.pop(0), sleep=waits.append)
+    assert waits == [3] and responses == []
+
+
+def test_telegram_retries_temporary_network_error_then_succeeds():
+    calls, waits = [], []
+
+    def post(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise alerts.requests.ConnectionError("offline")
+        return _Resp()
+
+    alerts.send_telegram("TOKEN", "42", "test", post=post, sleep=waits.append)
+    assert len(calls) == 2 and waits == [1]
+
+
 def test_telegram_setup_saves_chat_id_and_sends_test(tmp_path):
     (tmp_path / alerts.TOKEN_FILE).write_text("TOKEN\n", "utf-8")
     sent = []

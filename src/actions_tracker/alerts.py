@@ -10,6 +10,7 @@ experts). Credentials live in gitignored files: .telegram_bot_token and .telegra
 import html
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -20,6 +21,8 @@ from actions_tracker.config import TZ
 ALERT_WINDOW_MIN = 18     # the task runs every 5 minutes -> the message arrives about 13-18 minutes before kickoff
 TOTAL_MIN_EXPERTS = 5     # same filter as the Total section of the dashboard
 TG_LIMIT = 3800           # Telegram allows 4096 characters per message
+TG_SEND_ATTEMPTS = 3      # keep a transient network/rate-limit error from losing the pregame alert
+TG_RETRY_MAX_S = 30       # stay below the scheduled task's stale-lock window
 DASHBOARD = "https://hnguyen76.github.io/actions-tracker/"
 TOKEN_FILE, CHAT_FILE = ".telegram_bot_token", ".telegram_chat_id"
 _DAY = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
@@ -131,14 +134,38 @@ class TelegramError(Exception):
     pass
 
 
-def send_telegram(token: str, chat_id: str, text: str, post=requests.post) -> None:
+def _retry_delay(response, attempt: int) -> float:
+    """Telegram includes a precise delay for HTTP 429; otherwise use a short exponential backoff."""
+    fallback = 2 ** attempt
     try:
-        r = post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
-                 data={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": "true"})
-    except requests.RequestException as e:  # never echo the URL: it carries the token
-        raise TelegramError(type(e).__name__) from None
-    if r.status_code != 200:
-        raise TelegramError(f"HTTP {r.status_code}: {r.text[:200]}")
+        delay = float(response.json().get("parameters", {}).get("retry_after", fallback))
+    except (AttributeError, TypeError, ValueError):
+        delay = fallback
+    return min(TG_RETRY_MAX_S, max(0, delay))
+
+
+def send_telegram(token: str, chat_id: str, text: str, post=requests.post, sleep=time.sleep) -> None:
+    """Send once successfully, retrying only failures that can recover without changing credentials."""
+    last_error = ""
+    for attempt in range(TG_SEND_ATTEMPTS):
+        try:
+            r = post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
+                     data={"chat_id": chat_id, "text": text, "parse_mode": "HTML",
+                           "disable_web_page_preview": "true"})
+        except requests.RequestException as e:  # never echo the URL: it carries the token
+            last_error = type(e).__name__
+            if attempt + 1 < TG_SEND_ATTEMPTS:
+                sleep(_retry_delay(None, attempt))
+                continue
+            raise TelegramError(last_error) from None
+        if r.status_code == 200:
+            return
+        last_error = f"HTTP {r.status_code}: {r.text[:200]}"
+        if (r.status_code == 429 or r.status_code >= 500) and attempt + 1 < TG_SEND_ATTEMPTS:
+            sleep(_retry_delay(r, attempt))
+            continue
+        raise TelegramError(last_error)
+    raise TelegramError(last_error)
 
 
 def find_chat_id(token: str, get=requests.get) -> str | None:
