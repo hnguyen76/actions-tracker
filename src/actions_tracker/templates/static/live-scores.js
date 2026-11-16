@@ -57,10 +57,8 @@
     return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
   };
   const cleanText = (value, limit = 500) => typeof value === "string" && value.trim() ? value.trim().slice(0, limit) : null;
-  function parseDrive(summary, event, eventId) {
-    if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return null;
-    const drive = summary.drives && summary.drives.current;
-    if (!drive || !Array.isArray(drive.plays) || !drive.plays.length) return null;
+  // "away" / "home" for the ESPN team that has the ball on a drive (null when it cannot be matched)
+  function driveSide(summary, event, drive) {
     const situation = event && event.situation || {};
     const headerCompetition = summary.header && Array.isArray(summary.header.competitions) ? summary.header.competitions[0] || {} : {};
     const headerTeams = Array.isArray(headerCompetition.competitors) ? headerCompetition.competitors : [];
@@ -68,9 +66,39 @@
     const headerHome = headerTeams.find((x) => x && x.homeAway === "home");
     const awayId = String(situation.away_espn_id || headerAway && headerAway.team && headerAway.team.id || "");
     const homeId = String(situation.home_espn_id || headerHome && headerHome.team && headerHome.team.id || "");
-    const teamId = drive.team && /^\d+$/.test(String(drive.team.id || "")) ? String(drive.team.id) : null;
-    const side = teamId && teamId === awayId ? "away" : teamId && teamId === homeId ? "home" : null;
+    const teamId = drive && drive.team && /^\d+$/.test(String(drive.team.id || "")) ? String(drive.team.id) : null;
+    return teamId && teamId === awayId ? "away" : teamId && teamId === homeId ? "home" : null;
+  }
+  // Non-scoring big plays (scores are caught from the scoreboard): the offense of the drive lost the ball or missed.
+  // A return touchdown is left to the score jump so it is announced once, as a touchdown.
+  const BIG_PLAY_KINDS = [
+    [/touchdown/i, null],
+    [/interception/i, "interception"],
+    [/fumble recovery \(opponent\)/i, "fumble_lost"],
+    [/field goal missed|missed field goal|blocked field goal/i, "field_goal_missed"],
+  ];
+  function parseBigPlays(summary, event, eventId) {
+    if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return [];
+    const drives = summary.drives || {}, previous = Array.isArray(drives.previous) ? drives.previous : [];
+    const out = [];
+    for (const drive of [previous[previous.length - 1], drives.current]) {
+      const offense = drive && Array.isArray(drive.plays) ? driveSide(summary, event, drive) : null;
+      if (!offense) continue;
+      for (const play of drive.plays) {
+        const id = play && /^\d+$/.test(String(play.id || "")) ? String(play.id) : null;
+        const match = id && BIG_PLAY_KINDS.find(([pattern]) => pattern.test(String(play.type && play.type.text || "")));
+        if (match && match[1]) out.push({ id, kind: match[1], side: offense === "away" ? "home" : "away", text: cleanText(play.text, 300) });
+      }
+    }
+    return out;
+  }
+  function parseDrive(summary, event, eventId) {
+    if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return null;
+    const drive = summary.drives && summary.drives.current;
+    if (!drive || !Array.isArray(drive.plays) || !drive.plays.length) return null;
+    const side = driveSide(summary, event, drive);
     if (!side) return null;
+    const teamId = String(drive.team.id);
     let play = null, point = null;
     for (let i = drive.plays.length - 1; i >= 0; i--) {
       const candidate = drive.plays[i];
@@ -130,7 +158,10 @@
       try {
         const url = `https://site.web.api.espn.com/apis/site/v2/sports/${PATHS[game.league]}/summary?event=${encodeURIComponent(event.event_id)}`;
         const res = await fetcher(url, { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal });
-        if (res.ok) cached.value = parseDrive(await res.json(), event, event.event_id);
+        if (res.ok) {
+          const summary = await res.json(), drive = parseDrive(summary, event, event.event_id);
+          cached.value = drive && { ...drive, big_plays: parseBigPlays(summary, event, event.event_id) };
+        }
       } catch (error) { /* Keep the last verified field position through a transient ESPN failure. */ }
       finally { clearTimeout(timeout); }
       return cached.value;
@@ -208,5 +239,5 @@
     }));
     return result;
   }
-  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, halftimeEnd, fetchGames };
+  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, halftimeEnd, fetchGames };
 })(globalThis);

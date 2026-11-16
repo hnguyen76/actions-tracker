@@ -67,6 +67,23 @@ test('drive start is the first scrimmage play of the drive, kickoffs left out', 
   assert.equal(api.parseDrive(away,e,e.event_id).start_x,25);
   assert.equal(api.parseDrive(driveSummary(),e,e.event_id).start_x,null);
 });
+test('big plays come from the last two drives and name the team that gained', () => {
+  const e=api.parseEvent(event());
+  const play=(id,type,text)=>({id,type:{text:type},text:text||type});
+  const summary={header:{id:e.event_id},drives:{
+    previous:[
+      {team:{id:'8'},plays:[play('8001','Pass Interception Return')]},
+      {team:{id:'17'},plays:[play('9000','Rush'),play('9001','Pass Interception Return','Pass intercepted by DET.')]}],
+    current:{team:{id:'8'},plays:[play('9101','Fumble Recovery (Own)'),play('9102','Fumble Recovery (Opponent)'),
+      play('9103','Blocked Field Goal'),play('9104','Field Goal Missed'),play('9105','Field Goal Good'),
+      play('9106','Interception Return Touchdown'),{type:{text:'Field Goal Missed'}}]}}};
+  assert.deepEqual(api.parseBigPlays(summary,e,e.event_id),[
+    {id:'9001',kind:'interception',side:'home',text:'Pass intercepted by DET.'},
+    {id:'9102',kind:'fumble_lost',side:'away',text:'Fumble Recovery (Opponent)'},
+    {id:'9103',kind:'field_goal_missed',side:'away',text:'Blocked Field Goal'},
+    {id:'9104',kind:'field_goal_missed',side:'away',text:'Field Goal Missed'}]);
+  assert.deepEqual(api.parseBigPlays(summary,e,'other'),[]);
+});
 test('drive parser rejects the wrong event, unknown offense and unusable positions', () => {
   const e=api.parseEvent(event());
   assert.equal(api.parseDrive(driveSummary('other'),e,e.event_id),null);
@@ -129,6 +146,7 @@ test('live football fetches current drive by verified event id and caches it for
   assert.equal(calls.filter(x=>x.url.includes('/summary?')).length,1);
   assert.equal(first.scores[0].drive.spot,'DET 32');
   assert.equal(second.scores[0].drive.ball_x,68);
+  assert.deepEqual(first.scores[0].drive.big_plays,[]);
   const summaryCall=calls.find(x=>x.url.includes('/summary?'));
   assert.equal(summaryCall.opts.credentials,'omit');
   assert.equal(summaryCall.opts.cache,'no-store');
