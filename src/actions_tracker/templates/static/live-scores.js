@@ -7,6 +7,8 @@
   const DRIVE_POLL_MS = 10000;
   const halftimeCache = new Map();
   const driveCache = new Map();
+  const SECOND_HALF_POLL_MS = 60000;  // the second-half line during halftime, at most once a minute per game
+  const secondHalfCache = new Map();
   const ALIASES = {
     "delaware fightin blue hens": "delaware blue hens", "hawaii warriors": "hawaii rainbow warriors",
     "miami fl hurricanes": "miami hurricanes", "north carolina state wolfpack": "nc state wolfpack",
@@ -209,6 +211,54 @@
     })().finally(() => { cached.promise = null; });
     return cached.promise;
   }
+  // "2nd Half Spread" (one row per team) and "2nd Half Total" from ESPN's live prop bets (DraftKings - Live Odds)
+  function parseSecondHalf(body, awayId, homeId) {
+    const out = { away: null, home: null, total: null };
+    for (const item of Array.isArray(body && body.items) ? body.items : []) {
+      const name = String(item && item.type && item.type.name || "");
+      const value = Number(item && item.current && item.current.target && item.current.target.value);
+      if (!Number.isFinite(value)) continue;
+      if (/^2nd half spread$/i.test(name)) {
+        const id = (String(item.team && item.team.$ref || "").match(/\/teams\/(\d+)/) || [])[1];
+        if (id && id === String(awayId)) out.away = value;
+        else if (id && id === String(homeId)) out.home = value;
+      } else if (/^2nd half total$/i.test(name) && out.total === null) out.total = value;
+    }
+    if (out.away === null && out.home !== null) out.away = -out.home;
+    if (out.home === null && out.away !== null) out.home = -out.away;
+    return out.away === null && out.total === null ? null : out;
+  }
+  async function fetchSecondHalf(game, event, fetcher) {
+    if (!["nfl", "ncaaf"].includes(game.league) || !/^\d+$/.test(event.event_id)
+      || String(game.espn_event_id || "") !== event.event_id) return null;
+    const key = game.league + "/" + event.event_id;
+    let cached = secondHalfCache.get(key);
+    if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;
+    if (!cached) cached = { value: null, nextTry: 0, promise: null };
+    cached.nextTry = Date.now() + SECOND_HALF_POLL_MS;
+    secondHalfCache.set(key, cached);
+    cached.promise = (async () => {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 6000);
+      try {
+        const opts = { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal };
+        const id = encodeURIComponent(event.event_id);
+        const res = await fetcher(`https://sports.core.api.espn.com/v2/sports/${PATHS[game.league].replace("/", "/leagues/")}`
+          + `/events/${id}/competitions/${id}/odds?lang=en&region=us`, opts);
+        if (!res.ok) return cached.value;
+        const list = await res.json();
+        const live = (Array.isArray(list && list.items) ? list.items : [])
+          .find((x) => /live/i.test(String(x && x.provider && x.provider.name || "")));
+        const ref = String(live && live.propBets && live.propBets.$ref || "");
+        if (!/^https?:\/\/sports\.core\.api\.espn\.com\//.test(ref)) return cached.value;
+        const props = await fetcher(ref.replace(/^http:/, "https:") + (ref.includes("?") ? "&" : "?") + "limit=1000", opts);
+        const situation = event.situation || {};
+        if (props.ok) cached.value = parseSecondHalf(await props.json(), situation.away_espn_id, situation.home_espn_id);
+      } catch (error) { /* keep the last line through a transient ESPN failure */ }
+      finally { clearTimeout(timeout); }
+      return cached.value;
+    })().finally(() => { cached.promise = null; });
+    return cached.promise;
+  }
   async function fetchGames(games, fetcher = root.fetch.bind(root)) {
     const groups = new Map(), result = { scores: [], failed: [] };
     for (const g of games) {
@@ -239,13 +289,18 @@
             if (e.state === "live") drive = await fetchDrive(game, e, fetcher);
           }
           if (e.state !== "live") driveCache.delete(game.league + "/" + e.event_id);
+          // the second-half line is only shown during halftime; it is dropped as soon as the 2nd half starts
+          let secondHalf = null;
+          if (e.state === "live" && e.is_halftime) secondHalf = await fetchSecondHalf(game, e, fetcher);
+          else secondHalfCache.delete(game.league + "/" + e.event_id);
           result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
-            state: e.state, detail: e.detail, situation, drive, updated_at: checked, graded: false });
+            state: e.state, detail: e.detail, situation, drive, updated_at: checked, graded: false,
+            ...(secondHalf ? { second_half: secondHalf } : {}) });
         }));
       } catch (error) { result.failed.push(...part.map((g) => Number(g.game_id))); }
       finally { clearTimeout(timeout); }
     }));
     return result;
   }
-  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, halftimeEnd, fetchGames };
+  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, parseSecondHalf, halftimeEnd, fetchGames };
 })(globalThis);

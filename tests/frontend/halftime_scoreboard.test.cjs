@@ -161,3 +161,11 @@ test('bet strip: the state pill with the margin beside it, no ATS explanation li
   assert.equal(h.nodes('asb-bet-margin')[0].textContent, 'hơn 16,5 điểm');
   assert.equal(h.nodes('asb-bet-ats').length, 0);
 });
+test('at halftime the card shows the second-half line; it is gone once the 2nd half starts', () => {
+  const h = harness();
+  const g = { away_abbr: 'PIT', home_abbr: 'CIN', second_half: { away: -1.5, home: 1.5, total: 23.5 } };
+  h.api.render(h.host, [game(g)]);
+  assert.equal(h.nodes('asb-2h')[0].textContent, 'Line hiệp 2 · PIT -1,5 · CIN +1,5 · Total 23,5');
+  h.api.render(h.host, [game({ ...g, detail: '15:00 - 3rd', situation: { period: 3, clock: '15:00' } })]);
+  assert.equal(h.nodes('asb-2h').length, 0);
+});

@@ -271,6 +271,23 @@
     return strip;
   }
 
+  // during halftime only: the live second-half line from ESPN (DraftKings), e.g. "PIT -1,5 · CIN +1,5 · Total 23,5"
+  function secondHalfLine(game) {
+    const h = game.second_half;
+    if (!h || typeof h !== "object") return null;
+    const fmt = (x) => (x > 0 ? "+" : "") + String(x).replace(".", ",");
+    const parts = [];
+    if (Number.isFinite(h.away)) parts.push(abbreviation(game, "away") + " " + fmt(h.away));
+    if (Number.isFinite(h.home)) parts.push(abbreviation(game, "home") + " " + fmt(h.home));
+    if (Number.isFinite(h.total)) parts.push("Total " + String(h.total).replace(".", ","));
+    if (!parts.length) return null;
+    const row = node("div", "asb-2h");
+    row.setAttribute("title", "Line hiệp 2 trực tiếp của DraftKings qua ESPN");
+    row.append(node("span", "asb-2h-label", "Line hiệp 2"));
+    for (const part of parts) row.append(node("span", "", " · "), node("span", "asb-2h-val", part));  // "Total 23,5" never splits
+    return row;
+  }
+
   function scorecard(game) {
     const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
     const final = game.state === "final", live = game.state === "live";
@@ -329,6 +346,10 @@
     card.append(main);
     const bet = betStrip(game);
     if (bet) card.append(bet);
+    if (live && halftime) {
+      const second = secondHalfLine(game);
+      if (second) card.append(second);
+    }
     if (live && !halftime) {
       const items = [];
       if (situation.possession === "away" || situation.possession === "home") items.push(abbreviation(game, situation.possession) + " đang cầm bóng");
@@ -392,13 +413,13 @@
     current.dataset.gameId = fresh.dataset.gameId;
     const label = typeof fresh.getAttribute === "function" ? fresh.getAttribute("aria-label") : fresh.attributes["aria-label"];
     if (label) current.setAttribute("aria-label", label);
-    const order = ["asb-meta", "asb-main", "asb-bet", "asb-situation", "asb-drive"];
+    const order = ["asb-meta", "asb-main", "asb-bet", "asb-2h", "asb-situation", "asb-drive"];
     patchBlock(current, fresh, "asb-meta", order, "live-card-pregame");
     let main = directChild(current, "asb-main"), freshMain = directChild(fresh, "asb-main");
     if (!main || !freshMain) main = patchBlock(current, fresh, "asb-main", order, "live-card-pregame");
     else for (const name of ["asb-away", "asb-quarters", "asb-home"])
       patchBlock(main, freshMain, name, ["asb-away", "asb-quarters", "asb-home"]);
-    for (const name of ["asb-bet", "asb-situation", "asb-drive"])
+    for (const name of ["asb-bet", "asb-2h", "asb-situation", "asb-drive"])
       patchBlock(current, fresh, name, order, "live-card-pregame");
     return current;
   }

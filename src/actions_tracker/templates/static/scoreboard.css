@@ -99,6 +99,10 @@
   .asb-last-play { grid-template-columns: 1fr; gap: 3px; font-size: 11px; }
 }
 
+.asb-2h { margin-top: 10px; padding: 8px 12px; border-radius: 9px; border: 1px dashed color-mix(in srgb, var(--warning) 55%, transparent);
+  background: var(--raised); color: var(--ink); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.asb-2h-val { white-space: nowrap; }
+.asb-2h-label { color: var(--warning); font-weight: 700; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
 .asb-bet { margin-top: 12px; padding: 9px 12px; border-radius: 9px; display: flex; flex-wrap: wrap; align-items: center;
   gap: 4px 14px; font-size: 13.5px; border: 1px solid var(--border); background: var(--raised); }
 .asb-bet-pick { font-weight: 700; }

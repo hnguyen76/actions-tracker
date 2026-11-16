@@ -248,3 +248,35 @@ test('postseason has no generic halftime estimate or summary request', async () 
   assert.equal(calls.length,1);
   assert.equal(result.scores[0].situation.halftime_ends_at,undefined);
 });
+const teamRef=id=>({$ref:`http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/teams/${id}?lang=en&region=us`});
+const propBets=()=>({count:4,items:[
+  {type:{id:'312',name:'2nd Half Spread'},team:teamRef('8'),current:{target:{value:1.5,displayValue:'1.5'}}},
+  {type:{id:'312',name:'2nd Half Spread'},team:teamRef('17'),current:{target:{value:-1.5,displayValue:'-1.5'}}},
+  {type:{id:'313',name:'2nd Half Total'},team:null,current:{target:{value:23.5,displayValue:'23.5'}}},
+  {type:{id:'83',name:'3rd Quarter Spread'},team:teamRef('8'),current:{target:{value:0.5}}}]});
+test('second-half lines are read per team from the live prop bets', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(api.parseSecondHalf(propBets(),'17','8'))),{away:-1.5,home:1.5,total:23.5});
+  assert.equal(api.parseSecondHalf({items:[]},'17','8'),null);
+});
+test('at halftime the live second-half odds are fetched (once a minute) and attached; not during play', async () => {
+  const raw=event(), start=new Date(Date.now()-90*60000).toISOString(), ended=new Date(Date.now()-3*60000).toISOString();
+  raw.id='401873066';raw.date=start;raw.season={type:2};raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
+  raw.status.displayClock='0:00';
+  const target={...game,start_time:start,espn_event_id:raw.id},calls=[];
+  const live={provider:{id:'200',name:'DraftKings - Live Odds'},propBets:{$ref:`http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${raw.id}/competitions/${raw.id}/odds/200/propBets?lang=en&region=us`}};
+  const pre={provider:{id:'100',name:'DraftKings'},propBets:{$ref:'http://example.invalid/odds/100/propBets'}};
+  const mock=async url=>{calls.push(url);return {ok:true,json:async()=>url.includes('/propBets')?propBets()
+    :url.includes('/odds?')?{items:[pre,live]}:url.includes('/summary?')?halfSummary(raw.id,ended):{events:[raw]}};};
+  const first=await api.fetchGames([target],mock),second=await api.fetchGames([target],mock);
+  assert.deepEqual(JSON.parse(JSON.stringify(first.scores[0].second_half)),{away:-1.5,home:1.5,total:23.5});
+  assert.deepEqual(JSON.parse(JSON.stringify(second.scores[0].second_half)),{away:-1.5,home:1.5,total:23.5});
+  const props=calls.filter(x=>x.includes('/propBets'));
+  assert.equal(props.length,1);
+  assert.match(props[0],/^https:\/\/sports\.core\.api\.espn\.com\/.*\/odds\/200\/propBets\?.*limit=1000/);
+  assert.ok(calls.some(x=>x.startsWith('https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873066/competitions/401873066/odds?')));
+  const playing=event();playing.id='401873067';
+  const calls2=[];
+  const third=await api.fetchGames([{...game,espn_event_id:playing.id}],async url=>{calls2.push(url);return {ok:true,json:async()=>url.includes('/summary?')?driveSummary(playing.id):{events:[playing]}};});
+  assert.equal(calls2.filter(x=>x.includes('/odds')).length,0);
+  assert.equal(third.scores[0].second_half,undefined);
+});
