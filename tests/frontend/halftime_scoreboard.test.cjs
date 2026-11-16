@@ -159,7 +159,7 @@ test('bet strip: the state pill with the margin beside it, no ATS explanation li
     bet_side: 'home', market: 'spread', line: -4.5 })]);
   assert.equal(h.nodes('asb-bet-pick')[0].textContent, 'CIN -4,5');
   assert.equal(h.nodes('asb-bet-state')[0].textContent, 'ĐANG THẮNG');
-  assert.equal(h.nodes('asb-bet-margin')[0].textContent, 'hơn 16,5 điểm');
+  assert.equal(h.nodes('asb-bet-margin')[0].textContent, '16,5');
   assert.equal(h.nodes('asb-bet-ats').length, 0);
 });
 test('at halftime the card shows the second-half line; it is gone once the 2nd half starts', () => {

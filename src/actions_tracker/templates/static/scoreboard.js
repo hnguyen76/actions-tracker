@@ -244,15 +244,15 @@
     const away = integer(game.away_score), home = integer(game.home_score);
     if (!side || !Number.isFinite(line) || away === null || home === null) return null;
     const fmt = (x) => (x > 0 ? "+" : "") + String(x).replace(".", ",");
-    const pts = (x) => String(Math.abs(x)).replace(".", ",") + " điểm";
-    // margin: how far the bet is ahead or behind after the line ("hơn 16,5 điểm"), shown beside the state pill
+    const pts = (x) => String(Math.abs(x)).replace(".", ",");
+    // margin: how far the bet is ahead or behind after the line, just the number beside the state pill ("ĐANG THẮNG 16,5")
     if (market === "spread" && (side === "home" || side === "away")) {
       const mine = side === "home" ? home : away, theirs = side === "home" ? away : home;
       const margin = mine + line - theirs;
       return {
         state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
         pick: abbreviation(game, side) + " " + fmt(line),
-        margin: margin === 0 ? "hòa" : (margin > 0 ? "hơn " : "kém ") + pts(margin),
+        margin: pts(margin),
       };
     }
     if (market === "total" && (side === "over" || side === "under")) {
@@ -260,8 +260,7 @@
       return {
         state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
         pick: (side === "over" ? "Over " : "Under ") + String(line).replace(".", ","),
-        margin: margin === 0 ? "hòa" : (side === "over" ? (total > line ? "đã vượt " : "còn thiếu ")
-          : (total < line ? "còn dư " : "đã vượt ")) + pts(total - line),
+        margin: pts(total - line),
       };
     }
     return null;
