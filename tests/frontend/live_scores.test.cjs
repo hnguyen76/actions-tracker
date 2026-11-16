@@ -30,7 +30,7 @@ const driveSummary = (eventId='401873053', side='home') => ({
   drives:{current:{
     id:'drive-24',description:'3 plays, 11 yards, 1:28',
     team:{id:side==='home'?'8':'17',abbreviation:side==='home'?'DET':'NE',logos:[{href:'https://a.espncdn.com/i/teamlogos/nfl/500/det.png'}]},
-    plays:[{clock:{displayValue:'2:12'},type:{text:'Penalty'},statYardage:-5,
+    plays:[{clock:{displayValue:'2:12'},period:{number:2},wallclock:'2026-11-15T16:07:48Z',type:{text:'Penalty'},statYardage:-5,
       text:'Illegal Formation, 5 yards, enforced at DET 37 - No Play.',
       end:side==='home'
         ?{down:3,distance:6,yardsToEndzone:68,shortDownDistanceText:'3rd & 6',possessionText:'DET 32'}
@@ -47,6 +47,8 @@ test('current drive becomes a normalized field position with the first-down line
   assert.equal(home.down_distance,'3rd & 6');
   assert.equal(home.spot,'DET 32');
   assert.equal(home.play_yards,-5);
+  assert.equal(home.clock_running,false);
+  assert.equal(home.clock_ends_at,null);
   const away=api.parseDrive(driveSummary(e.event_id,'away'),e,e.event_id);
   assert.equal(away.team_side,'away');
   assert.equal(away.ball_x,39);
@@ -54,6 +56,19 @@ test('current drive becomes a normalized field position with the first-down line
   const headerOnly=driveSummary();
   headerOnly.header.competitions=[{competitors:[{homeAway:'away',team:{id:'17'}},{homeAway:'home',team:{id:'8'}}]}];
   assert.equal(api.parseDrive(headerOnly,{event_id:e.event_id,situation:null},e.event_id).team_side,'home');
+});
+test('in-bounds plays provide an absolute game-clock anchor while stoppages stay frozen', () => {
+  const e=api.parseEvent(event()), running=driveSummary();
+  Object.assign(running.drives.current.plays[0], {type:{text:'Rush'},text:'Runner up the middle for 4 yards.',isPenalty:false});
+  running.drives.current.plays[0].clock.displayValue='5:47';
+  const drive=api.parseDrive(running,e,e.event_id);
+  assert.equal(drive.clock_running,true);
+  assert.equal(drive.clock_period,2);
+  assert.equal(drive.clock_ends_at,'2026-11-15T16:13:35.000Z');
+  for (const text of ['Runner pushed ob at DET 36.', 'Runner up the middle, TOUCHDOWN.']) {
+    running.drives.current.plays[0].text=text;
+    assert.equal(api.parseDrive(running,e,e.event_id).clock_running,false);
+  }
 });
 test('drive parser rejects the wrong event, unknown offense and unusable positions', () => {
   const e=api.parseEvent(event());
@@ -107,7 +122,7 @@ test('fetch groups games by league/date and returns scores without modifying ori
   assert.equal(result.scores[0].graded,false);
   assert.equal(game.away_score,undefined);
 });
-test('live football fetches current drive by verified event id and caches it for ten seconds', async () => {
+test('live football fetches current drive by verified event id and caches it between five-second polls', async () => {
   const target={...game,espn_event_id:'401873053'},calls=[];
   const mock=async (url,opts) => {
     calls.push({url,opts});
@@ -120,6 +135,20 @@ test('live football fetches current drive by verified event id and caches it for
   const summaryCall=calls.find(x=>x.url.includes('/summary?'));
   assert.equal(summaryCall.opts.credentials,'omit');
   assert.equal(summaryCall.opts.cache,'no-store');
+});
+test('live fetch only starts interpolation when scoreboard and play-by-play clocks agree', async () => {
+  const raw=event(); raw.id='401873099';
+  const target={...game,game_id:99,espn_event_id:raw.id};
+  const summary=driveSummary(raw.id);
+  Object.assign(summary.drives.current.plays[0], {type:{text:'Rush'},text:'Runner up the middle for 4 yards.',isPenalty:false});
+  summary.drives.current.plays[0].clock.displayValue='5:47';
+  const result=await api.fetchGames([target],async url=>({ok:true,json:async()=>url.includes('/summary?')?summary:{events:[raw]}}));
+  assert.equal(result.scores[0].situation.clock_running,true);
+  assert.equal(result.scores[0].situation.clock_ends_at,'2026-11-15T16:13:35.000Z');
+  raw.status.displayClock='5:46';
+  const mismatch=await api.fetchGames([target],async url=>({ok:true,json:async()=>url.includes('/summary?')?summary:{events:[raw]}}));
+  assert.equal(mismatch.scores[0].situation.clock_running,false);
+  assert.equal(mismatch.scores[0].situation.clock_ends_at,null);
 });
 test('college request includes all FBS groups; one league failure preserves successful scores', async () => {
   const urls=[];

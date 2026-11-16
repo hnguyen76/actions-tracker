@@ -25,7 +25,9 @@ function harness() {
     hidden: false,
     createElement: tag => new Element(tag),
     addEventListener: (event, fn) => { const a = listeners.get(event) || []; a.push(fn); listeners.set(event, a); },
-    querySelectorAll: () => walk(doc.root).filter(n => n.className.split(/\s+/).includes('asb-halftime') && n.dataset.halftimeEndsAt),
+    querySelectorAll: selector => walk(doc.root).filter(n => selector.startsWith('.asb-halftime')
+      ? n.className.split(/\s+/).includes('asb-halftime') && n.dataset.halftimeEndsAt
+      : selector.startsWith('.asb-game-clock') && n.className.split(/\s+/).includes('asb-game-clock') && n.dataset.clockEndsAt),
   };
   doc.root = new Element('root');
   const host = new Element('div'); doc.root.append(host);
@@ -94,6 +96,23 @@ test('ordinary game clock, final and third-quarter status never become a countdo
   assert.equal(h.nodes('asb-clock')[0].textContent, '15:00 · Hiệp 3'); assert.equal(h.timers.size, 0);
   h.api.render(h.host, [game({ state: 'final' })]);
   assert.equal(h.nodes('asb-clock')[0].textContent, 'Hết trận · chờ chấm'); assert.equal(h.timers.size, 0);
+});
+test('verified running game clock ticks locally and an official stoppage freezes it', () => {
+  const h = harness(), end = new Date(BASE + 347000).toISOString();
+  h.api.render(h.host, [game({ detail: '5:47 - 2nd', situation: {
+    period: 2, clock: '5:47', clock_running: true, clock_ends_at: end,
+  } })]);
+  const clock = h.nodes('asb-clock')[0];
+  assert.equal(clock.textContent, '5:47 · Hiệp 2');
+  assert.match(clock.attributes.title, /nội suy/);
+  assert.equal(h.timers.size, 1);
+  h.advance(5500);
+  assert.equal(clock.textContent, '5:42 · Hiệp 2');
+  h.api.render(h.host, [game({ detail: '5:40 - 2nd', situation: {
+    period: 2, clock: '5:40', clock_running: false, clock_ends_at: null,
+  } })]);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:40 · Hiệp 2');
+  assert.equal(h.timers.size, 0);
 });
 test('invalid or missing estimates retain the official halftime label without a ticker', () => {
   const h = harness();
