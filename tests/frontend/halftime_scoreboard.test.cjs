@@ -44,14 +44,14 @@ function harness() {
 const game = (extra = {}) => ({ game_id: 1, league: 'nfl', state: 'live', detail: 'Halftime', away_abbr: 'NE', home_abbr: 'DET', away_score: 3, home_score: 21,
   situation: { is_halftime: true, period: 2, clock: '0:00', halftime_ends_at: new Date(BASE + 532000).toISOString(), possession: 'home', possession_text: 'NE 8', down_distance: '2nd & 2' }, ...extra });
 
-test('estimate is visibly labeled and derives remaining time from the absolute deadline', () => {
+test('halftime countdown derives remaining time from the absolute deadline', () => {
   const h = harness(); h.api.render(h.host, [game()]);
-  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:52');
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · 08:52');
   assert.equal(h.nodes('asb-clock')[0].attributes['aria-live'], 'off');
   assert.equal(h.nodes('asb-possession').length, 0);
   assert.equal(h.nodes('asb-situation').length, 0);
   h.advance(5500);
-  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:47');
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · 08:47');
   assert.equal(h.timers.size, 1);
 });
 test('expired estimate waits for official third-quarter status and stops its ticker', () => {
@@ -64,9 +64,9 @@ test('expired estimate waits for official third-quarter status and stops its tic
 test('hidden pages pause and resume immediately from wall-clock time', () => {
   const h = harness(); h.api.render(h.host, [game()]); h.hide(true);
   assert.equal(h.timers.size, 0); h.advance(30000);
-  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:52');
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · 08:52');
   h.hide(false);
-  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · ước tính 08:22');
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · 08:22');
   assert.equal(h.timers.size, 1);
 });
 test('rerenders share one ticker and removing cards clears the ticker', () => {
@@ -151,4 +151,13 @@ test('quarter labels read 1st 2nd 3rd 4th and overtime stays OT', () => {
     h.api.render(h.host, [game({ detail: '9:58', situation: { period, clock: '9:58' } })]);
     assert.equal(h.nodes('asb-clock')[0].textContent, '9:58 · ' + label);
   }
+});
+
+test('bet strip: the state pill with the margin beside it, no ATS explanation line', () => {
+  const h = harness();
+  h.api.render(h.host, [game({ detail: '0:00 - 2nd', away_abbr: 'PIT', home_abbr: 'CIN', away_score: 3, home_score: 24,
+    bet_side: 'home', market: 'spread', line: -4.5 })]);
+  assert.equal(h.nodes('asb-bet-state')[0].textContent, 'ĐANG THẮNG');
+  assert.equal(h.nodes('asb-bet-margin')[0].textContent, 'hơn 16,5 điểm');
+  assert.equal(h.nodes('asb-bet-ats').length, 0);
 });

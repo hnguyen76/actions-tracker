@@ -69,7 +69,7 @@
   const periodLabel = (period) => period > 4 ? periodName(period) : ["1st", "2nd", "3rd", "4th"][period - 1];
   const halftimeLabel = (end, now = Date.now()) => {
     const remaining = Math.ceil((end - now) / 1000);
-    return remaining > 0 ? "Halftime · ước tính " + String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0")
+    return remaining > 0 ? "Halftime · " + String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0")
       : "Halftime · chờ 3rd";
   };
   let halftimeTicker = null;
@@ -236,16 +236,15 @@
     const away = integer(game.away_score), home = integer(game.home_score);
     if (!side || !Number.isFinite(line) || away === null || home === null) return null;
     const fmt = (x) => (x > 0 ? "+" : "") + String(x).replace(".", ",");
+    const pts = (x) => String(Math.abs(x)).replace(".", ",") + " điểm";
+    // margin: how far the bet is ahead or behind after the line ("hơn 16,5 điểm"), shown beside the state pill
     if (market === "spread" && (side === "home" || side === "away")) {
       const mine = side === "home" ? home : away, theirs = side === "home" ? away : home;
       const margin = mine + line - theirs;
-      const me = abbreviation(game, side), them = abbreviation(game, side === "home" ? "away" : "home");
       return {
         state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
-        pick: me + " " + fmt(line),
-        detail: "ATS: " + me + " " + mine + " " + (line < 0 ? "− " + String(-line).replace(".", ",") : "+ " + String(line).replace(".", ","))
-          + " = " + String(mine + line).replace(".", ",") + " vs " + them + " " + theirs
-          + (margin === 0 ? " → hòa" : " → " + (margin > 0 ? "hơn " : "kém ") + String(Math.abs(margin)).replace(".", ",") + " điểm"),
+        pick: abbreviation(game, side) + " " + fmt(line),
+        margin: margin === 0 ? "hòa" : (margin > 0 ? "hơn " : "kém ") + pts(margin),
       };
     }
     if (market === "total" && (side === "over" || side === "under")) {
@@ -253,9 +252,8 @@
       return {
         state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
         pick: (side === "over" ? "Over " : "Under ") + String(line).replace(".", ","),
-        detail: "Tổng " + total + " vs line " + String(line).replace(".", ",")
-          + (margin === 0 ? " → hòa" : " → " + (side === "over" ? (total > line ? "đã vượt " : "còn thiếu ") : (total < line ? "còn dư " : "đã vượt "))
-            + String(Math.abs(total - line)).replace(".", ",") + " điểm"),
+        margin: margin === 0 ? "hòa" : (side === "over" ? (total > line ? "đã vượt " : "còn thiếu ")
+          : (total < line ? "còn dư " : "đã vượt ")) + pts(total - line),
       };
     }
     return null;
@@ -266,8 +264,10 @@
     if (!b) return null;
     const label = { win: "ĐANG THẮNG", loss: "ĐANG THUA", push: "ĐANG HÒA" }[b.state];
     const strip = node("div", "asb-bet asb-bet-" + b.state);
-    strip.append(node("span", "asb-bet-pick", "Bạn đặt " + b.pick), node("span", "asb-bet-ats", b.detail),
-      node("strong", "asb-bet-state", game.state === "final" ? { win: "THẮNG", loss: "THUA", push: "HÒA" }[b.state] : label));
+    const result = node("span", "asb-bet-result");  // the pill and the margin stay together on one line
+    result.append(node("strong", "asb-bet-state", game.state === "final" ? { win: "THẮNG", loss: "THUA", push: "HÒA" }[b.state] : label));
+    if (b.state !== "push") result.append(node("span", "asb-bet-margin", b.margin));
+    strip.append(node("span", "asb-bet-pick", "Bạn đặt " + b.pick), result);
     return strip;
   }
 
