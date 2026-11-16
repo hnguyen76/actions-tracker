@@ -1,0 +1,30 @@
+# After a pull request from this repository is merged, delete its branch on GitHub
+# (the same as the "Automatically delete head branches" repository setting).
+name: delete merged branch
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    if: >-
+      github.event.pull_request.merged == true
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.head_ref != 'main' && github.head_ref != 'gh-pages'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the head branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          if gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH"; then
+            echo "Deleted $BRANCH"
+          else
+            echo "Branch $BRANCH is already gone"
+          fi
