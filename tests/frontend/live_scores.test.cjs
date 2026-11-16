@@ -290,3 +290,44 @@ test('ESPN nickname and espncdn logo are kept on the situation', () => {
   assert.equal(s.away_logo,'https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/ne.png');
   assert.equal(s.home_logo,null);
 });
+// Shape of the real ESPN data after a punt (PIT@CIN, 3rd 0:21): the current drive is still the kicking team's,
+// the punt ends with the receiver in possession. Here DET (home) punts to NE (away) at NE 16.
+const afterPunt=(eventId)=>({
+  header:{id:eventId,competitions:[{competitors:[
+    {homeAway:'away',team:{id:'17',abbreviation:'NE',logos:[{href:'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png'}]}},
+    {homeAway:'home',team:{id:'8',abbreviation:'DET',logos:[{href:'https://a.espncdn.com/i/teamlogos/nfl/500/det.png'}]}}]}]},
+  drives:{current:{id:'d9',description:'3 plays, 8 yards, 2:21',
+    team:{id:'8',abbreviation:'DET',logos:[{href:'https://a.espncdn.com/i/teamlogos/nfl/500/det.png'}]},
+    plays:[
+      {id:'1',type:{text:'Pass Reception'},text:'Pass to DET 45 for 6 yards.',
+        start:{team:{id:'8'},yardsToEndzone:61,down:3,distance:8,possessionText:'DET 39',shortDownDistanceText:'3rd & 8'},
+        end:{team:{id:'8'},yardsToEndzone:55,down:4,distance:2,possessionText:'DET 45',shortDownDistanceText:'4th & 2'}},
+      {id:'2',type:{text:'Punt'},text:'Punts 39 yards to NE 16.',
+        start:{team:{id:'8'},yardsToEndzone:45,down:4,distance:2,possessionText:'DET 45',shortDownDistanceText:'4th & 2'},
+        end:{team:{id:'17'},yardsToEndzone:84,down:1,distance:10,possessionText:'NE 16',shortDownDistanceText:'1st & 10'}},
+      {id:'3',type:{text:'Official Timeout'},text:'Official Timeout at 00:21.',clock:{displayValue:'0:21'},
+        start:{team:{id:'17'},yardsToEndzone:0,down:1,distance:10,possessionText:'NE 16',shortDownDistanceText:'1st & 10'},
+        end:{team:{id:'17'},yardsToEndzone:84,down:1,distance:10,possessionText:'NE 16',shortDownDistanceText:'1st & 10'}}]}}});
+test('after a punt the receiving team has the ball: spot, direction and logo follow possession, not the old drive', () => {
+  const e=api.parseEvent(event());
+  const d=api.parseDrive(afterPunt(e.event_id),e,e.event_id);
+  assert.equal(d.team_side,'away');
+  assert.equal(d.team_abbr,'NE');
+  assert.equal(d.team_logo,'https://a.espncdn.com/i/teamlogos/nfl/500/ne.png');
+  assert.equal(d.ball_x,16);              // NE 16: 16 yards from NE's own goal line (left side)
+  assert.equal(d.first_down_x,26);        // NE attacks to the right
+  assert.equal(d.down_distance,'1st & 10');
+  assert.equal(d.spot,'NE 16');
+  assert.equal(d.start_x,null);           // NE's drive has not had a snap yet: no drive bar
+  assert.equal(d.description,null);       // "3 plays, 8 yards" belongs to DET's drive
+  assert.equal(d.last_play,'Official Timeout at 00:21.');
+});
+test('the spot text decides the ball position when the yard count is missing or bogus', () => {
+  const e=api.parseEvent(event()), s=afterPunt(e.event_id);
+  s.drives.current.plays[2].end={team:{id:'17'},yardsToEndzone:0,down:1,distance:10,possessionText:'NE 16',shortDownDistanceText:'1st & 10'};
+  assert.equal(api.parseDrive(s,e,e.event_id).ball_x,16);
+  s.drives.current.plays[2].end={down:1,distance:10,possessionText:'DET 30',shortDownDistanceText:'1st & 10'};
+  const home=api.parseDrive(s,e,e.event_id);
+  assert.equal(home.ball_x,70);          // DET 30 = 30 yards from DET's goal line on the right
+  assert.equal(home.team_side,'home');   // no team on the point: the drive's team (DET) keeps the ball; the spot names the side of the field, not the offense
+});

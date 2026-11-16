@@ -59,17 +59,38 @@
     return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
   };
   const cleanText = (value, limit = 500) => typeof value === "string" && value.trim() ? value.trim().slice(0, limit) : null;
-  // "away" / "home" for the ESPN team that has the ball on a drive (null when it cannot be matched)
-  function driveSide(summary, event, drive) {
+  // the two teams as ESPN names them in the summary: ids (to read who has the ball), abbreviations (to read
+  // spot texts like "PIT 16") and logos
+  const espnLogo = (team) => [...(team && Array.isArray(team.logos) ? team.logos.map((x) => x && x.href) : []), team && team.logo]
+    .find((href) => /^https:\/\/[^/]*\.espncdn\.com\//i.test(String(href || ""))) || null;
+  function gameTeams(summary, event) {
     const situation = event && event.situation || {};
-    const headerCompetition = summary.header && Array.isArray(summary.header.competitions) ? summary.header.competitions[0] || {} : {};
-    const headerTeams = Array.isArray(headerCompetition.competitors) ? headerCompetition.competitors : [];
-    const headerAway = headerTeams.find((x) => x && x.homeAway === "away");
-    const headerHome = headerTeams.find((x) => x && x.homeAway === "home");
-    const awayId = String(situation.away_espn_id || headerAway && headerAway.team && headerAway.team.id || "");
-    const homeId = String(situation.home_espn_id || headerHome && headerHome.team && headerHome.team.id || "");
-    const teamId = drive && drive.team && /^\d+$/.test(String(drive.team.id || "")) ? String(drive.team.id) : null;
-    return teamId && teamId === awayId ? "away" : teamId && teamId === homeId ? "home" : null;
+    const comp = summary.header && Array.isArray(summary.header.competitions) ? summary.header.competitions[0] || {} : {};
+    const teams = Array.isArray(comp.competitors) ? comp.competitors : [];
+    const team = (where) => { const c = teams.find((x) => x && x.homeAway === where); return c && c.team || {}; };
+    const away = team("away"), home = team("home");
+    return {
+      away: { id: String(situation.away_espn_id || away.id || ""), abbr: cleanText(away.abbreviation, 12), logo: espnLogo(away) },
+      home: { id: String(situation.home_espn_id || home.id || ""), abbr: cleanText(home.abbreviation, 12), logo: espnLogo(home) },
+    };
+  }
+  const sideOfTeam = (team, teams) => {
+    const id = team && /^\d+$/.test(String(team.id || "")) ? String(team.id) : null;
+    return id && id === teams.away.id ? "away" : id && id === teams.home.id ? "home" : null;
+  };
+  // "away" / "home" for the ESPN team that has the ball on a drive (null when it cannot be matched)
+  const driveSide = (summary, event, drive) => sideOfTeam(drive && drive.team, gameTeams(summary, event));
+  // the ball on the field axis: 0 = away goal line (left) .. 100 = home goal line (right). The spot text names the
+  // half of the field ("PIT 16" = 16 yards from PIT's goal line, whoever has the ball); yardsToEndzone counts for
+  // the team holding the ball at that moment (after a punt that is the receiving team)
+  function spotX(point, teams, holder) {
+    const spot = cleanText(point.possessionText, 50) || "";
+    if (/^50$/.test(spot)) return 50;
+    const m = /^(\S+)\s+(\d{1,2})$/.exec(spot);
+    if (m && teams.away.abbr && m[1] === teams.away.abbr) return Number(m[2]);
+    if (m && teams.home.abbr && m[1] === teams.home.abbr) return 100 - Number(m[2]);
+    const toGo = boundedInteger(point.yardsToEndzone, 0, 100);
+    return toGo === null || !holder ? null : holder === "away" ? 100 - toGo : toGo;
   }
   // Non-scoring big plays (scores are caught from the scoreboard): the offense of the drive lost the ball or missed.
   // A return touchdown is left to the score jump so it is announced once, as a touchdown.
@@ -102,48 +123,50 @@
     if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)) return null;
     const drive = summary.drives && summary.drives.current;
     if (!drive || !Array.isArray(drive.plays) || !drive.plays.length) return null;
-    const side = driveSide(summary, event, drive);
+    const teams = gameTeams(summary, event);
+    const side = sideOfTeam(drive.team, teams);
     if (!side) return null;
     const teamId = String(drive.team.id);
     // the latest play is shown as "last play"; the position comes from the latest play that describes it,
     // because a timeout or a quarter break carries a yard line but no down & distance or spot text
+    const usable = (pt) => pt && typeof pt === "object"
+      && (boundedInteger(pt.yardsToEndzone, 0, 100) !== null || cleanText(pt.possessionText)) ? pt : null;
     let play = null, point = null;
     for (let i = drive.plays.length - 1; i >= 0; i--) {
       const candidate = drive.plays[i];
       if (!candidate || typeof candidate !== "object") continue;
-      const end = candidate.end && typeof candidate.end === "object" ? candidate.end : null;
-      const start = candidate.start && typeof candidate.start === "object" ? candidate.start : null;
-      const candidatePoint = end && boundedInteger(end.yardsToEndzone, 0, 100) !== null ? end
-        : start && boundedInteger(start.yardsToEndzone, 0, 100) !== null ? start : null;
+      const candidatePoint = usable(candidate.end) || usable(candidate.start);
       if (!candidatePoint) continue;
       if (!play) { play = candidate; point = candidatePoint; }
       if (cleanText(candidatePoint.possessionText) || cleanText(candidatePoint.shortDownDistanceText)) { point = candidatePoint; break; }
     }
     if (!play || !point) return null;
-    const yardsToEndzone = boundedInteger(point.yardsToEndzone, 0, 100);
-    const ball = side === "away" ? 100 - yardsToEndzone : yardsToEndzone;
+    // who has the ball now: the team on that play's spot (after a punt or a turnover ESPN keeps the old drive as
+    // "current" until the next snap, but the play already names the new offense)
+    const offense = sideOfTeam(point.team, teams) || side;
+    const ball = spotX(point, teams, offense);
+    if (ball === null) return null;
     const distance = boundedInteger(point.distance, 0, 99);
     const down = boundedInteger(point.down, 1, 4);
-    const first = distance === null ? null : Math.max(0, Math.min(100, ball + (side === "away" ? distance : -distance)));
+    const first = distance === null ? null : Math.max(0, Math.min(100, ball + (offense === "away" ? distance : -distance)));
+    const sameDrive = offense === side;
     // where the drive began: the spot of its first scrimmage play (a kickoff is measured for the kicking team)
-    const opening = drive.plays.find((p) => p && typeof p === "object" && p.start && typeof p.start === "object"
+    const opening = sameDrive ? drive.plays.find((p) => p && typeof p === "object" && p.start && typeof p.start === "object"
       && !/kickoff/i.test(String(p.type && p.type.text || ""))
       && (!p.start.team || String(p.start.team.id || "") === teamId)
-      && boundedInteger(p.start.yardsToEndzone, 0, 100) !== null);
-    const startYards = opening ? boundedInteger(opening.start.yardsToEndzone, 0, 100) : null;
+      && (boundedInteger(p.start.yardsToEndzone, 0, 100) !== null || cleanText(p.start.possessionText))) : null;
+    const startX = opening ? spotX(opening.start, teams, side) : null;
     const statYardage = typeof play.statYardage === "number" && Number.isFinite(play.statYardage)
       && play.statYardage >= -99 && play.statYardage <= 99 ? play.statYardage : null;
-    const logo = Array.isArray(drive.team && drive.team.logos)
-      ? drive.team.logos.map((x) => x && x.href).find((href) => /^https:\/\/[^/]*\.espncdn\.com\//i.test(String(href || ""))) || null : null;
     return {
-      team_side: side,
-      team_abbr: cleanText(drive.team && drive.team.abbreviation, 12),
-      team_logo: logo,
-      description: cleanText(drive.description, 100),
+      team_side: offense,
+      team_abbr: sameDrive ? cleanText(drive.team && drive.team.abbreviation, 12) : teams[offense].abbr,
+      team_logo: sameDrive ? espnLogo(drive.team) : teams[offense].logo,
+      description: sameDrive ? cleanText(drive.description, 100) : null,  // the old drive's summary is not the new offense's
       down_distance: cleanText(point.shortDownDistanceText, 50),
       spot: cleanText(point.possessionText, 50),
       ball_x: ball,
-      start_x: startYards === null ? null : side === "away" ? 100 - startYards : startYards,
+      start_x: startX,
       first_down_x: first,
       last_play: cleanText(play.text, 500),
       play_clock: cleanText(play.clock && play.clock.displayValue, 12),
