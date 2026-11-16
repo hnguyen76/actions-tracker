@@ -104,3 +104,39 @@ test('observe: alerts queue one at a time; a turnover against the bet side is sh
   env.click(shown[0]);
   assert.equal(env.find('bp-overlay').length, 0);
 });
+
+const rz = (red, extra = {}) => live({ situation: { red_zone: red, possession: 'home', possession_text: 'PIT 18', down_distance: '1st & 10' }, ...extra });
+
+test('detect: entering the red zone is one event; staying in, or the same team back in within 3 minutes, is not', () => {
+  const { detect } = load(), m = new Map();
+  let t = 1e6;
+  assert.deepEqual(plain(detect(m, [rz(true)], t)), []);                       // first look only records
+  assert.deepEqual(plain(detect(m, [rz(false)], t += 5000)), []);
+  assert.deepEqual(plain(detect(m, [rz(true)], t += 5000)), [{ game_id: 1, kind: 'red_zone', side: 'home' }]);
+  assert.deepEqual(plain(detect(m, [rz(true)], t += 5000)), []);
+  assert.deepEqual(plain(detect(m, [rz(null)], t += 5000)), []);                // ESPN without the flag: unknown, not "left"
+  assert.deepEqual(plain(detect(m, [rz(true)], t += 5000)), []);
+  assert.deepEqual(plain(detect(m, [rz(false)], t += 5000)), []);
+  assert.deepEqual(plain(detect(m, [rz(true)], t += 5000)), []);               // penalty out and back in: same drive
+  for (let i = 0; i < 36; i++) detect(m, [rz(false)], t += 5000);              // three minutes later
+  assert.deepEqual(plain(detect(m, [rz(true)], t += 5000)), [{ game_id: 1, kind: 'red_zone', side: 'home' }]);
+});
+
+test('observe: red zone is a small top line for 3 seconds, no overlay, no vibration', () => {
+  const env = fakeDom(), vib = [], timers = [];
+  const api = load({ document: env.document, navigator: { vibrate: (p) => vib.push(p) }, matchMedia: () => ({ matches: false }),
+    requestAnimationFrame: () => 0, setTimeout: (fn, ms) => { timers.push([fn, ms]); return timers.length; }, clearTimeout() {},
+    ActionsScoreboard: { betStatus: () => null } });
+  api.observe([rz(false)]);
+  api.observe([rz(true)]);
+  const toast = env.find('bp-toast');
+  assert.equal(toast.length, 1);
+  assert.match(toast[0].textContent, /RED ZONE/);
+  assert.match(toast[0].textContent, /CIN · 1st & 10 · PIT 18/);
+  assert.equal(env.find('bp-overlay').length, 0);
+  assert.equal(vib.length, 0);
+  const [hide, ms] = timers.find(([, d]) => d === 3000) || [];
+  assert.equal(ms, 3000);
+  hide();
+  assert.equal(env.find('bp-toast').length, 0);
+});

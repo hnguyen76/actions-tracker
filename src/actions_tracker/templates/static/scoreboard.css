@@ -138,4 +138,10 @@
 @keyframes bp-flash { from { opacity: .45; } to { opacity: 0; } }
 @keyframes bp-pop { from { transform: scale(.6); opacity: 0; } }
 @keyframes bp-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
-@media (prefers-reduced-motion: reduce) { .bp-overlay, .bp-card, .bp-bad .bp-card, .bp-overlay::before { animation: none; } }
+/* red zone: a small line at the top for 3 s, never blocks taps */
+.bp-toast { position: fixed; z-index: 9998; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 0; right: 0; width: max-content;
+  max-width: 92vw; margin: 0 auto; padding: 8px 16px; border-radius: 999px; pointer-events: none; color: #fff; background: #d32f2f;
+  font-size: 14px; letter-spacing: .02em; box-shadow: 0 6px 18px rgb(0 0 0 / 40%); animation: bp-toast 3s ease forwards; }
+.bp-toast b { font-weight: 800; letter-spacing: .06em; }
+@keyframes bp-toast { 0% { opacity: 0; transform: translateY(-12px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bp-overlay, .bp-card, .bp-bad .bp-card, .bp-overlay::before, .bp-toast { animation: none; } }

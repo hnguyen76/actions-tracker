@@ -4,6 +4,7 @@
 (function (root) {
   "use strict";
   const STALE_MS = 60000;  // a look older than this (tab hidden, phone asleep) starts over without alerts
+  const RED_ZONE_REPEAT_MS = 180000;  // the same team back in the red zone this soon (penalty out and in) is the same drive
 
   // One jump of a team's score: 6-8 is a touchdown (with or without the try), 3 a field goal; 1-2 are tries/safeties.
   const scoreKind = (before, after) => {
@@ -12,7 +13,7 @@
   };
   const score = (x) => (Number.isSafeInteger(Number(x)) && x !== null && x !== "" ? Number(x) : null);
 
-  // memory: Map(game_id -> {away, home, plays: Set, at}); returns [{game_id, kind, side}] and updates memory.
+  // memory: Map(game_id -> {away, home, plays: Set, red, redAlert, at}); returns [{game_id, kind, side}], updates memory.
   function detect(memory, games, now) {
     const events = [];
     for (const g of games || []) {
@@ -27,9 +28,21 @@
         }
         for (const p of plays) if (p && p.id && !seen.plays.has(p.id)) events.push({ game_id: id, kind: p.kind, side: p.side });
       }
+      // red zone: only the moment a team gets in (ESPN without the flag is "unknown", not "out")
+      const situation = g.situation || {};
+      const red = situation.red_zone === true ? true : situation.red_zone === false ? false : null;
+      let redAlert = seen ? seen.redAlert : null;
+      if (fresh && red === true && seen.red !== true) {
+        const side = situation.possession === "home" || situation.possession === "away" ? situation.possession : null;
+        if (!(redAlert && redAlert.side === side && now - redAlert.at < RED_ZONE_REPEAT_MS)) {
+          events.push({ game_id: id, kind: "red_zone", side });
+          redAlert = { side, at: now };
+        }
+      }
       const known = fresh ? seen.plays : new Set();
       for (const p of plays) if (p && p.id) known.add(p.id);
-      memory.set(id, { away: away ?? (seen && seen.away), home: home ?? (seen && seen.home), plays: known, at: now });
+      memory.set(id, { away: away ?? (seen && seen.away), home: home ?? (seen && seen.home), plays: known,
+        red: red ?? (seen ? seen.red : null), redAlert, at: now });
     }
     return events;
   }
@@ -166,15 +179,31 @@
   // queue one alert (also handy to preview the look from the console)
   function announce(event, card) { queue.push([event, card]); next(); }
 
+  // red zone: one small line at the top for 3 s (no sound, no vibration, never blocks the page)
+  const TOAST_MS = 3000;
+  let toastNode = null;
+  function toast(event, card) {
+    if (toastNode) toastNode.remove();
+    const situation = card.situation || {};
+    const parts = [event.side ? abbr(card, event.side) : null, situation.down_distance, situation.possession_text].filter(Boolean);
+    const node = el("div", "bp-toast");
+    node.setAttribute("role", "status");
+    node.append(el("b", "", "RED ZONE"), el("span", "", parts.length ? " · " + parts.join(" · ") : ""));
+    root.document.body.append(node);
+    toastNode = node;
+    root.setTimeout(() => { node.remove(); if (toastNode === node) toastNode = null; }, TOAST_MS);
+  }
+
   // cards: the merged live cards of the games on the "Đang đá" card, after each live poll
   const memory = new Map();
   function observe(cards) {
     const byId = new Map((cards || []).map((c) => [Number(c.game_id), c]));
     for (const event of detect(memory, cards, Date.now())) {
       const card = byId.get(event.game_id);
-      if (card) announce(event, card);
+      if (card && event.kind === "red_zone") toast(event, card);
+      else if (card) announce(event, card);
     }
   }
 
-  root.ActionsBigPlay = { detect, observe, announce };
+  root.ActionsBigPlay = { detect, observe, announce, toast };
 })(typeof window !== "undefined" ? window : globalThis);
