@@ -65,15 +65,17 @@
   const league = (game) => String(game.league || "").toUpperCase();
   const abbreviation = (game, side) => text(game[side + "_abbr"]) || text(game[side + "_name"]) || (side === "away" ? "Đội khách" : "Đội nhà");
   const periodName = (period) => period <= 4 ? String(period) : period === 5 ? "OT" : "OT" + (period - 4);
+  // next to the game clock: 1st 2nd 3rd 4th, then OT, OT2 ...
+  const periodLabel = (period) => period > 4 ? periodName(period) : ["1st", "2nd", "3rd", "4th"][period - 1];
   const halftimeLabel = (end, now = Date.now()) => {
     const remaining = Math.ceil((end - now) / 1000);
     return remaining > 0 ? "Halftime · ước tính " + String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0")
-      : "Halftime · chờ hiệp 3";
+      : "Halftime · chờ 3rd";
   };
   const gameClockLabel = (end, period, now = Date.now()) => {
     const remaining = Math.max(0, Math.ceil((end - now) / 1000));
     const clock = String(Math.floor(remaining / 60)) + ":" + String(remaining % 60).padStart(2, "0");
-    return clock + " · " + (period > 4 ? periodName(period) : "Hiệp " + period);
+    return clock + " · " + periodLabel(period);
   };
   let scoreboardTicker = null;
   function updateScoreboardClocks() {
@@ -266,7 +268,7 @@
     else if (live && text(situation.clock) && integer(situation.period) !== null && situation.period > 0
       && (!text(game.detail) || String(game.detail).includes(situation.clock)
         || situation.period >= 3 && /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail)))) {
-      clock = situation.clock + " · " + (situation.period > 4 ? periodName(situation.period) : "Hiệp " + situation.period);
+      clock = situation.clock + " · " + periodLabel(situation.period);
     }
     const clockNode = node("strong", "asb-clock", clock);
     const halftimeEnd = text(situation.halftime_ends_at);

@@ -19,7 +19,7 @@ thời tiết và thông tin quyết định đã có trước giờ đá; trên
 Tỉ số cuối trên trình duyệt chờ lượt chấm của hệ thống trước khi vào thống kê.
 Halftime có đồng hồ **ước tính** từ mốc `End of Half` hiệp 2 của ESPN: mùa thường NFL 13 phút,
 NCAAF 20 phút. Đồng hồ chạy theo thời gian thực, dừng khi ESPN báo hiệp 3; quá mốc dự kiến thì
-hiện “chờ hiệp 3”. Thiếu mốc kết thúc hiệp 2 hoặc ngoài mùa thường thì chỉ hiện trạng thái halftime.
+hiện “chờ 3rd”. Thiếu mốc kết thúc hiệp 2 hoặc ngoài mùa thường thì chỉ hiện trạng thái halftime.
 Nguồn thời lượng: [NFL Rule 4-1-3](https://operations.nfl.com/game-operations-logistics/preparation-safety/game-and-stadium-prep),
 [NCAA Rule 3-2-1-b](https://ncaaorg.s3.amazonaws.com/championships/sports/football/rules/PRMFB_RulesBook.pdf).
 
