@@ -124,6 +124,9 @@ test('live football renders an accessible drive field and hides it when drive da
       first_down_x: 62, distance: 6, play_yards: -5, play_clock: '2:12', play_type: 'Penalty', last_play: 'Illegal Formation.' },
   })]);
   assert.equal(h.nodes('asb-drive').length, 1);
+  // header: only the logo of the team with the ball, no "ĐỢT TẤN CÔNG HIỆN TẠI" text
+  assert.equal(h.nodes('asb-drive-team')[0].textContent, '');
+  assert.equal(h.nodes('asb-drive-logo')[0].attributes.alt, 'DET cầm banh');
   assert.equal(h.nodes('asb-field')[0].attributes['aria-label'], 'DET cầm banh, 3rd & 6, banh tại DET 32');
   // perspective field: 120 yards incl. end zones, the top edge 92.5% of the bottom; marker and drive bar at mid height
   assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:64.44%');
@@ -144,6 +147,7 @@ test('drive bar is left out when the start of the drive is unknown', () => {
     drive: { team_side: 'away', team_abbr: 'NE', down_distance: '1st & 10', spot: 'NE 39', ball_x: 39, first_down_x: 49, distance: 10 } })]);
   assert.equal(h.nodes('asb-ball-marker')[0].attributes.style, 'left:41.18%');
   assert.equal(h.nodes('asb-drive-progress').length, 0);
+  assert.equal(h.nodes('asb-drive-team')[0].textContent, 'NE');  // no logo: the abbreviation stands in
 });
 test('quarter labels read 1st 2nd 3rd 4th and overtime stays OT', () => {
   const h = harness();

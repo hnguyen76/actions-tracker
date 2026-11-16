@@ -27,7 +27,7 @@
 .asb-drive { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); min-width: 0; overflow: hidden; }
 .asb-drive-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink); }
 .asb-drive-team { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.asb-drive-logo { width: 28px; height: 28px; object-fit: contain; }
+.asb-drive-logo { width: 32px; height: 32px; object-fit: contain; display: block; }
 .asb-drive-summary { color: var(--muted); font-size: 12px; text-align: right; }
 .asb-drive-facts { display: flex; justify-content: center; margin: 0 0 12px; color: rgb(255 255 255 / 72%); font-size: 17px;
   font-weight: 600; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
@@ -87,7 +87,7 @@
   .asb-drive { padding: 11px 8px; }
   .asb-drive-head { align-items: flex-start; }
   .asb-drive-team { font-size: 12px; }
-  .asb-drive-logo { width: 23px; height: 23px; }
+  .asb-drive-logo { width: 28px; height: 28px; }
   .asb-drive-summary { max-width: 48%; font-size: 10px; }
   .asb-drive-facts { margin: 0 0 9px; font-size: 14px; }
   .asb-field { padding: 11px 12px 9px; }
