@@ -125,6 +125,13 @@ section.panel { display: none; padding-top: 16px; }
 section.panel.active { display: block; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
 .card h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 10px; }
+/* "Đang đá & chờ kết quả": a small TV with a softly pulsing live dot instead of the text title */
+.live-title { display: flex; align-items: center; color: var(--muted); line-height: 1; }
+.live-tv { width: 30px; height: 26px; }
+.live-tv-line { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.live-tv-dot { fill: #ff4d4f; animation: live-pulse 2.4s ease-in-out infinite; }
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .live-tv-dot { animation: none; } }
 .board-details > summary { cursor: pointer; list-style: none; }
 .board-details > summary::-webkit-details-marker { display: none; }
 .board-details > summary h2 { display: inline; }
@@ -434,7 +441,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
       <details class="board-details" id="decide-skips"><summary>Kèo consensus khác — bỏ qua</summary><div class="table-scroll" id="decide-skip-table"></div></details>
     </div>
     <div class="card" id="inplay-card" hidden>
-      <h2>Đang đá &amp; chờ kết quả</h2>
+      <h2 class="live-title" aria-label="Đang đá &amp; chờ kết quả" title="Đang đá &amp; chờ kết quả"><svg class="live-tv" viewBox="0 0 32 28" aria-hidden="true" focusable="false"><path class="live-tv-line" d="M11 3.5l5 5 5-5"/><rect class="live-tv-line" x="2.5" y="8.5" width="27" height="17" rx="4"/><circle class="live-tv-dot" cx="16" cy="17" r="3"/></svg></h2>
       <div id="live-scoreboards"></div>
       <div class="table-scroll" id="inplay-table"></div>
     </div>
