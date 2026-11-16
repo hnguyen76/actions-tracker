@@ -176,15 +176,18 @@
     const section = node("section", "asb-drive");
     section.setAttribute("aria-label", "Đợt tấn công hiện tại");
     const head = node("div", "asb-drive-head");
+    // only the logo of the team with the ball (its abbreviation when there is no logo)
     const identity = node("div", "asb-drive-team");
+    const offense = text(drive.team_abbr) || abbreviation(game, drive.team_side);
     if (typeof drive.team_logo === "string" && /^https:\/\/[^/]*\.espncdn\.com\//i.test(drive.team_logo)) {
       const logo = node("img", "asb-drive-logo");
       logo.setAttribute("src", drive.team_logo);
-      logo.setAttribute("alt", "");
+      logo.setAttribute("alt", offense + " cầm banh");
+      logo.setAttribute("title", offense + " cầm banh");
       logo.setAttribute("loading", "lazy");
+      logo.onerror = () => logo.replaceWith(node("strong", "", offense));
       identity.append(logo);
-    }
-    identity.append(node("strong", "", "ĐỢT TẤN CÔNG HIỆN TẠI"));
+    } else identity.append(node("strong", "", offense));
     head.append(identity, node("span", "asb-drive-summary", text(drive.description) || ""));
     section.append(head);
 
