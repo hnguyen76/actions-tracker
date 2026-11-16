@@ -57,10 +57,10 @@ test('estimate is visibly labeled and derives remaining time from the absolute d
 });
 test('expired estimate waits for official third-quarter status and stops its ticker', () => {
   const h = harness(); h.api.render(h.host, [game()]); h.advance(532000);
-  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · chờ hiệp 3');
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · chờ 3rd');
   assert.equal(h.timers.size, 0);
   h.advance(60000);
-  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · chờ hiệp 3');
+  assert.equal(h.nodes('asb-clock')[0].textContent, 'Halftime · chờ 3rd');
 });
 test('hidden pages pause and resume immediately from wall-clock time', () => {
   const h = harness(); h.api.render(h.host, [game()]); h.hide(true);
@@ -85,15 +85,15 @@ test('live updates reuse the card and preserve its pregame subtree', () => {
   assert.equal(h.nodes('live-card-pregame')[0], pregame);
   assert.equal(pregame.isConnected, true);
   assert.equal(h.nodes('asb-score')[0].textContent, '10');
-  assert.equal(h.nodes('asb-clock')[0].textContent, '5:12 · Hiệp 2');
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:12 · 2nd');
 });
 test('ordinary game clock, final and third-quarter status never become a countdown', () => {
   const h = harness();
   h.api.render(h.host, [game({ detail: '5:47 - 2nd', situation: { period: 2, clock: '5:47', halftime_ends_at: new Date(BASE + 10000).toISOString() } })]);
-  assert.equal(h.nodes('asb-clock')[0].textContent, '5:47 · Hiệp 2'); h.advance(5000);
-  assert.equal(h.nodes('asb-clock')[0].textContent, '5:47 · Hiệp 2'); assert.equal(h.timers.size, 0);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:47 · 2nd'); h.advance(5000);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:47 · 2nd'); assert.equal(h.timers.size, 0);
   h.api.render(h.host, [game({ situation: { ...game().situation, period: 3, clock: '15:00' } })]);
-  assert.equal(h.nodes('asb-clock')[0].textContent, '15:00 · Hiệp 3'); assert.equal(h.timers.size, 0);
+  assert.equal(h.nodes('asb-clock')[0].textContent, '15:00 · 3rd'); assert.equal(h.timers.size, 0);
   h.api.render(h.host, [game({ state: 'final' })]);
   assert.equal(h.nodes('asb-clock')[0].textContent, 'Hết trận · chờ chấm'); assert.equal(h.timers.size, 0);
 });
@@ -103,15 +103,15 @@ test('verified running game clock ticks locally and an official stoppage freezes
     period: 2, clock: '5:47', clock_running: true, clock_ends_at: end,
   } })]);
   const clock = h.nodes('asb-clock')[0];
-  assert.equal(clock.textContent, '5:47 · Hiệp 2');
+  assert.equal(clock.textContent, '5:47 · 2nd');
   assert.match(clock.attributes.title, /nội suy/);
   assert.equal(h.timers.size, 1);
   h.advance(5500);
-  assert.equal(clock.textContent, '5:42 · Hiệp 2');
+  assert.equal(clock.textContent, '5:42 · 2nd');
   h.api.render(h.host, [game({ detail: '5:40 - 2nd', situation: {
     period: 2, clock: '5:40', clock_running: false, clock_ends_at: null,
   } })]);
-  assert.equal(h.nodes('asb-clock')[0].textContent, '5:40 · Hiệp 2');
+  assert.equal(h.nodes('asb-clock')[0].textContent, '5:40 · 2nd');
   assert.equal(h.timers.size, 0);
 });
 test('invalid or missing estimates retain the official halftime label without a ticker', () => {
@@ -151,4 +151,11 @@ test('live football renders an accessible drive field and hides it when drive da
   assert.match(h.nodes('asb-last-play')[0].textContent, /Illegal Formation/);
   h.api.render(h.host, [game({ detail: '2:05 - 4th', situation: { period: 4, clock: '2:05' }, drive: null })]);
   assert.equal(h.nodes('asb-drive').length, 0);
+});
+test('quarter labels read 1st 2nd 3rd 4th and overtime stays OT', () => {
+  const h = harness();
+  for (const [period, label] of [[1, '1st'], [2, '2nd'], [3, '3rd'], [4, '4th'], [5, 'OT'], [6, 'OT2']]) {
+    h.api.render(h.host, [game({ detail: '9:58', situation: { period, clock: '9:58' } })]);
+    assert.equal(h.nodes('asb-clock')[0].textContent, '9:58 · ' + label);
+  }
 });
