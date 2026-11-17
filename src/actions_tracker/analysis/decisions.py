@@ -42,7 +42,7 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
     mine = {}
     if my_method is not None and not my_method.empty:
         up = my_method[(my_method["status"] != "graded") & (my_method["start_time"].astype(str) > now)]
-        mine = {(int(m.game_id), "spread"): m for m in up.itertuples()}
+        mine = {(int(m.game_id), getattr(m, "market", "spread")): m for m in up.itertuples()}
     covered = set()
     status = dict(zip(rule_summary["rule_id"], rule_summary["decision"])) if not rule_summary.empty else {}
     record = {r.rule_id: r for r in rule_summary.itertuples()} if not rule_summary.empty else {}
@@ -80,8 +80,11 @@ def decisions(rule_plays: pd.DataFrame, rule_summary: pd.DataFrame, upcoming: pd
                                 "reason": f"{_mine_reason(m)} · quy tắc chọn ngược: {first['pick']}"
                                           f"{_line(market, first['line'])} ({names})"})
             continue
-        if m is not None:  # same side: keep the rule's status and say the user's method agrees
+        if m is not None:  # same side: keep a passed bet; otherwise the user's method is the visible action
             reason = f"{_mine_reason(m)} — cùng bên với quy tắc · " + reason
+            # A collecting/failed rule must not hide the user's weekday decision (especially a 2-expert total).
+            # A passed rule remains a real bet because that is the stronger action.
+            action = "bet" if action == "bet" else "mine"
         rows.append(base | {"action": action, "pick": f"{first['pick']}{_line(market, first['line'])}",
                             "stake_u": max(STAKE.get(s, 0.0) for s in states), "reason": reason})
     for (game_id, market), m in mine.items():

@@ -67,7 +67,7 @@ def test_user_method_is_listed_and_merged_with_rules():
                             target_n=100)])
     d = decisions(rp, rs, pd.DataFrame(), now, mm).set_index("game_id")
     assert d.loc[1, "action"] == "mine" and d.loc[1, "pick"] == "MIA +4,5" and "ngược đám đông IND 5/5" in d.loc[1, "reason"]
-    assert d.loc[2, "action"] == "paper" and "Cách của bạn" in d.loc[2, "reason"] and "cùng bên" in d.loc[2, "reason"]
+    assert d.loc[2, "action"] == "mine" and "Cách của bạn" in d.loc[2, "reason"] and "cùng bên" in d.loc[2, "reason"]
 
 
 def test_user_method_wins_when_a_rule_picks_the_other_side():

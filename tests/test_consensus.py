@@ -22,6 +22,13 @@ def test_bucket_votes_and_min_experts():
     assert (r.side, r.votes, r.total_votes, r.majority_pct, r.bucket) == ("home", 3, 4, 75.0, "75-90")
 
 
+def test_custom_minimum_can_build_two_expert_decisions_without_changing_default():
+    df = make_picks(votes(9, ["home", "home"]))
+    assert consensus_games(df).empty
+    r = consensus_games(df, min_experts=2).iloc[0]
+    assert (r.game_id, r.votes, r.total_votes, r.side) == (9, 2, 2, "home")
+
+
 def test_latest_pick_per_expert_counts_once():
     rows = votes(1, ["home", "home", "home"])
     rows[0]["created_at"] = "2026-11-09T10:00:00.000Z"

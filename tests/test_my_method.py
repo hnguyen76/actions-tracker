@@ -2,9 +2,9 @@
 
 import pandas as pd
 
-from actions_tracker.analysis.my_method import (PLAY_COLS, SEASON_COLS, SUMMARY_COLS, my_method_plays,
-                                                my_method_summary, season_plays, season_sensitivity,
-                                                season_summary)
+from actions_tracker.analysis.my_method import (DECISION_PLAY_COLS, PLAY_COLS, SEASON_COLS, SUMMARY_COLS,
+                                                decision_method_plays, my_method_plays, my_method_summary,
+                                                season_plays, season_sensitivity, season_summary)
 
 
 def _cg(rows):
@@ -42,6 +42,32 @@ def test_plays_follow_on_weekdays_and_fade_on_weekends():
     # fading the away crowd: bet home at minus the away closing line
     assert (p.loc[2, "method"], p.loc[2, "pick"], p.loc[2, "line"], p.loc[2, "result"]) == ("fade", "HOM", -7.0, "loss")
     assert (p.loc[4, "status"], p.loc[4, "day_group"]) == ("pending", "T7-CN")
+
+
+def test_decision_method_expands_weekdays_to_two_votes_all_markets_and_nba():
+    cg = _cg([
+        dict(game_id=10, league="nfl", market="spread", start_time="2026-11-17T01:15:00Z", side="away",
+             votes=2, total_votes=3, side_result="win"),
+        dict(game_id=11, league="nba", market="total", start_time="2026-11-18T00:00:00Z", side="under",
+             votes=2, total_votes=2, side_result="loss", home_abbr="BOS", away_abbr="NYK"),
+        dict(game_id=12, league="nba", market="ml", start_time="2026-11-18T01:00:00Z", side="home",
+             votes=1, total_votes=1, side_result="win"),
+        dict(game_id=13, league="ncaaf", market="spread", start_time="2026-11-21T17:00:00Z", side="home",
+             votes=5, total_votes=6, side_result="win"),
+        dict(game_id=14, league="nba", market="spread", start_time="2026-11-21T17:00:00Z", side="home",
+             votes=6, total_votes=7, side_result="win"),
+    ])
+    picks = pd.DataFrame([
+        dict(game_id=10, market="spread", pick_side="away", line=3.5, close_line=3.0),
+        dict(game_id=11, market="total", pick_side="under", line=222.5, close_line=221.5),
+        dict(game_id=13, market="spread", pick_side="home", line=-4.5, close_line=-4.0),
+    ])
+    out = decision_method_plays(cg, picks).set_index("game_id")
+    assert list(out.reset_index().columns) == DECISION_PLAY_COLS and set(out.index) == {10, 11, 13}
+    assert (out.loc[10, "method"], out.loc[10, "pick"], out.loc[10, "line"]) == ("follow", "AWY", 3.0)
+    assert (out.loc[11, "league"], out.loc[11, "market"], out.loc[11, "pick"], out.loc[11, "line"]) == \
+        ("nba", "total", "Under", 221.5)
+    assert (out.loc[13, "method"], out.loc[13, "pick"], out.loc[13, "result"]) == ("fade", "AWY", "loss")
 
 
 def test_summary_live_and_season_lookback():

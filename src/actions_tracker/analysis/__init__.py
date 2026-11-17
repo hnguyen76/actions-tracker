@@ -13,7 +13,8 @@ from actions_tracker.live import live_games_table, scores_table
 from actions_tracker.weather import weather_table
 from actions_tracker.analysis.in_play import in_play
 from actions_tracker.analysis import forecast as fc
-from actions_tracker.analysis.my_method import my_method_plays, my_method_summary, season_plays, season_sensitivity, season_summary
+from actions_tracker.analysis.my_method import (WEEKDAY_DECISION_VOTES, decision_method_plays, my_method_plays,
+                                                my_method_summary, season_plays, season_sensitivity, season_summary)
 from actions_tracker.analysis.rule_report import rule_plays, rule_summary
 from actions_tracker.analysis.form import expert_form, expert_form_now
 from actions_tracker.analysis.experts import expert_clv, expert_habits, expert_summary, leaderboard
@@ -51,6 +52,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     sides = load_history(history_dir)
     hp = history_plays(sides)
     mm = my_method_plays(cg, picks)
+    dm = decision_method_plays(consensus_games(picks, min_experts=WEEKDAY_DECISION_VOTES), picks)
     scores = scores_table(conn, now)
     game_info = {int(r["id"]): dict(r) for r in conn.execute("SELECT id, week, away_score, home_score FROM games")}
     sp = season_plays(sides, mm, game_info)
@@ -69,7 +71,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Expert_Form_Now": expert_form_now(forms),
         "Trend_Weekly": weekly_trend(cg, picks),
         "Upcoming": up,
-        "Decisions": decisions(rp, rs, up, now, mm),
+        "Decisions": decisions(rp, rs, up, now, dm),
+        "Decision_Method": dm,
         "Data_Quality": quality,
         "Upcoming_Board": board,
         "Match_News": load_news(conn, board, now),
@@ -91,7 +94,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Scores": scores,
         "Weather": weather_table(conn, now),
         "Live_Games": live_games_table(conn, now),
-        "In_Play": in_play(scores, mm, rp),
+        "In_Play": in_play(scores, dm, rp),
         "History_Plays": hp,
         "History_Summary": hs,
         "History_Weekly": history_weekly(hp),
@@ -101,7 +104,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     ctx, opening = context_tables(conn)
     current = pd.read_sql_query("SELECT game_id, market, side, line FROM closing_lines", conn)
     public = pd.read_sql_query("SELECT game_id, market, side, tickets_pct, money_pct FROM public_splits", conn)
-    games = pd.read_sql_query("SELECT id, league FROM games", conn)
+    games = pd.read_sql_query("SELECT id, league, home_abbr, away_abbr FROM games", conn)
     signal_inputs = include_live_decisions(tables["Decisions"], tables["In_Play"])
     tables["Signals"] = signals(signal_inputs, games, current, opening, ctx, public,
                                 expert_sides(eligible, forms), tables["Forecast"])

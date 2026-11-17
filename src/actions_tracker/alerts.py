@@ -3,8 +3,9 @@
 A scheduled task (scripts/alert_task.py, every 5 minutes) calls `python -m actions_tracker alert`. When a game
 with picks kicks off within ALERT_WINDOW_MIN minutes and has not been announced yet, fresh data is collected
 first, then one message per kickoff time is sent: every game at that time with its spread / total / moneyline
-decision, the same as the "Quyết định" card on the dashboard (totals only with at least TOTAL_MIN_EXPERTS
-experts). Credentials live in gitignored files: .telegram_bot_token and .telegram_chat_id.
+decision, the same as the "Quyết định" card on the dashboard (rule/consensus totals need
+TOTAL_MIN_EXPERTS; the user's weekday method can start at two majority-side experts). Credentials live in
+gitignored files: .telegram_bot_token and .telegram_chat_id.
 """
 
 import html
@@ -79,7 +80,7 @@ def _game_lines(game: dict, decisions: pd.DataFrame, experts: dict) -> tuple[lis
     lines, bets = [], 0
     for r in sorted(mine.itertuples(), key=lambda r: (_ORDER.get(r.action, 9), r.market)):
         n = experts.get((gid, r.market), 0)
-        if r.market == "total" and n < TOTAL_MIN_EXPERTS:
+        if r.market == "total" and n < TOTAL_MIN_EXPERTS and r.action != "mine":
             continue
         market = _MARKET.get(r.market, r.market)
         pick = html.escape(str(r.pick))

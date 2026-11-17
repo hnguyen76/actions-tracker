@@ -3,7 +3,7 @@
 import pandas as pd
 
 from actions_tracker.analysis.signals import SIGNAL_COLS, expert_sides, include_live_decisions, signals
-from actions_tracker.game_context import parse_open, parse_summary, starter_injury
+from actions_tracker.game_context import key_player_injuries, parse_open, parse_summary, starter_injury
 
 
 def _df(rows, cols):
@@ -57,7 +57,8 @@ def test_signals_for_the_side_bet():
     assert ("🟢", "Line chạy về phía bạn: mở +4,5 → nay +3,5") in one
     assert ("🟢", "Nhận +3,5: qua được số then chốt 3") in one
     assert ("🟢", "Đội bạn sau tuần nghỉ (14 ngày, đối thủ 7)") in one
-    assert ("🟢", "QB chính đối thủ: J. Doe (Out)") in one
+    assert ("🟢", "CẦU THỦ CHỦ CHỐT · QB chính đối thủ: J. Doe (Out)") in one
+    assert s[(s.game_id == 1) & s.text.str.contains("J. Doe")].iloc[0].highlight
     assert any("2 người · 1 đang lời, 1 đang lỗ" in t for _, t in one)
     assert any("57%" in t for _, t in one)
     two = list(zip(s[s.game_id == 2].tone, s[s.game_id == 2].text))
@@ -85,6 +86,48 @@ def test_parse_open_and_summary():
     assert c["away_qb_injuries"] == [("Brock Purdy", "Questionable")] and c["away_passer"] == "Brock Purdy"
     assert starter_injury(c["away_qb_injuries"], "Brock Purdy") == "Brock Purdy (Questionable)"
     assert starter_injury([("Mac Jones", "Out")], "Brock Purdy") is None          # a backup is ignored
+
+
+def test_rushing_and_receiving_leaders_are_objective_key_player_injuries():
+    injuries = [("Star Runner", "RB", "Out"), ("WR One", "WR", "Questionable"), ("Backup", "RB", "Out")]
+    leaders = [("Star Runner", "dẫn đầu rushing"), ("WR One", "dẫn đầu receiving")]
+    assert key_player_injuries(injuries, leaders) == [
+        "Star Runner (RB · dẫn đầu rushing, Out)", "WR One (WR · dẫn đầu receiving, Questionable)"]
+
+    decisions = _df([dict(game_id=8, market="ml", bet_side="home")], ["game_id", "market", "bet_side"])
+    games = _df([dict(id=8, league="nfl", home_abbr="BUF", away_abbr="NYJ")],
+                ["id", "league", "home_abbr", "away_abbr"])
+    context = _df([dict(game_id=8, home_rest_days=7, away_rest_days=7, home_qb=None, away_qb=None,
+                        home_key_injuries='["Star Runner (RB · dẫn đầu rushing, Out)"]',
+                        away_key_injuries='[]')],
+                  ["game_id", "home_rest_days", "away_rest_days", "home_qb", "away_qb",
+                   "home_key_injuries", "away_key_injuries"])
+    got = signals(decisions, **{**_NO, "games": games, "context": context}, forecast=pd.DataFrame())
+    [row] = got.to_dict("records")
+    assert row["tone"] == "🔴" and row["highlight"] is True and "Star Runner" in row["text"]
+
+
+def test_nba_scoring_leader_day_to_day_is_a_key_injury():
+    summary = {
+        "header": {"competitions": [{"competitors": [
+            {"homeAway": "home", "team": {"id": "2"}},
+            {"homeAway": "away", "team": {"id": "17"}},
+        ]}]},
+        "leaders": [{"team": {"id": "2"}, "leaders": [
+            {"name": "points", "leaders": [{"athlete": {"displayName": "Jay Star"}}]},
+            {"name": "assists", "leaders": [{"athlete": {"displayName": "Point Guard"}}]},
+        ]}],
+        "injuries": [{"team": {"id": "2"}, "injuries": [
+            {"athlete": {"displayName": "Jay Star", "position": {"abbreviation": "F"}},
+             "status": "Day-To-Day"},
+            {"athlete": {"displayName": "Bench Player", "position": {"abbreviation": "G"}},
+             "status": "Out"},
+        ]}],
+    }
+    context = parse_summary(summary, "2026-11-18T00:30:00Z")
+    assert key_player_injuries(context["home_injuries"], context["home_key_players"]) == [
+        "Jay Star (F · dẫn đầu ghi điểm, Day-To-Day)"
+    ]
 
 
 def test_expert_sides_latest_pregame_pick_with_form():

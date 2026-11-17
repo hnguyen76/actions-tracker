@@ -31,7 +31,7 @@ def bucket_of(pct: float) -> str:
     return BUCKETS[-1][2]
 
 
-def consensus_games(picks: pd.DataFrame) -> pd.DataFrame:
+def consensus_games(picks: pd.DataFrame, min_experts: int = MIN_EXPERTS) -> pd.DataFrame:
     if picks.empty:
         return pd.DataFrame(columns=CG_COLS)
     picks = pregame_picks(picks)
@@ -43,7 +43,7 @@ def consensus_games(picks: pd.DataFrame) -> pd.DataFrame:
     for (game_id, market), g in latest.groupby(["game_id", "market"], sort=True):
         counts = g["pick_side"].value_counts()
         total = int(counts.sum())
-        if total < MIN_EXPERTS or (len(counts) > 1 and counts.iloc[0] == counts.iloc[1]):
+        if total < min_experts or (len(counts) > 1 and counts.iloc[0] == counts.iloc[1]):
             continue
         side = counts.index[0]
         rep = g[g["pick_side"] == side].iloc[-1]
