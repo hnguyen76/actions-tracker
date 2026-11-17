@@ -421,6 +421,15 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <div class="wrap">
     <div class="brand">
       <div><h1 class="brand-title" aria-label="Actions Expert Tracker" title="Actions Expert Tracker"><svg class="brand-mark" viewBox="0 0 220 50" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="logo-wind-fade" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="205" y2="0">
+            <stop offset="0" stop-color="#dff5ff" stop-opacity="0"/>
+            <stop offset=".18" stop-color="#dff5ff" stop-opacity=".22"/>
+            <stop offset=".52" stop-color="#f7fcff" stop-opacity=".78"/>
+            <stop offset=".82" stop-color="#dff5ff" stop-opacity=".3"/>
+            <stop offset="1" stop-color="#dff5ff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
         <g class="brand-static">
         <g transform="translate(25 28)">
           <g class="tg tg-tail">
@@ -499,8 +508,15 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
           <g class="logo-snowflake logo-snow-e"><circle cx="184" cy="-4" r="1.7"/></g>
           <g class="logo-snowflake logo-snow-f"><circle cx="211" cy="-6" r="1.3"/></g>
           <g class="logo-wind">
-            <path class="logo-wind-line" d="M50 10c26-10 46 8 75-1s44-4 59 1"/>
-            <path class="logo-wind-line logo-wind-line-b" d="M72 35c21-8 37 7 61-1s42-3 58 2"/>
+            <g class="logo-wind-gust logo-wind-gust-a">
+              <path class="logo-wind-wisp logo-wind-wisp-a" d="M-16 10C13 1 34 15 63 8S108 1 138 7s43 3 67-3"/>
+              <path class="logo-wind-wisp logo-wind-wisp-b" d="M-8 18c26-7 42 5 66-1s42-8 68-2 45 5 70-2"/>
+              <path class="logo-wind-wisp logo-wind-wisp-c" d="M18 26c22-5 36 5 58 0s38-6 59-1 34 4 52-1"/>
+            </g>
+            <g class="logo-wind-gust logo-wind-gust-b">
+              <path class="logo-wind-wisp logo-wind-wisp-b" d="M-20 30c22-7 38 5 60-1s40-8 62-2 37 5 58 0"/>
+              <path class="logo-wind-wisp logo-wind-wisp-c" d="M7 39c18-5 31 4 49 0s34-5 52-1 31 3 47-1"/>
+            </g>
           </g>
         </g>
       </svg></h1><div class="sub" hidden><span id="updated"></span> · <span id="refresh-countdown" style="font-variant-numeric:tabular-nums;white-space:nowrap" title="Thời gian đến lần kiểm tra dữ liệu mới của site">Quét sau 03:00</span></div></div>
