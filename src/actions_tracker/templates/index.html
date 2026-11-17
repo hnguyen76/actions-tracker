@@ -65,23 +65,30 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 /* logo in place of the text title; the Thanksgiving dress (.tg) only while <html> has .season-thanksgiving */
 .brand-title { line-height: 0; }
 .brand-mark { height: 44px; width: auto; display: block; overflow: visible; }
-.brand-mark .ball { fill: #8a4b2a; stroke: #5b2d16; stroke-width: 1; }
-.brand-mark .ball-lace { fill: none; stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
-.brand-word { font: 800 26px Inter, system-ui, sans-serif; letter-spacing: -.02em; fill: var(--ink); }
+.brand h1.brand-title { overflow: visible; }  /* the falling leaves and the pass arc draw outside the logo box */
+.brand-mark .ball { fill: url(#brand-ball); stroke: #3d1d0b; stroke-width: .8; }
+.brand-mark .ball-shine { fill: #fff; opacity: .2; }
+.brand-mark .ball-lace { fill: none; stroke: #fff; stroke-width: 1.25; stroke-linecap: round; }
+.brand-word { font: 800 27px Inter, system-ui, sans-serif; letter-spacing: -.03em; fill: var(--ink); }
 .brand-word .b1 { fill: var(--accent); }
-.brand-tag { font: 600 8.5px Inter, system-ui, sans-serif; letter-spacing: .26em; fill: var(--muted); }
+.brand-tag { font: 600 8.4px Inter, system-ui, sans-serif; fill: var(--muted); }  /* stretched to the wordmark width (textLength) */
 .brand-mark .tg { display: none; }
 .season-thanksgiving .brand-mark .tg { display: inline; }
 .season-thanksgiving .brand-word .b1, .season-thanksgiving .brand-word .b5 { fill: var(--tg-1); }
 .season-thanksgiving .brand-word .b2, .season-thanksgiving .brand-word .b6 { fill: var(--tg-2); }
 .season-thanksgiving .brand-word .b3, .season-thanksgiving .brand-word .b7 { fill: var(--tg-3); }
 .season-thanksgiving .brand-word .b4 { fill: var(--tg-4); }
-.brand-mark .tg-head { fill: #a0603a; }
-.brand-mark .leaf { transform-box: fill-box; transform-origin: center; animation: leaf-sway 5s ease-in-out infinite alternate; }
-.brand-mark .leaf-b { animation-duration: 6.5s; animation-delay: -2s; }
-.brand-mark .leaf-c { animation-duration: 4.2s; animation-delay: -1s; }
-@keyframes leaf-sway { from { transform: rotate(-14deg) translateY(-1px); } to { transform: rotate(14deg) translateY(2px); } }
-@media (prefers-reduced-motion: reduce) { .brand-mark .leaf { animation: none; } }
+/* the turkey: a fan of feathers with a light rib, a neck and a head with eye, beak and snood */
+.brand-mark .tg-rib { fill: none; stroke: #fff; stroke-opacity: .32; stroke-width: .6; stroke-linecap: round; }
+.brand-mark .tg-neck { fill: #93502b; }
+.brand-mark .tg-head { fill: url(#brand-head); }
+.brand-mark .tg-beak { fill: var(--tg-2); }
+.brand-mark .tg-snood { fill: var(--tg-3); }
+.brand-mark .tg-eye { fill: #fff; }
+.brand-mark .tg-pupil { fill: #141414; }
+.brand-mark .maple-stem { fill: none; stroke: currentColor; stroke-width: .9; stroke-linecap: round; }
+.logo-fall-a { color: var(--tg-2); } .logo-fall-b { color: var(--tg-1); } .logo-fall-c { color: var(--tg-3); }
+.logo-fall-d { color: var(--tg-4); } .logo-fall-e { color: var(--tg-1); }
 #league-status { display: none !important; }  /* status chips are not needed on the page */
 .sub { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
 .actions { display: flex; gap: 10px; flex: none; }
@@ -423,83 +430,102 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <div class="wrap">
     <div class="brand">
       <div><h1 class="brand-title" aria-label="Actions Expert Tracker" title="Actions Expert Tracker"><svg class="brand-mark" viewBox="0 0 220 50" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="brand-ball" cx=".38" cy=".32" r=".78"><stop offset="0" stop-color="#c0773f"/><stop offset=".55" stop-color="#8f4a26"/><stop offset="1" stop-color="#5c2a12"/></radialGradient>
+          <radialGradient id="brand-head" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#c98a55"/><stop offset="1" stop-color="#8b4b26"/></radialGradient>
+        </defs>
+        <g class="logo-fall">
+          <g class="logo-fall-leaf logo-fall-a"><g transform="translate(62 -7) scale(0.62)"><path class="maple" style="fill:var(--tg-2)" d="M0-7 1.4-4.3 3.5-5.4 3-2.3 6.7-2.7 5.2-.7 6.3.4 3.2 1.7 3.8 3.7.8 2.7.6 4.4H-.6L-.8 2.7-3.8 3.7-3.2 1.7-6.3.4-5.2-.7-6.7-2.7-3-2.3-3.5-5.4-1.4-4.3Z"/><path class="maple-stem" d="M0 2.5V7"/></g></g>
+          <g class="logo-fall-leaf logo-fall-b"><g transform="translate(101 -8) scale(0.5)"><path class="maple" style="fill:var(--tg-1)" d="M0-7 1.4-4.3 3.5-5.4 3-2.3 6.7-2.7 5.2-.7 6.3.4 3.2 1.7 3.8 3.7.8 2.7.6 4.4H-.6L-.8 2.7-3.8 3.7-3.2 1.7-6.3.4-5.2-.7-6.7-2.7-3-2.3-3.5-5.4-1.4-4.3Z"/><path class="maple-stem" d="M0 2.5V7"/></g></g>
+          <g class="logo-fall-leaf logo-fall-c"><g transform="translate(137 -6) scale(0.58)"><path class="maple" style="fill:var(--tg-3)" d="M0-7 1.4-4.3 3.5-5.4 3-2.3 6.7-2.7 5.2-.7 6.3.4 3.2 1.7 3.8 3.7.8 2.7.6 4.4H-.6L-.8 2.7-3.8 3.7-3.2 1.7-6.3.4-5.2-.7-6.7-2.7-3-2.3-3.5-5.4-1.4-4.3Z"/><path class="maple-stem" d="M0 2.5V7"/></g></g>
+          <g class="logo-fall-leaf logo-fall-d"><g transform="translate(176 -9) scale(0.46)"><path class="maple" style="fill:var(--tg-4)" d="M0-7 1.4-4.3 3.5-5.4 3-2.3 6.7-2.7 5.2-.7 6.3.4 3.2 1.7 3.8 3.7.8 2.7.6 4.4H-.6L-.8 2.7-3.8 3.7-3.2 1.7-6.3.4-5.2-.7-6.7-2.7-3-2.3-3.5-5.4-1.4-4.3Z"/><path class="maple-stem" d="M0 2.5V7"/></g></g>
+          <g class="logo-fall-leaf logo-fall-e"><g transform="translate(207 -7) scale(0.54)"><path class="maple" style="fill:var(--tg-1)" d="M0-7 1.4-4.3 3.5-5.4 3-2.3 6.7-2.7 5.2-.7 6.3.4 3.2 1.7 3.8 3.7.8 2.7.6 4.4H-.6L-.8 2.7-3.8 3.7-3.2 1.7-6.3.4-5.2-.7-6.7-2.7-3-2.3-3.5-5.4-1.4-4.3Z"/><path class="maple-stem" d="M0 2.5V7"/></g></g>
+        </g>
+        <g class="logo-snow">
+          <g class="logo-snowflake logo-snow-a"><circle cx="49" cy="-4" r="1.6"/></g>
+          <g class="logo-snowflake logo-snow-b"><circle cx="78" cy="-7" r="1.15"/></g>
+          <g class="logo-snowflake logo-snow-c"><circle cx="116" cy="-5" r="1.5"/></g>
+          <g class="logo-snowflake logo-snow-d"><circle cx="151" cy="-8" r="1.05"/></g>
+          <g class="logo-snowflake logo-snow-e"><circle cx="184" cy="-4" r="1.55"/></g>
+          <g class="logo-snowflake logo-snow-f"><circle cx="211" cy="-6" r="1.2"/></g>
+        </g>
         <g class="brand-static">
         <g transform="translate(25 28)">
-          <g class="tg tg-tail">
-            <ellipse rx="5.2" ry="15" transform="rotate(-78) translate(0 -13)" style="fill:var(--tg-1)"/>
-            <ellipse rx="5.2" ry="15" transform="rotate(-52) translate(0 -13)" style="fill:var(--tg-2)"/>
-            <ellipse rx="5.2" ry="15" transform="rotate(-26) translate(0 -13)" style="fill:var(--tg-3)"/>
-            <ellipse rx="5.2" ry="15" transform="rotate(0) translate(0 -13)" style="fill:var(--tg-4)"/>
-            <ellipse rx="5.2" ry="15" transform="rotate(26) translate(0 -13)" style="fill:var(--tg-1)"/>
-            <ellipse rx="5.2" ry="15" transform="rotate(52) translate(0 -13)" style="fill:var(--tg-2)"/>
-            <ellipse rx="5.2" ry="15" transform="rotate(78) translate(0 -13)" style="fill:var(--tg-3)"/>
+          <g class="tg tg-tail" transform="translate(-2 -1)">
+            <g transform="rotate(-104)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-3)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(-78)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-1)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(-52)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-2)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(-26)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-4)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(0)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-2)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(26)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-4)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(52)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-2)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(78)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-1)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <g transform="rotate(104)"><path d="M0 1C-5-6-5.2-19 0-26 5.2-19 5-6 0 1Z" style="fill:var(--tg-3)"/><path class="tg-rib" d="M0-4V-22"/></g>
+            <circle r="3.2" fill="#5c2a12"/>
           </g>
           <g transform="rotate(-32)">
-            <ellipse class="ball" rx="15.5" ry="9.6"/>
-            <path class="ball-lace" d="M-11 -6.2q-2.6 6.2 0 12.4M11 -6.2q2.6 6.2 0 12.4M-6.5 0h13M-4 -2.2v4.4M-1.3 -2.2v4.4M1.4 -2.2v4.4M4.1 -2.2v4.4"/>
+            <ellipse class="ball" rx="15.8" ry="10"/>
+            <ellipse class="ball-shine" cx="-3.6" cy="-5.2" rx="5.8" ry="1.7" transform="rotate(-6)"/>
+            <path class="ball-lace" d="M-11.3-6.3q-2.5 6.3 0 12.6M11.3-6.3q2.5 6.3 0 12.6M-6.2 0h12.4M-4.4-2.2v4.4M-1.5-2.2v4.4M1.5-2.2v4.4M4.4-2.2v4.4"/>
           </g>
-          <g class="tg">
-            <circle cx="12.5" cy="-11" r="4.6" class="tg-head"/>
-            <path d="M16.6 -11.6l4 1.4-4 1.3z" style="fill:var(--tg-3)"/>
-            <path d="M15.2 -8.6q1.6 3.6-.6 5.2-1.6-2.4.6-5.2z" style="fill:var(--tg-1)"/>
-            <circle cx="13.6" cy="-12.4" r="0.95" fill="#1b1b1b"/>
+          <g class="tg tg-turkey-head">
+            <path class="tg-neck" d="M7.2-5C9.6-7.2 10.6-9.4 11.2-11.8L16.2-9.6C15.2-6.7 12.7-4.3 9.9-2.9Z"/>
+            <circle class="tg-head" cx="14.6" cy="-12.6" r="5.2"/>
+            <path class="tg-beak" d="M19.1-13.9 23.6-12.4 19.2-10.9Z"/>
+            <path class="tg-snood" d="M19.3-11.2c1.7 1.5 1.8 3.9.2 5-1.5-1-1.6-3.2-.2-5Z"/>
+            <circle class="tg-eye" cx="16.1" cy="-13.9" r="1.55"/>
+            <circle class="tg-pupil" cx="16.5" cy="-13.8" r=".82"/>
           </g>
         </g>
-        <text class="brand-word" x="54" y="30"><tspan class="b1">A</tspan><tspan class="b2">c</tspan><tspan class="b3">t</tspan><tspan class="b4">i</tspan><tspan class="b5">o</tspan><tspan class="b6">n</tspan><tspan class="b7">s</tspan></text>
-        <text class="brand-tag" x="55.5" y="44">EXPERT TRACKER</text>
-        <g class="tg tg-leaves">
-          <g transform="translate(168 12) scale(.95)"><path class="leaf leaf-a" style="fill:var(--tg-2)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g>
-          <g transform="translate(188 27) scale(.8)"><path class="leaf leaf-b" style="fill:var(--tg-1)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g>
-          <g transform="translate(205 11) scale(.7)"><path class="leaf leaf-c" style="fill:var(--tg-3)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g>
-        </g>
+        <text class="brand-word" x="54" y="31"><tspan class="b1">A</tspan><tspan class="b2">c</tspan><tspan class="b3">t</tspan><tspan class="b4">i</tspan><tspan class="b5">o</tspan><tspan class="b6">n</tspan><tspan class="b7">s</tspan></text>
+        <text class="brand-tag" x="55" y="44.5" textLength="104" lengthAdjust="spacing">EXPERT TRACKER</text>
         </g>
         <g class="logo-play">
           <path class="logo-play-ground" d="M7 43.5H213"/>
           <g class="logo-qb">
-            <circle class="logo-qb-head" cx="27" cy="13" r="4.4"/>
-            <path class="logo-qb-helmet" d="M23 12.5q1-5.2 6-3.5 3.5 1.2 2.4 5.4h-3"/>
-            <path class="logo-qb-body" d="M22 18q5-3 10 0l3 12-7 3-8-3z"/>
-            <path class="logo-qb-limbs" d="M22 29l-7 10m16-8 8 8M22 20l-8 7m17-7 9 3"/>
-            <path class="logo-qb-arm" d="M31 20l10-2 7-5"/>
+            <path class="logo-qb-leg" d="M26.6 30.6 22.4 36.6 18.6 42"/>
+            <path class="logo-qb-leg" d="M29.2 30.6 33.6 35.4 35.6 42"/>
+            <ellipse class="logo-qb-cleat" cx="17.6" cy="42.4" rx="2.4" ry="1.1"/>
+            <ellipse class="logo-qb-cleat" cx="36.6" cy="42.4" rx="2.4" ry="1.1"/>
+            <path class="logo-qb-sleeve" d="M24.4 20.8 19.6 25.8"/>
+            <circle class="logo-qb-glove" cx="19.2" cy="26.4" r="1.6"/>
+            <path class="logo-qb-body" d="M22.4 18.6C24.4 16.5 31.2 16.3 33.6 18.4L32.6 31.2H23.4Z"/>
+            <text class="logo-qb-number" x="28" y="27.6">7</text>
+            <path class="logo-qb-helmet" d="M23.4 12.6C23.4 8.6 26.4 6.6 29.4 6.8 32.8 7 34.6 9.8 34.2 13.2L33.6 15.4H24.8Z"/>
+            <path class="logo-qb-stripe" d="M28.8 6.9C29.4 9 29.5 11.6 29.2 15.2"/>
+            <path class="logo-qb-mask" d="M33.8 11.8H36.6M33.8 14.1H36.4M36.5 11.2V14.6"/>
+            <g class="logo-qb-arm">
+              <path class="logo-qb-sleeve" d="M31 20 41 18 47.4 13.6"/>
+              <circle class="logo-qb-glove" cx="48" cy="13.2" r="1.7"/>
+            </g>
           </g>
           <g class="logo-pass-ball">
-            <ellipse cx="52" cy="15" rx="6.7" ry="4.1"/>
-            <path d="M49 15h6m-4-1v2m2-2v2"/>
+            <ellipse cx="52" cy="15" rx="4.7" ry="2.9"/>
+            <path d="M49.9 15h4.2m-2.9-.9v1.8m1.6-1.8v1.8"/>
           </g>
           <g class="logo-turkey-runner">
             <g class="logo-turkey-tail">
-              <ellipse cx="153" cy="25" rx="4" ry="10" transform="rotate(-55 153 25)"/>
-              <ellipse cx="155" cy="22" rx="4" ry="10" transform="rotate(-25 155 22)"/>
-              <ellipse cx="159" cy="21" rx="4" ry="10"/>
-              <ellipse cx="163" cy="22" rx="4" ry="10" transform="rotate(25 163 22)"/>
+              <g transform="translate(158 29) rotate(-88)"><path d="M0 1C-2.9-4-3-11 0-15 3-11 2.9-4 0 1Z" style="fill:var(--tg-3)"/></g>
+              <g transform="translate(158 29) rotate(-62)"><path d="M0 1C-2.9-4-3-11 0-15 3-11 2.9-4 0 1Z" style="fill:var(--tg-1)"/></g>
+              <g transform="translate(158 29) rotate(-36)"><path d="M0 1C-2.9-4-3-11 0-15 3-11 2.9-4 0 1Z" style="fill:var(--tg-2)"/></g>
+              <g transform="translate(158 29) rotate(-10)"><path d="M0 1C-2.9-4-3-11 0-15 3-11 2.9-4 0 1Z" style="fill:var(--tg-4)"/></g>
+              <g transform="translate(158 29) rotate(16)"><path d="M0 1C-2.9-4-3-11 0-15 3-11 2.9-4 0 1Z" style="fill:var(--tg-1)"/></g>
             </g>
-            <ellipse class="logo-turkey-body" cx="165" cy="30" rx="10" ry="8"/>
-            <circle class="logo-turkey-head" cx="174" cy="21" r="5"/>
-            <path class="logo-turkey-beak" d="M178 20l7 2-7 2z"/>
-            <circle class="logo-turkey-eye" cx="175" cy="19.6" r="1"/>
-            <path class="logo-turkey-wattle" d="M176 25q2 4-1 5-2-2 1-5z"/>
-            <path class="logo-turkey-leg logo-turkey-leg-a" d="M162 36l-5 6"/>
-            <path class="logo-turkey-leg logo-turkey-leg-b" d="M168 36l5 6"/>
+            <path class="logo-turkey-leg logo-turkey-leg-a" d="M162 36.5l-4.6 5.6m0 0-2.4.2m2.4-.2 .2 2.2"/>
+            <path class="logo-turkey-leg logo-turkey-leg-b" d="M168 36.5l4.6 5.6m0 0 2.4-.2m-2.4.2-.2 2.2"/>
+            <ellipse class="logo-turkey-body" cx="165" cy="30" rx="10.2" ry="8.2"/>
+            <path class="logo-turkey-wing" d="M159.6 28.6c3.4-3 9.2-2.6 11.2 1.2-2.2 3.4-8 3.8-11.2-1.2Z"/>
+            <path class="logo-turkey-neck" d="M169.2 26.2c1.8-1.6 2.6-3.4 3-5.4l4.4 1.6c-.6 2.6-2.4 4.6-4.8 5.8Z"/>
+            <circle class="logo-turkey-head" cx="174.4" cy="20.6" r="5"/>
+            <path class="logo-turkey-beak" d="M178.6 19.2l5 1.6-5 1.6z"/>
+            <path class="logo-turkey-wattle" d="M178.8 22.1c1.6 1.4 1.7 3.6.2 4.6-1.4-1-1.5-3-.2-4.6Z"/>
+            <circle class="logo-turkey-eyewhite" cx="175.8" cy="19.4" r="1.45"/>
+            <circle class="logo-turkey-eye" cx="176.2" cy="19.5" r=".78"/>
             <g class="logo-caught-ball">
-              <ellipse cx="153" cy="29" rx="5.8" ry="3.6" transform="rotate(-25 153 29)"/>
-              <path d="M150 30l5-2"/>
+              <ellipse cx="153" cy="29" rx="4.7" ry="2.9" transform="rotate(-25 153 29)"/>
+              <path d="M151.1 29.9l3.8-1.8"/>
             </g>
           </g>
-        </g>
-        <g class="logo-fall">
-          <g class="logo-fall-leaf logo-fall-a"><g transform="translate(62 -7) scale(.72)"><path style="fill:var(--tg-2)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g></g>
-          <g class="logo-fall-leaf logo-fall-b"><g transform="translate(101 -8) scale(.58)"><path style="fill:var(--tg-1)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g></g>
-          <g class="logo-fall-leaf logo-fall-c"><g transform="translate(137 -6) scale(.68)"><path style="fill:var(--tg-3)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g></g>
-          <g class="logo-fall-leaf logo-fall-d"><g transform="translate(176 -9) scale(.52)"><path style="fill:var(--tg-4)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g></g>
-          <g class="logo-fall-leaf logo-fall-e"><g transform="translate(207 -7) scale(.62)"><path style="fill:var(--tg-1)" d="M0-6l1.5 4 3.5-1-1.5 3.5L6 2l-4 .5L1 6 0 3.5-1 6l-1-3.5-4-.5 2.5-1.5L-5-3l3.5 1z"/></g></g>
-        </g>
-        <g class="logo-snow">
-          <g class="logo-snowflake logo-snow-a"><circle cx="49" cy="-4" r="1.8"/></g>
-          <g class="logo-snowflake logo-snow-b"><circle cx="78" cy="-7" r="1.25"/></g>
-          <g class="logo-snowflake logo-snow-c"><circle cx="116" cy="-5" r="1.65"/></g>
-          <g class="logo-snowflake logo-snow-d"><circle cx="151" cy="-8" r="1.15"/></g>
-          <g class="logo-snowflake logo-snow-e"><circle cx="184" cy="-4" r="1.7"/></g>
-          <g class="logo-snowflake logo-snow-f"><circle cx="211" cy="-6" r="1.3"/></g>
         </g>
       </svg></h1><div class="sub" hidden><span id="updated"></span> · <span id="refresh-countdown" style="font-variant-numeric:tabular-nums;white-space:nowrap" title="Thời gian đến lần kiểm tra dữ liệu mới của site">Quét sau 03:00</span></div></div>
     </div>
@@ -2677,6 +2703,13 @@ const DATA = /*__DATA__*/null;
 
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
   theme(); header(); filters(); tabs(); mobileNav();
+  // "EXPERT TRACKER" spans exactly the width of "Actions", whatever font the phone ends up using
+  const fitTagline = () => {
+    const word = document.querySelector(".brand-word"), tagline = document.querySelector(".brand-tag");
+    if (word && tagline && word.getComputedTextLength) tagline.setAttribute("textLength", Math.max(60, word.getComputedTextLength() - 1.5).toFixed(1));
+  };
+  fitTagline();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTagline);
   // the TV dot pulses on the same wall-clock phase as the live game clocks (scoreboard.js pulseDelay)
   for (const dot of document.querySelectorAll(".live-tv-dot")) dot.style.animationDelay = window.ActionsScoreboard ? ActionsScoreboard.pulseDelay() : "0ms";
   render();
