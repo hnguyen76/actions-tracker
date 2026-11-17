@@ -114,6 +114,20 @@ body {
 .season-thanksgiving .logo-fall-c { animation: logo-leaf-c 11.7s -5.5s linear infinite; }
 .season-thanksgiving .logo-fall-d { animation: logo-leaf-d 14.6s -11.2s linear infinite; }
 .season-thanksgiving .logo-fall-e { animation: logo-leaf-e 12.5s -1.1s linear infinite; }
+.logo-snow { display: none; }
+.season-thanksgiving .logo-snow { display: inline; }
+.logo-snowflake { opacity: 0; transform-box: fill-box; transform-origin: center; will-change: transform, opacity; }
+.logo-snowflake circle { fill: #fff; stroke: color-mix(in srgb, var(--accent) 58%, #fff); stroke-width: .55; }
+.season-thanksgiving .logo-snow-a { animation: logo-snow-a 8.6s -1.8s linear infinite; }
+.season-thanksgiving .logo-snow-b { animation: logo-snow-b 10.4s -7.2s linear infinite; }
+.season-thanksgiving .logo-snow-c { animation: logo-snow-c 9.3s -4.5s linear infinite; }
+.season-thanksgiving .logo-snow-d { animation: logo-snow-d 11.8s -9.1s linear infinite; }
+.season-thanksgiving .logo-snow-e { animation: logo-snow-e 8.9s -6.3s linear infinite; }
+.season-thanksgiving .logo-snow-f { animation: logo-snow-f 10.9s -2.7s linear infinite; }
+.logo-wind { opacity: 0; transform-box: fill-box; transform-origin: center; will-change: transform, opacity; }
+.logo-wind-line { fill: none; stroke: color-mix(in srgb, var(--accent) 42%, #fff); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 5 4; }
+.logo-wind-line-b { opacity: .62; stroke-width: .9; }
+.season-thanksgiving .logo-wind { animation: logo-wind-gust 12s -3.5s ease-in-out infinite; }
 @keyframes logo-static-cycle { 0%, 72%, 100% { opacity: 1; } 74%, 94% { opacity: 0; } }
 @keyframes logo-play-cycle { 0%, 72%, 96%, 100% { opacity: 0; } 74%, 94% { opacity: 1; } }
 @keyframes logo-qb-throw {
@@ -167,6 +181,18 @@ body {
   12% { opacity: .8; }
   77% { opacity: .7; }
   100% { opacity: 0; transform: translate(9px, 61px) rotate(310deg); }
+}
+@keyframes logo-snow-a { 0% { opacity: 0; transform: translate(0, -3px); } 14% { opacity: .95; } 82% { opacity: .82; } 100% { opacity: 0; transform: translate(-17px, 61px); } }
+@keyframes logo-snow-b { 0% { opacity: 0; transform: translate(0, -4px); } 18% { opacity: .78; } 80% { opacity: .68; } 100% { opacity: 0; transform: translate(13px, 62px); } }
+@keyframes logo-snow-c { 0% { opacity: 0; transform: translate(0, -3px); } 12% { opacity: .92; } 84% { opacity: .76; } 100% { opacity: 0; transform: translate(-11px, 60px); } }
+@keyframes logo-snow-d { 0% { opacity: 0; transform: translate(0, -5px); } 16% { opacity: .74; } 78% { opacity: .64; } 100% { opacity: 0; transform: translate(18px, 63px); } }
+@keyframes logo-snow-e { 0% { opacity: 0; transform: translate(0, -2px); } 13% { opacity: .9; } 81% { opacity: .78; } 100% { opacity: 0; transform: translate(-15px, 61px); } }
+@keyframes logo-snow-f { 0% { opacity: 0; transform: translate(0, -4px); } 17% { opacity: .8; } 83% { opacity: .7; } 100% { opacity: 0; transform: translate(9px, 62px); } }
+@keyframes logo-wind-gust {
+  0%, 54%, 100% { opacity: 0; transform: translateX(-18px); }
+  61% { opacity: .12; }
+  68% { opacity: .52; transform: translateX(0); }
+  79% { opacity: 0; transform: translateX(22px); }
 }
 .actions { align-items: center; }
 .btn {
@@ -453,5 +479,5 @@ footer { padding-bottom: 52px; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-qb-arm, .season-thanksgiving .logo-pass-ball,
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
   .season-thanksgiving .logo-turkey-leg-a, .season-thanksgiving .logo-turkey-leg-b { animation: none; }
-  .season-thanksgiving .logo-play, .season-thanksgiving .logo-fall { display: none; }
+  .season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }
 }
