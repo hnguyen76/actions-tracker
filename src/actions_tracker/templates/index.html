@@ -1089,8 +1089,12 @@ const DATA = /*__DATA__*/null;
     return statusOf(r) === "majority";
   };
   const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
-  // Decision card: attention follows sample size alone; 8+ expert picks is yellow even when split.
-  const DECISION_HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS ? "hot" : "") };
+  // Decision card: sample-size heat — 8–10 yellow, 11–14 green, 15+ purple, even when split.
+  const decisionHeatClass = (r) => {
+    const n = picksOn(r);
+    return n > 14 ? "heat-purple" : n > 10 ? "heat-green" : n >= HOT_PICKS ? "heat-yellow" : "";
+  };
+  const DECISION_HOT = { rowClass: decisionHeatClass };
   const withHot = (opts) => Object.assign({}, opts || {}, HOT);
   let matchNewsByGame = null;
   function matchNewsCell(r) {

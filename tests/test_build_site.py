@@ -53,6 +53,16 @@ def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_pat
     assert ".season-thanksgiving .logo-play, .season-thanksgiving .logo-fall { display: none; }" in css
 
 
+def test_decision_pick_count_highlights_have_three_flashing_levels(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'n > 14 ? "heat-purple" : n > 10 ? "heat-green" : n >= HOT_PICKS ? "heat-yellow"' in html
+    for name in ("heat-yellow", "heat-green", "heat-purple"):
+        assert name in css
+    assert "@keyframes decision-heat-cell" in css and "@keyframes decision-heat-card" in css
+
+
 def test_mobile_game_cards_start_collapsed_and_are_keyboard_accessible(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert 'Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" })' in html
