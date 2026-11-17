@@ -23,6 +23,7 @@
   --win: #81c995;
   --loss: #f28b82;
   --push: #9aa0a6;
+  --decision-purple: #c58af9;
   --shadow: 0 1px 2px rgba(0, 0, 0, .24), 0 10px 30px rgba(0, 0, 0, .14);
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, .16), 0 5px 18px rgba(0, 0, 0, .1);
   --radius-card: 24px;
@@ -52,6 +53,7 @@
   --win: #137333;
   --loss: #b3261e;
   --push: #5f6368;
+  --decision-purple: #7c3aed;
   --shadow: 0 1px 2px rgba(60, 64, 67, .1), 0 8px 26px rgba(60, 64, 67, .08);
   --shadow-soft: 0 1px 2px rgba(60, 64, 67, .08), 0 4px 14px rgba(60, 64, 67, .06);
 }
@@ -251,6 +253,34 @@ section.panel { padding-top: 14px; }
 .crow .cmore { margin-top: 12px; padding-top: 11px; }
 .clist { gap: 10px; }
 
+/* Decision-card sample size: 8–10 yellow, 11–14 green, 15+ purple. */
+.heat-yellow { --decision-heat: var(--warning); }
+.heat-green { --decision-heat: var(--good); }
+.heat-purple { --decision-heat: var(--decision-purple); }
+tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td {
+  animation: decision-heat-cell 2.8s ease-in-out infinite;
+}
+tr.heat-yellow > td:first-child, tr.heat-green > td:first-child, tr.heat-purple > td:first-child {
+  box-shadow: inset 4px 0 0 var(--decision-heat);
+}
+.crow.heat-yellow, .crow.heat-green, .crow.heat-purple {
+  animation: decision-heat-card 2.8s ease-in-out infinite;
+}
+@keyframes decision-heat-cell {
+  0%, 100% { background-color: color-mix(in srgb, var(--decision-heat) 20%, transparent); }
+  50% { background-color: color-mix(in srgb, var(--decision-heat) 6%, transparent); }
+}
+@keyframes decision-heat-card {
+  0%, 100% {
+    background-color: color-mix(in srgb, var(--decision-heat) 20%, var(--surface-2));
+    box-shadow: inset 4px 0 0 var(--decision-heat), 0 0 0 1px color-mix(in srgb, var(--decision-heat) 22%, transparent);
+  }
+  50% {
+    background-color: color-mix(in srgb, var(--decision-heat) 6%, var(--surface-2));
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--decision-heat) 65%, transparent), inset 0 0 0 1px var(--border);
+  }
+}
+
 .verdict {
   border-color: transparent;
   border-radius: 18px;
@@ -417,6 +447,8 @@ footer { padding-bottom: 52px; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, nav.tabs button, tbody tr { transition: none; }
+  tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td,
+  .crow.heat-yellow, .crow.heat-green, .crow.heat-purple { animation-duration: 5.6s; }
   .season-thanksgiving .brand-static { animation: none; opacity: 1; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-qb-arm, .season-thanksgiving .logo-pass-ball,
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
