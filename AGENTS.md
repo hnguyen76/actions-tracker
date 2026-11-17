@@ -38,8 +38,9 @@ keeping established betting terms in English (spread, total, moneyline, favorite
 
 - Rules in `src/actions_tracker/rules.py` are forward tests. Do not change their thresholds unless the owner
   explicitly asks to remove, replace, or modify a rule. Do not present unvalidated rules as real-money advice.
-- The owner's method, "Cách của bạn", currently uses spread only and at least 5 picks: follow the majority
-  Monday–Friday ET and fade the majority Saturday–Sunday ET, including unanimous crowds.
+- The Decision card's "Cách của bạn" uses every market in NFL/NCAAF/NBA Monday–Friday ET: follow a majority
+  side once it has at least 2 distinct expert picks. Saturday–Sunday retains the spread-only NFL/NCAAF method:
+  at least 5 total picks and fade the majority, including unanimous crowds.
 - The owner may change "Cách của bạn" at any time. For betting analysis or a requested method change, read
   `.claude/skills/bettingskill/SKILL.md` completely and follow its "Sửa Cách của bạn" workflow: back-test the
   proposed method first, then change code and tests, and update the method log described there.

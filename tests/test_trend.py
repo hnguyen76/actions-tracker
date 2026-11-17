@@ -28,7 +28,7 @@ def test_build_tables_empty_db_without_public(tmp_path):
                       "Expert_Form", "Expert_Form_Now",
                       "History_Plays", "History_Summary", "History_Weekly",
                       "Upcoming_Board", "Match_News", "Media_Picks", "Media_ATS", "Weather", "Signals", "Rule_Summary", "Rule_Plays", "Expert_CLV", "Decisions", "Data_Quality",
-                      "My_Method", "My_Method_Summary",
+                         "My_Method", "My_Method_Summary", "Decision_Method",
                       "My_Method_Season", "My_Method_Season_Summary",
                       "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells",
                       "Scores", "Live_Games", "In_Play", "Pregame_Snapshots"}

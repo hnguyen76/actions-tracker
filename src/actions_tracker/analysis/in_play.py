@@ -9,13 +9,16 @@ IN_PLAY_COLS = ["game_id", "league", "start_time", "match", "away_score", "home_
 
 def _now(market: str, side: str, line, away: int, home: int) -> str | None:
     """'win' / 'loss' / 'push' if the game ended right now; None when the line is missing."""
-    if line is None or pd.isna(line):
+    if market != "ml" and (line is None or pd.isna(line)):
         return None
     if market == "spread":
         own, other = (home, away) if side == "home" else (away, home)
         m = own + float(line) - other
     elif market == "total":
         m = (away + home - float(line)) * (1 if side == "over" else -1)
+    elif market == "ml":
+        own, other = (home, away) if side == "home" else (away, home)
+        m = own - other
     else:
         return None
     return "win" if m > 0 else "loss" if m < 0 else "push"
@@ -40,7 +43,8 @@ def in_play(scores: pd.DataFrame, my_method: pd.DataFrame, rule_plays: pd.DataFr
 
     for r in my_method.itertuples() if len(my_method) else []:
         if r.status != "graded":
-            add(r, "Cách của bạn", "spread", r.pick, r.line, r.bet_side, f"{r.crowd} {r.votes}/{r.total_votes}")
+            add(r, "Cách của bạn", getattr(r, "market", "spread"), r.pick, r.line, r.bet_side,
+                f"{r.crowd} {r.votes}/{r.total_votes}")
     for r in rule_plays.itertuples() if len(rule_plays) else []:
         if r.status != "graded":
             add(r, r.rule_name, r.market, r.pick, r.line, r.bet_side)

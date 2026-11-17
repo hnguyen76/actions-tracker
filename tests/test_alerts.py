@@ -50,6 +50,15 @@ def test_message_lists_games_and_hides_small_totals(tmp_path):
     assert msg.endswith("\n\n" + alerts.DASHBOARD) and "Không đặt tiền thật" not in msg
 
 
+def test_weekday_user_decision_keeps_a_small_total_in_telegram():
+    games = [dict(id=2, league="nba", start_time=SOON, home_abbr="BOS", away_abbr="NYK")]
+    decisions = pd.DataFrame([dict(game_id=2, market="total", action="mine", pick="Under 221,5",
+                                   stake_u=0.0, reason="Cách của bạn")])
+    board = pd.DataFrame([dict(game_id=2, market="total", total_votes=3)])
+    [msg] = alerts.build_messages(games, {"Decisions": decisions, "Upcoming_Board": board}, NOW)
+    assert "⭐ Total: <b>Under 221,5</b> · 3 expert" in msg
+
+
 def test_long_slot_is_split_under_the_telegram_limit(tmp_path):
     games = [dict(id=i, league="ncaaf", start_time=SOON, home_abbr=f"H{i}", away_abbr=f"A{i}") for i in range(80)]
     decisions = pd.DataFrame([dict(game_id=i, market="spread", action="paper", pick=f"H{i} -3", stake_u=0.0,

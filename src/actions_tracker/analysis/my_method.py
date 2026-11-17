@@ -18,16 +18,27 @@ PLAY_COLS = ["game_id", "league", "start_time", "et_date", "day_group", "match",
 SUMMARY_COLS = (["league", "day_group", "method", "hist_wins", "hist_losses", "hist_pushes", "hist_win_pct", "hist_n"]
                 + SUMMARY_KEYS + ["pending"])
 _FLIP = {"win": "loss", "loss": "win", "push": "push"}
-_OTHER = {"home": "away", "away": "home"}
+_OTHER = {"home": "away", "away": "home", "over": "under", "under": "over"}
+
+# The Decision card is deliberately broader on weekdays than the season method above: every market in all
+# three leagues is shown once at least two distinct experts are on the majority side.  The weekend keeps the
+# established spread-only, >= 5-expert fade method.
+WEEKDAY_DECISION_VOTES = 2
+WEEKDAY_DECISION_LEAGUES = ("nfl", "ncaaf", "nba")
+WEEKDAY_DECISION_MARKETS = ("spread", "total", "ml")
+DECISION_PLAY_COLS = ["game_id", "league", "market", "start_time", "et_date", "day_group", "match", "crowd",
+                      "votes", "total_votes", "method", "bet_side", "pick", "line", "odds", "status", "result"]
 
 
 def _num(v):
     return None if v is None or pd.isna(v) else float(v)
 
 
-def _bet_line(picks: pd.DataFrame, game_id, bet_side: str):
+def _bet_line(picks: pd.DataFrame, game_id, bet_side: str, market: str = "spread"):
     """Closing line of the side we bet when there is one, else the experts' median line for it."""
-    rows = picks[(picks["game_id"] == game_id) & (picks["market"] == "spread")] if not picks.empty else picks
+    if market == "ml":
+        return None
+    rows = picks[(picks["game_id"] == game_id) & (picks["market"] == market)] if not picks.empty else picks
     if rows.empty:
         return None
     own = rows[rows["pick_side"] == bet_side]
@@ -38,9 +49,18 @@ def _bet_line(picks: pd.DataFrame, game_id, bet_side: str):
         return _num(pd.to_numeric(own["line"], errors="coerce").median())
     other = rows[rows["pick_side"] == _OTHER[bet_side]]
     if "close_line" in rows and other["close_line"].notna().any():
-        return -_num(other["close_line"].dropna().iloc[0])
+        value = _num(other["close_line"].dropna().iloc[0])
+        return -value if market == "spread" else value
     med = _num(pd.to_numeric(other["line"], errors="coerce").median()) if len(other) else None
-    return None if med is None else -med
+    return None if med is None else (-med if market == "spread" else med)
+
+
+def _pick_label(r, side: str) -> str:
+    if side == "home":
+        return r.home_abbr
+    if side == "away":
+        return r.away_abbr
+    return side.title()
 
 
 def my_method_plays(cg: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
@@ -67,6 +87,46 @@ def my_method_plays(cg: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
         })
     out = pd.DataFrame(rows, columns=PLAY_COLS)
     return out.sort_values("start_time", ascending=False, kind="stable").reset_index(drop=True).astype(object)
+
+
+def decision_method_plays(cg: pd.DataFrame, picks: pd.DataFrame) -> pd.DataFrame:
+    """Selections shown on the Decision card and in live/Telegram views.
+
+    Monday-Friday ET: follow the majority for spread, total and moneyline in NFL/NCAAF/NBA once the majority
+    side itself has at least two distinct experts. Saturday-Sunday: retain the user's existing spread-only,
+    >= 5-expert NFL/NCAAF fade method.
+    """
+    if cg.empty:
+        return pd.DataFrame(columns=DECISION_PLAY_COLS)
+    rows = []
+    for r in cg.itertuples():
+        local = pd.Timestamp(r.start_time).tz_convert(TZ)
+        weekday = local.day_of_week <= 4
+        if weekday:
+            if (r.league not in WEEKDAY_DECISION_LEAGUES or r.market not in WEEKDAY_DECISION_MARKETS
+                    or int(r.votes) < WEEKDAY_DECISION_VOTES):
+                continue
+            method, bet = "follow", r.side
+        else:
+            if r.league not in LEAGUES or r.market != "spread" or int(r.total_votes) < MIN_PICKS:
+                continue
+            method, bet = "fade", _OTHER[r.side]
+        result = r.side_result if isinstance(r.side_result, str) else None
+        if method == "fade" and result is not None:
+            result = _FLIP.get(result, result)
+        rows.append({
+            "game_id": int(r.game_id), "league": r.league, "market": r.market, "start_time": r.start_time,
+            "et_date": local.strftime("%Y-%m-%d"), "day_group": "T2-6" if weekday else "T7-CN",
+            "match": f"{r.away_abbr}@{r.home_abbr}", "crowd": _pick_label(r, r.side),
+            "votes": int(r.votes), "total_votes": int(r.total_votes), "method": method,
+            "bet_side": bet, "pick": _pick_label(r, bet),
+            "line": _bet_line(picks, r.game_id, bet, r.market),
+            "odds": r.side_odds if method == "follow" else r.opp_odds,
+            "status": "graded" if result else "pending", "result": result,
+        })
+    out = pd.DataFrame(rows, columns=DECISION_PLAY_COLS)
+    return out.sort_values(["start_time", "market"], ascending=[False, True], kind="stable") \
+        .reset_index(drop=True).astype(object)
 
 
 def _hist(sides: pd.DataFrame, league: str, day_group: str) -> tuple[int, int, int]:

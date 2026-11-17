@@ -2,7 +2,7 @@
 
 - opening lines: ESPN lists the opening and the current DraftKings line; the opening one is kept here;
 - rest: days since each team's previous game (ESPN game summary "lastFiveGames");
-- quarterbacks: QBs listed Out / Doubtful / Questionable on the ESPN injury report.
+- key injuries: NFL/NCAAF passing, rushing and receiving leaders plus NBA points, assists and rebound leaders.
 """
 
 import json
@@ -12,20 +12,33 @@ import pandas as pd
 import requests
 
 SUMMARY = {"nfl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary",
-           "ncaaf": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary"}
+           "ncaaf": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary",
+           "nba": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary"}
 DEPTH = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/{team}/depthcharts"
 REFRESH_H = 1.0
 DEPTH_REFRESH_H = 24.0  # NFL depth charts are read at most once a day per team
-QB_STATUSES = ("Out", "Doubtful", "Questionable")  # injured-reserve QBs are long-term backups, left out
-CONTEXT_COLS = ["game_id", "home_rest_days", "away_rest_days", "home_qb", "away_qb", "updated_at"]
+INJURY_STATUSES = ("Out", "Doubtful", "Questionable", "Day-To-Day")  # current game-status report
+CONTEXT_COLS = ["game_id", "home_rest_days", "away_rest_days", "home_qb", "away_qb",
+                "home_key_injuries", "away_key_injuries", "updated_at"]
 OPEN_COLS = ["game_id", "market", "side", "line", "odds"]
+_KEY_LEADER_ROLES = {
+    "rushingYards": "dẫn đầu rushing", "receivingYards": "dẫn đầu receiving",
+    "sacks": "dẫn đầu sacks", "totalTackles": "dẫn đầu tackles",
+    "points": "dẫn đầu ghi điểm", "avgPoints": "dẫn đầu ghi điểm", "pointsPerGame": "dẫn đầu ghi điểm",
+    "assists": "dẫn đầu kiến tạo", "rebounds": "dẫn đầu rebound",
+}
 
 
 def schema(conn: sqlite3.Connection) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS opening_lines(game_id INTEGER, market TEXT, side TEXT, line REAL,
         odds INTEGER, captured_at TEXT, PRIMARY KEY(game_id, market, side))""")
     conn.execute("""CREATE TABLE IF NOT EXISTS game_context(game_id INTEGER PRIMARY KEY, home_rest_days REAL,
-        away_rest_days REAL, home_qb TEXT, away_qb TEXT, updated_at TEXT)""")
+        away_rest_days REAL, home_qb TEXT, away_qb TEXT, home_key_injuries TEXT,
+        away_key_injuries TEXT, updated_at TEXT)""")
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(game_context)")}
+    for name in ("home_key_injuries", "away_key_injuries"):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE game_context ADD COLUMN {name} TEXT")
     conn.execute("""CREATE TABLE IF NOT EXISTS depth_qb(league TEXT, team_id TEXT, qb TEXT, updated_at TEXT,
         PRIMARY KEY(league, team_id))""")
 
@@ -68,15 +81,21 @@ def parse_summary(data: dict, kickoff: str) -> dict:
     side_of = {str(c.get("team", {}).get("id")): c.get("homeAway") for c in comp.get("competitors", [])}
     out = {"home_rest_days": None, "away_rest_days": None, "home_qb": None, "away_qb": None,
            "home_team_id": None, "away_team_id": None, "home_passer": None, "away_passer": None,
-           "home_qb_injuries": [], "away_qb_injuries": []}
+           "home_qb_injuries": [], "away_qb_injuries": [], "home_injuries": [], "away_injuries": [],
+           "home_key_players": [], "away_key_players": []}
     for tid, side in side_of.items():
         if side in ("home", "away"):
             out[f"{side}_team_id"] = tid
     for team in data.get("leaders") or []:  # before kickoff these are season leaders
         side = side_of.get(str((team.get("team") or {}).get("id")))
         for cat in team.get("leaders") or []:
-            if cat.get("name") == "passingYards" and cat.get("leaders") and side in ("home", "away"):
-                out[f"{side}_passer"] = (cat["leaders"][0].get("athlete") or {}).get("displayName")
+            if not cat.get("leaders") or side not in ("home", "away"):
+                continue
+            athlete = cat["leaders"][0].get("athlete") or {}
+            if cat.get("name") == "passingYards":
+                out[f"{side}_passer"] = athlete.get("displayName")
+            elif cat.get("name") in _KEY_LEADER_ROLES and athlete.get("displayName"):
+                out[f"{side}_key_players"].append((athlete["displayName"], _KEY_LEADER_ROLES[cat["name"]]))
     start = pd.Timestamp(kickoff)
     for team in data.get("lastFiveGames") or []:
         side = side_of.get(str((team.get("team") or {}).get("id")))
@@ -86,10 +105,13 @@ def parse_summary(data: dict, kickoff: str) -> dict:
             out[f"{side}_rest_days"] = round((start - max(dates)).total_seconds() / 86400, 1)
     for team in data.get("injuries") or []:
         side = side_of.get(str((team.get("team") or {}).get("id")))
-        qbs = [((i.get("athlete") or {}).get("displayName"), i.get("status")) for i in team.get("injuries") or []
-               if ((i.get("athlete") or {}).get("position") or {}).get("abbreviation") == "QB" and i.get("status") in QB_STATUSES]
+        injuries = [((i.get("athlete") or {}).get("displayName"),
+                     ((i.get("athlete") or {}).get("position") or {}).get("abbreviation"), i.get("status"))
+                    for i in team.get("injuries") or [] if i.get("status") in INJURY_STATUSES]
+        qbs = [(name, status) for name, pos, status in injuries if pos == "QB"]
         if side in ("home", "away"):
             out[f"{side}_qb_injuries"] = qbs
+            out[f"{side}_injuries"] = injuries
     return out
 
 
@@ -103,6 +125,21 @@ def starter_injury(injuries, starter):
         return None
     hit = [f"{n} ({st})" for n, st in injuries if _key(n) == _key(starter)]
     return hit[0] if hit else None
+
+
+def key_player_injuries(injuries, leaders) -> list[str]:
+    """Explicit injury status for supported season leaders; no subjective star guesses."""
+    by_name = {_key(name): (name, position, status) for name, position, status in injuries if name}
+    out, seen = [], set()
+    for name, role in leaders:
+        hit = by_name.get(_key(name))
+        if hit is None or _key(name) in seen:
+            continue
+        seen.add(_key(name))
+        actual, position, status = hit
+        label = f"{position} · {role}" if position else role
+        out.append(f"{actual} ({label}, {status})")
+    return out
 
 
 def nfl_starter(conn, team_id, now, get):
@@ -148,8 +185,13 @@ def store_context(conn: sqlite3.Connection, league: str, games: dict, now: str, 
                 starter = nfl_starter(conn, c[f"{side}_team_id"], now, get)
             starter = starter or c[f"{side}_passer"]  # college: the season passing leader stands in for QB1
             c[f"{side}_qb"] = starter_injury(c[f"{side}_qb_injuries"], starter)
-        conn.execute("INSERT OR REPLACE INTO game_context VALUES (?,?,?,?,?,?)",
-                     (gid, c["home_rest_days"], c["away_rest_days"], c["home_qb"], c["away_qb"], now))
+            c[f"{side}_key_injuries"] = json.dumps(
+                key_player_injuries(c[f"{side}_injuries"], c[f"{side}_key_players"]), ensure_ascii=False)
+        conn.execute("""INSERT OR REPLACE INTO game_context(
+            game_id, home_rest_days, away_rest_days, home_qb, away_qb,
+            home_key_injuries, away_key_injuries, updated_at) VALUES (?,?,?,?,?,?,?,?)""",
+                     (gid, c["home_rest_days"], c["away_rest_days"], c["home_qb"], c["away_qb"],
+                      c["home_key_injuries"], c["away_key_injuries"], now))
         done += 1
     conn.commit()
     return done

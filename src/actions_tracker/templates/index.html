@@ -211,6 +211,8 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .signals .sig { display: flex; gap: 6px; align-items: baseline; line-height: 1.35; }
 .signals .sig-dot { flex: none; font-size: 11px; }
 .signals .sig.info { color: var(--ink-2); }
+.signals .sig.key-player { padding: 7px 9px; border: 1px solid color-mix(in srgb, var(--loss) 34%, var(--border));
+  border-radius: 9px; background: color-mix(in srgb, var(--loss) 9%, var(--surface-2)); font-weight: 750; }
 @media (max-width: 1200px) { .detail-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .detail-h { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px; }
 .live-card-pregame { border-top: 1px solid var(--border); padding: 12px 16px; }
@@ -1165,7 +1167,7 @@ const DATA = /*__DATA__*/null;
     }
     const list = (signalMap.get(`${r.game_id}|${r.market}|${r.bet_side}`) || []).slice().sort((a, b) => a.order - b.order);
     if (!list.length) return el("span", { class: "news-empty", text: "Chưa có tín hiệu" });
-    return el("ul", { class: "signals" }, ...list.map((x) => el("li", { class: "sig " + ({ "🟢": "good", "🔴": "bad" }[x.tone] || "info") },
+    return el("ul", { class: "signals" }, ...list.map((x) => el("li", { class: "sig " + ({ "🟢": "good", "🔴": "bad" }[x.tone] || "info") + (x.highlight ? " key-player" : "") },
       el("span", { class: "sig-dot", text: x.tone }), el("span", { text: x.text }))));
   }
 
@@ -1376,11 +1378,12 @@ const DATA = /*__DATA__*/null;
       detailBlock("Chuyên gia chọn winner", archivedWinner(d.winner)));
   }
   function methodSnapshotDetail(r) {
-    const saved = pregameSnapshot({ ...r, market: "spread" });
+    const saved = pregameSnapshot(r);
     if (!saved) return el("div", { class: "detail-grid" },
       detailBlock("Thông tin trước trận", "Game này chưa có snapshot trước trận."));
     const d = saved.data || {};
-    const line = r.line === null || r.line === undefined ? "" : ` ${Number(r.line) > 0 ? "+" : ""}${String(r.line).replace(".", ",")}`;
+    const line = r.line === null || r.line === undefined || r.market === "ml" ? ""
+      : ` ${r.market === "spread" && Number(r.line) > 0 ? "+" : ""}${String(r.line).replace(".", ",")}`;
     const comparison = `Bạn đặt ${r.pick}${line} · ${r.method === "follow" ? "theo" : "ngược"} đám đông ${r.crowd} ${num(r.votes)}/${num(r.total_votes)} · kết quả: ${RESULT_LABEL[r.result] || r.result}`;
     return el("div", { class: "detail-grid" },
       detailBlock("Pregame → kết quả", comparison),
@@ -1421,7 +1424,8 @@ const DATA = /*__DATA__*/null;
     const nExp = (r) => experts.get(`${r.game_id}|${r.market}`) || 0;
     // a total with >= TOTAL_MIN_EXPERTS experts is always listed in the Total section, even with no rule behind it
     const bigTotal = (r) => r.market === "total" && nExp(r) >= TOTAL_MIN_EXPERTS;
-    const act = rows.filter((r) => ((r.action !== "skip" || r.rule_ids) && !(r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS))
+    const act = rows.filter((r) => r.action === "mine"
+      || ((r.action !== "skip" || r.rule_ids) && !(r.market === "total" && nExp(r) < TOTAL_MIN_EXPERTS))
       || (r.action === "skip" && !r.rule_ids && bigTotal(r)));
     const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids && !bigTotal(r));
     const bets = act.filter((r) => r.action === "bet"), paper = act.filter((r) => r.action === "paper");
@@ -1511,7 +1515,7 @@ const DATA = /*__DATA__*/null;
   const todayResultOpen = new Set();
   function todayResultsCard() {
     const today = etDate(Date.now());
-    const methodRows = T("My_Method").map((r) => ({ ...r, market: "spread" }));
+    const methodRows = T("Decision_Method");
     const rows = rawFilter(methodRows).filter((r) => r.et_date === today && r.status === "graded"
       && ["win", "loss", "push"].includes(r.result));
     const games = new Map();
@@ -1536,21 +1540,22 @@ const DATA = /*__DATA__*/null;
       const scoreText = score ? `${num(score.away_score)}–${num(score.home_score)}` : "–";
       const details = el("details", { class: "today-result", "data-game-id": key });
       details.open = todayResultOpen.has(key);
-      const fmtLine = (x) => x === null || x === undefined ? "" : ` ${Number(x) > 0 ? "+" : ""}${String(x).replace(".", ",")}`;
+      const fmtLine = (x, market) => x === null || x === undefined || market === "ml" ? ""
+        : ` ${market === "spread" && Number(x) > 0 ? "+" : ""}${String(x).replace(".", ",")}`;
       const picks = plays.map((p) => el("span", { class: "today-result-pick" },
-        `Đặt ${p.pick}${fmtLine(p.line)}`, resultPill(p.result)));
+        `${MARKET_LABEL[p.market] || p.market} · đặt ${p.pick}${fmtLine(p.line, p.market)}`, resultPill(p.result)));
       details.append(el("summary", {},
         el("span", { class: "today-result-title", text: `${leagueName(r.league)} · ${vs(r.match)}` }),
         el("span", { class: "today-result-score" }, scoreText, el("span", { class: "today-result-chevron", text: "›" })),
         el("span", { class: "today-result-picks" }, ...picks)));
       const body = el("div", { class: "today-result-body" });
       const scoreHost = el("div", { class: "today-result-scoreboard" });
-      if (score && window.ActionsScoreboard) ActionsScoreboard.render(scoreHost, [{ ...r, ...score, market: "spread",
+      if (score && window.ActionsScoreboard) ActionsScoreboard.render(scoreHost, [{ ...r, ...score, market: r.market,
         game_id: r.game_id, league: r.league, away_abbr: away, home_abbr: home, away_name: away, home_name: home }]);
       else scoreHost.append(el("div", { class: "empty", text: "Chưa có box score." }));
       body.append(scoreHost);
       for (const p of plays) body.append(el("section", { class: "today-result-market" },
-        el("h3", {}, `Pregame · đặt ${p.pick}${fmtLine(p.line)} · ${p.method === "follow" ? "theo" : "ngược"} đám đông`,
+        el("h3", {}, `${MARKET_LABEL[p.market] || p.market} · đặt ${p.pick}${fmtLine(p.line, p.market)} · ${p.method === "follow" ? "theo" : "ngược"} đám đông`,
           resultPill(p.result)), methodSnapshotDetail(p)));
       details.append(body);
       details.addEventListener("toggle", () => details.open ? todayResultOpen.add(key) : todayResultOpen.delete(key));
@@ -2481,11 +2486,12 @@ const DATA = /*__DATA__*/null;
   const browserLive = { scores: new Map(), busy: false, timer: null, errors: 0 };
   const LIVE_POLL_MS = 5000;
   function liveInPlayRows() {
-    const plays = new Map(T("In_Play").filter((r) => r.source === "Cách của bạn").map((r) => [Number(r.game_id), r]));
-    for (const r of T("My_Method")) {
-      if (r.status === "graded") { plays.delete(Number(r.game_id)); continue; }
+    const key = (r) => `${Number(r.game_id)}|${r.market || "spread"}`;
+    const plays = new Map(T("In_Play").filter((r) => r.source === "Cách của bạn").map((r) => [key(r), r]));
+    for (const r of T("Decision_Method")) {
+      if (r.status === "graded") { plays.delete(key(r)); continue; }
       if (Date.parse(r.start_time) > Date.now()) continue;
-      plays.set(Number(r.game_id), { ...r, source: "Cách của bạn", market: "spread", crowd: `${r.crowd} ${r.votes}/${r.total_votes}` });
+      plays.set(key(r), { ...r, source: "Cách của bạn", crowd: `${r.crowd} ${r.votes}/${r.total_votes}` });
     }
     return [...plays.values()].flatMap((r) => {
       const s = scoreOf(r);
@@ -2494,7 +2500,7 @@ const DATA = /*__DATA__*/null;
     }).sort((a, b) => (a.state === "live" ? 0 : 1) - (b.state === "live" ? 0 : 1) || Date.parse(a.start_time) - Date.parse(b.start_time));
   }
   function liveCandidateGames() {
-    const ids = new Set(T("My_Method").filter((r) => r.status !== "graded").map((r) => Number(r.game_id)));
+    const ids = new Set(T("Decision_Method").filter((r) => r.status !== "graded").map((r) => Number(r.game_id)));
     for (const r of T("In_Play")) if (r.source === "Cách của bạn") ids.add(Number(r.game_id));
     return T("Live_Games").filter((g) => {
       const age = Date.now() - Date.parse(g.start_time), s = scoreOf(g);

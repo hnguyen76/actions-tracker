@@ -144,7 +144,7 @@ Người dùng **được phép** đổi cách bet của chính họ bất cứ 
 
 | Muốn đổi | Sửa ở |
 |---|---|
-| Số picks tối thiểu (hiện 5), giải áp dụng (NFL, NCAAF) | `MIN_PICKS`, `LEAGUES` trong `src/actions_tracker/analysis/my_method.py` |
+| Số picks tối thiểu và giải áp dụng | `MIN_PICKS`, `LEAGUES`, `WEEKDAY_DECISION_*` trong `src/actions_tracker/analysis/my_method.py` |
 | Ngày theo / ngày đánh ngược (T2–6 theo, T7–CN ngược, giờ ET) | `my_method_plays` (`weekday = local.day_of_week <= 4`) và `season_plays` cùng file |
 | Kèo nào vào bảng "Quyết định" | `src/actions_tracker/analysis/decisions.py` (action `mine`) |
 | Tin Telegram 15 phút trước trận | `src/actions_tracker/alerts.py` (`due_games`, `build_messages`) |
@@ -163,4 +163,8 @@ quy tắc đó; khi đó nói rõ kết quả forward test cũ không còn so s�
 
 ### Nhật ký cách bet
 
+- 17/11/2026: riêng bảng Quyết định T2–6 ET, theo bên đa số có ≥ 2 expert cho spread/total/moneyline của NFL,
+  NCAAF và NBA; T7–CN giữ spread NFL/NCAAF, ≥ 5 tổng picks và fade. Nhìn lại NFL/NCAAF T2–6: 107–94–3
+  (53,2%, ROI +1,4%, n=201; `pick_count`). Live có NBA: 28–20–1 (58,3%, ROI +9,9%, n=48;
+  `distinct_expert`), nhưng mẫu nhỏ và NBA spread 10–12 nên đây là lựa chọn của người dùng, chưa phải rule đạt.
 - 14/11/2026: spread, ≥ 5 picks, có bên đa số; T2–6 theo đám đông, T7–CN đánh ngược (cả khi đồng thuận 100%).

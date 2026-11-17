@@ -19,8 +19,9 @@ in English (spread, total, moneyline, favorite, underdog, fade).
   data). Read it for analysis only. Same for `data/history/*.csv` unless asked.
 - Rules in `src/actions_tracker/rules.py` are frozen forward tests: do not change their thresholds unless the
   owner explicitly asks to drop/replace one. Never recommend real-money bets on rules still being tested.
-- The owner's own method ("Cách của bạn"): spread only, ≥5 picks, majority side; Mon–Fri ET follow the crowd,
-  Sat–Sun fade it (unanimous crowds included). The owner MAY change it any time — follow the
+- The Decision card's "Cách của bạn": Mon–Fri ET follow every NFL/NCAAF/NBA spread, total or moneyline majority
+  with at least 2 distinct experts on that side; Sat–Sun keeps spread-only NFL/NCAAF, ≥5 total picks, and fades
+  the majority (unanimous crowds included). The owner MAY change it any time — follow the
   "Sửa Cách của bạn" section of the project skill `.claude/skills/bettingskill/SKILL.md` (back-test first).
 - Analysis and reports: use the `bettingskill` project skill.
 
