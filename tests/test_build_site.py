@@ -49,8 +49,10 @@ def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_pat
     assert 'class="logo-play"' in html and 'class="brand-static"' in html
     assert ".season-thanksgiving .logo-play" in css and "24s ease-in-out infinite" in css
     assert 'class="logo-fall"' in html and css.count("animation: logo-leaf-") == 5
+    assert 'class="logo-snow"' in html and css.count("animation: logo-snow-") == 6
+    assert 'class="logo-wind"' in html and "@keyframes logo-wind-gust" in css
     assert "@media (prefers-reduced-motion: reduce)" in css
-    assert ".season-thanksgiving .logo-play, .season-thanksgiving .logo-fall { display: none; }" in css
+    assert ".season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }" in css
 
 
 def test_decision_pick_count_highlights_have_three_flashing_levels(tmp_path):
