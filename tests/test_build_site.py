@@ -50,9 +50,8 @@ def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_pat
     assert ".season-thanksgiving .logo-play" in css and "24s ease-in-out infinite" in css
     assert 'class="logo-fall"' in html and css.count("animation: logo-leaf-") == 5
     assert 'class="logo-snow"' in html and css.count("animation: logo-snow-") == 6
-    assert 'class="logo-wind"' in html and 'id="logo-wind-fade"' in html
-    assert html.count('class="logo-wind-gust ') == 2 and "@keyframes logo-wind-gust-a" in css
-    assert "logo-wind-line" not in html and "stroke-dasharray: 5 4" not in css
+    assert "logo-wind" not in html and "logo-wind" not in css
+    assert "@keyframes logo-air-gust" in css and "animation: logo-air-gust" in css
     assert "@media (prefers-reduced-motion: reduce)" in css
     assert ".season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }" in css
 
