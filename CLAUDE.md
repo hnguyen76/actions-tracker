@@ -4,9 +4,10 @@ The owner writes Vietnamese without diacritics; reply in Vietnamese with diacrit
 in English (spread, total, moneyline, favorite, underdog, fade).
 
 ## How the live system runs
-- An Android phone at home (Termux, `scripts/auto_update.sh update|alert|live`, cron 11:00–23:00) pulls
+- An Android phone at home (Termux, `scripts/auto_update.sh update|alert|live`, data cron 11:00–23:00) pulls
   `main`, collects data, commits `data/actions.db` as "data: update … (phone …)", rebuilds the site and
-  force-pushes `gh-pages` (`scripts/publish_site.py`). The laptop tasks (`scripts/pc_task.py`) are a backup.
+  force-pushes `gh-pages` (`scripts/publish_site.py`). A separate `sync` cron runs every 5 minutes 24/7; it
+  only pulls, rebuilds from existing data and publishes when HEAD changed. The laptop tasks are a backup.
 - So a code change merged into `main` goes live by itself within ~5–15 minutes. Do not publish from here.
 - Dashboard: https://hnguyen76.github.io/actions-tracker/ — template `src/actions_tracker/templates/index.html`,
   static JS/CSS in `src/actions_tracker/templates/static/`, built by `src/actions_tracker/build_site.py`.

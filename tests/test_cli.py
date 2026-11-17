@@ -104,6 +104,19 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert 'const DECISION_HOT' in html and 'Object.assign({}, DECISION_HOT, { detail: decisionDetail })' in html
 
 
+def test_build_command_uses_existing_database_without_network(tmp_path, monkeypatch):
+    monkeypatch.setattr("actions_tracker.cli.utc_now", lambda: NOW)
+    monkeypatch.setattr("requests.get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("network called")))
+    c = db.connect(tmp_path / "a.db")
+    db.upsert_games(c, [{"id": 88, "league": "nba", "start_time": "2026-11-10T23:00:00.000Z",
+                         "home_abbr": "BOS", "away_abbr": "NYK"}], NOW)
+    c.close()
+    site = tmp_path / "site"
+    assert main(["build", "--db", str(tmp_path / "a.db"), "--site", str(site)]) == 0
+    html = (site / "index.html").read_text("utf-8")
+    assert '"generated_at":"2026-11-09T22:00:00.000Z"' in html
+
+
 def test_lines_for_upcoming_and_scores_for_past(tmp_path):
     c = _seed_past_pick(tmp_path)
     api = FakeOddsApi(odds={"nba": NBA_ODDS}, scores={"nba": PAST_SCORE})

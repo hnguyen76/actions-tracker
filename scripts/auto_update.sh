@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Phone (Termux) / home Linux box: same three jobs as the PC scheduled tasks (scripts/pc_task.py).
+# Phone (Termux) / home Linux box: scheduled collection plus an always-on lightweight site sync.
 #   auto_update.sh update   every 15 min: `run --budget` (picks, ESPN lines/scores, news, rules)
 #   auto_update.sh alert    every 5 min:  Telegram message ~15 min before kickoff (collects first when due)
 #   auto_update.sh live     every 5 min:  ESPN live scores + finals (light)
-# Each one: pull -> run -> commit data/actions.db (only when it changed) -> push -> publish the site.
+#   auto_update.sh sync     every 5 min, 24/7: pull code, rebuild locally and publish only when HEAD changed
+# Collection jobs: pull -> run -> commit data/actions.db (only when it changed) -> push -> publish the site.
 # Commits are tagged "(phone <mode>)" so the PC tasks step aside while the phone is active.
 # The cron lines are installed by scripts/termux_setup.sh.
 set -u
@@ -12,7 +13,8 @@ case "$MODE" in
   update) CMD="run --budget" ;;
   alert)  CMD="alert" ;;
   live)   CMD="live" ;;
-  *) echo "che do khong hop le: $MODE (update | alert | live)"; exit 2 ;;
+  sync)   CMD="" ;;
+  *) echo "che do khong hop le: $MODE (update | alert | live | sync)"; exit 2 ;;
 esac
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
@@ -40,6 +42,22 @@ trap 'rm -rf "$LOCK"' EXIT
 
 echo "=== [$stamp] $MODE ==="
 
+# Existing S21 installs learn the new overnight job automatically after they have pulled this version once.
+# Restrict this self-heal to Termux; a normal Linux cron remains under its owner's control.
+ensure_sync_cron() {
+  case "${PREFIX:-}" in
+    *com.termux*) ;;
+    *) return ;;
+  esac
+  command -v crontab >/dev/null 2>&1 || return
+  if crontab -l 2>/dev/null | grep -Fq "auto_update.sh sync"; then
+    return
+  fi
+  ( crontab -l 2>/dev/null || true
+    echo "2-59/5 * * * * bash $REPO/scripts/auto_update.sh sync >> $HOME/actions-auto.log 2>&1" ) | crontab -
+  echo "Da them lich sync site 24/7 moi 5 phut."
+}
+
 sync_main() {
   # take the latest data from GitHub; if our unpushed data conflicts (the PC pushed meanwhile),
   # drop ours - the next collection re-reads everything that is still on Action Network / ESPN
@@ -54,6 +72,23 @@ sync_main() {
   fi
 }
 
+PUBLISHED_HEAD="$(git rev-parse --git-path actions-last-published 2>/dev/null)"
+published_head_changed() {
+  current="$(git rev-parse HEAD 2>/dev/null)"
+  previous="$(cat "$PUBLISHED_HEAD" 2>/dev/null || true)"
+  [ -n "$current" ] && [ "$current" != "$previous" ]
+}
+
+publish_site() {
+  rebuild="${1:-0}"
+  if [ "$rebuild" = 1 ]; then
+    "$PY" -m actions_tracker build || return
+  fi
+  if "$PY" scripts/publish_site.py; then
+    git rev-parse HEAD 2>/dev/null > "$PUBLISHED_HEAD"
+  fi
+}
+
 COMMITTED=0
 collect_and_commit() {
   # shellcheck disable=SC2086
@@ -65,7 +100,20 @@ collect_and_commit() {
   fi
 }
 
+ensure_sync_cron
 sync_main
+
+# The overnight job never collects or commits data. It only republishes when a new main HEAD has arrived.
+if [ "$MODE" = sync ]; then
+  if published_head_changed; then
+    publish_site 1
+  else
+    echo "Site da o ban moi nhat."
+  fi
+  echo "=== xong $MODE ==="
+  exit 0
+fi
+
 collect_and_commit
 if [ "$COMMITTED" = 1 ] && ! git push -q 2>/dev/null; then
   sync_main
@@ -75,8 +123,12 @@ if [ "$COMMITTED" = 1 ] && ! git push -q 2>/dev/null; then
   git push -q 2>/dev/null || echo "Chua push duoc du lieu - lan sau se thu lai."
 fi
 
-# republish only when there is new data (the update job always republishes so the page clock stays fresh)
-if [ "$COMMITTED" = 1 ] || [ "$MODE" = update ]; then
-  "$PY" scripts/publish_site.py
+# Republish for new data, for the regular update clock, or when alert/live pulled a code change first.
+if [ "$COMMITTED" = 1 ] || [ "$MODE" = update ] || published_head_changed; then
+  rebuild=0
+  if [ "$COMMITTED" = 0 ] && [ "$MODE" != update ]; then
+    rebuild=1
+  fi
+  publish_site "$rebuild"
 fi
 echo "=== xong $MODE ==="

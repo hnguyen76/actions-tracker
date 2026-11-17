@@ -10,8 +10,9 @@ keeping established betting terms in English (spread, total, moneyline, favorite
 - Frontend assets: `src/actions_tracker/templates/static/`.
 - Site builder: `src/actions_tracker/build_site.py`.
 - The Android/Termux collector pulls `main`, updates `data/actions.db`, rebuilds the site, and publishes
-  `gh-pages` with `scripts/publish_site.py`. A merged code change normally appears on the site in about
-  5–15 minutes. Do not publish from a Codex Cloud task.
+  `gh-pages` with `scripts/publish_site.py`. Its lightweight `sync` job runs every 5 minutes, 24/7, and rebuilds
+  from existing data without calling sports APIs, so a merged code change normally appears in 5–15 minutes
+  even overnight. Do not publish from a Codex Cloud task.
 
 ## Git workflow
 

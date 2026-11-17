@@ -407,6 +407,23 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
     return 0
 
 
+def rebuild_site(db_path: Path, site_dir: Path, now: str) -> int:
+    """Rebuild the static site from the existing database without making any network request."""
+    conn = db.connect(db_path)
+    try:
+        tables = build_tables(conn, now, Path(db_path).parent / "history")
+        status = [dict(r) | {"ungraded_past_games": _ungraded_past_games(conn, r["league"], now)}
+                  for r in conn.execute("SELECT * FROM league_status ORDER BY league")]
+        remaining = db.get_meta(conn, "odds_api_remaining")
+        report = Path("reports/actions_report.xlsx")
+        build_site(tables, status, site_dir, report if report.exists() else None, now,
+                   {"odds_api_remaining": int(remaining) if remaining is not None else None})
+    finally:
+        conn.close()
+    print(f"Da build site tu data hien co: {site_dir / 'index.html'}")
+    return 0
+
+
 def telegram_setup(root: Path, get=None, post=None) -> int:
     from actions_tracker import alerts
     token, _ = alerts.load_telegram(root)
@@ -452,6 +469,9 @@ def main(argv: list[str] | None = None) -> int:
     lv.add_argument("--leagues", default=",".join(k for k, on in LEAGUES.items() if on))
     lv.add_argument("--db", default="data/actions.db")
     lv.add_argument("--site", default="site")
+    b = sub.add_parser("build", help="rebuild the dashboard from the current database without network access")
+    b.add_argument("--db", default="data/actions.db")
+    b.add_argument("--site", default="site")
     n = sub.add_parser("news", help="refresh news and expert winners for highlighted football games, then rebuild")
     n.add_argument("--db", default="data/actions.db")
     n.add_argument("--site", default="site")
@@ -460,6 +480,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "telegram-setup":
         return telegram_setup(Path.cwd())
+    if args.cmd == "build":
+        return rebuild_site(Path(args.db), Path(args.site), utc_now())
     if args.cmd == "live":
         return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
                            utc_now())
