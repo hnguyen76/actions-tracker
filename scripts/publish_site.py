@@ -1,8 +1,8 @@
 """Publish site/ to the gh-pages branch as one fresh commit (force push).
 
 GitHub Pages serves that branch. Because every publish replaces the branch instead of adding to it,
-hourly updates never grow the repository. Used by scripts/update.ps1 (Desktop button) and
-scripts/auto_update.sh (phone, every hour).
+repeated updates never grow the repository. Used by scripts/update.ps1 (Desktop button) and
+scripts/auto_update.sh (phone collection plus 24/7 code sync).
 
 Usage: python scripts/publish_site.py
 """
