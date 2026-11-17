@@ -77,24 +77,29 @@ body {
   backdrop-filter: saturate(140%) blur(18px);
 }
 .topbar .wrap { min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
-.brand-mark { height: 46px; filter: drop-shadow(0 3px 9px rgba(0, 0, 0, .12)); }
+.brand-mark { height: 46px; }  /* no CSS filter: it boxed the logo in light mode and clipped the pass arc */
 .logo-play { opacity: 0; }
 .logo-play-ground { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-linecap: round; }
-.logo-qb-head, .logo-qb-body { fill: var(--accent); }
-.logo-qb-helmet { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; }
-.logo-qb-limbs, .logo-qb-arm { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+/* the quarterback: helmet with stripe and face mask, #7 jersey, pants, gloves, cleats */
+.logo-qb-leg { fill: none; stroke: color-mix(in srgb, var(--ink) 82%, var(--page)); stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
+.logo-qb-cleat { fill: var(--ink-2); }
+.logo-qb-body, .logo-qb-helmet { fill: var(--accent); }
+.logo-qb-sleeve { fill: none; stroke: var(--accent); stroke-width: 3.8; stroke-linecap: round; stroke-linejoin: round; }
+.logo-qb-glove { fill: #fff; }
+.logo-qb-number { font: 800 7.5px Inter, system-ui, sans-serif; fill: #fff; text-anchor: middle; }
+.logo-qb-stripe { fill: none; stroke: #fff; stroke-width: 1.1; stroke-linecap: round; }
+.logo-qb-mask { fill: none; stroke: var(--ink-2); stroke-width: .9; stroke-linecap: round; }
 .logo-pass-ball ellipse, .logo-caught-ball ellipse { fill: #8a4b2a; stroke: #5b2d16; stroke-width: .8; }
 .logo-pass-ball path, .logo-caught-ball path { fill: none; stroke: #fff; stroke-width: 1; stroke-linecap: round; }
-.logo-turkey-tail ellipse:nth-child(1) { fill: var(--tg-1); }
-.logo-turkey-tail ellipse:nth-child(2) { fill: var(--tg-2); }
-.logo-turkey-tail ellipse:nth-child(3) { fill: var(--tg-3); }
-.logo-turkey-tail ellipse:nth-child(4) { fill: var(--tg-4); }
-.logo-turkey-body { fill: #8a4b2a; }
-.logo-turkey-head { fill: #a0603a; }
+.logo-turkey-body { fill: #8f4a26; }
+.logo-turkey-wing { fill: #6b3418; }
+.logo-turkey-neck { fill: #93502b; }
+.logo-turkey-head { fill: #b06a3b; }
 .logo-turkey-beak { fill: var(--tg-2); }
-.logo-turkey-eye { fill: var(--ink); }
+.logo-turkey-eyewhite { fill: #fff; }
+.logo-turkey-eye { fill: #141414; }
 .logo-turkey-wattle { fill: var(--tg-3); }
-.logo-turkey-leg { fill: none; stroke: var(--tg-2); stroke-width: 2; stroke-linecap: round; }
+.logo-turkey-leg { fill: none; stroke: var(--tg-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .logo-caught-ball { opacity: 0; }
 
 /* A short Thanksgiving doodle every 24 s: throw, catch, then the turkey runs the ball out. */
