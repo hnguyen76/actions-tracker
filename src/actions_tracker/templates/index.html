@@ -337,7 +337,15 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .season-chart-details > summary { font-weight: 600; }
 .season-chart-category + .season-chart-category { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 18px; }
 .season-chart-category > h3 { font-size: 18px; margin: 0 0 8px; }
-footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
+.donate-footer { display: flex; flex-direction: column; align-items: center; gap: 9px; color: var(--muted); font-size: 11px;
+  padding: 28px 0 42px; text-align: center; }
+.donate-label { letter-spacing: .08em; text-transform: uppercase; }
+.donate-actions { display: flex; align-items: center; justify-content: center; gap: 11px; }
+.donate-icon { display: grid; place-items: center; width: 38px; height: 38px; box-sizing: border-box; border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 50%; color: #fff; text-decoration: none; font: 800 18px/1 Inter, system-ui, sans-serif; box-shadow: 0 7px 18px rgb(0 0 0 / 20%); }
+.donate-icon:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.donate-zelle { background: #6d1ed4; }
+.donate-venmo { background: #008cff; font-style: italic; }
 
 @media (max-width: 1100px) {
   .topbar .wrap { flex-wrap: wrap; }
@@ -788,6 +796,16 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     <div class="sheet-grid" id="sheet-grid"></div>
   </div>
 
+  <footer class="donate-footer">
+    <span class="donate-label">Donate for me</span>
+    <span class="donate-actions">
+      <a class="donate-icon donate-zelle" id="zelle-donate" href="https://www.zelle.com/get-started" target="_blank" rel="noopener noreferrer"
+        aria-label="Donate bằng Zelle tới số 470-894-5321; sao chép số và mở Zelle" title="Zelle · 470-894-5321"><span aria-hidden="true">Z</span></a>
+      <a class="donate-icon donate-venmo" href="https://venmo.com/u/h13unguyen" target="_blank" rel="noopener noreferrer"
+        aria-label="Donate bằng Venmo cho h13unguyen" title="Venmo · @h13unguyen"><span aria-hidden="true">V</span></a>
+    </span>
+  </footer>
+
 </div>
 
 <script>
@@ -1033,6 +1051,25 @@ const DATA = /*__DATA__*/null;
       apply(next);
       try { localStorage.setItem("theme", next); } catch (e) { /* storage blocked */ }
       render();
+    });
+  }
+
+  function donate() {
+    const zelle = document.getElementById("zelle-donate"), number = "4708945321";
+    if (!zelle) return;
+    const done = (ok) => flash(ok ? "Đã sao chép Zelle · 470-894-5321" : "Zelle · 470-894-5321");
+    const fallback = () => {
+      const input = document.createElement("input");
+      input.value = number; input.setAttribute("readonly", "");
+      input.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+      document.body.append(input); input.select(); input.setSelectionRange(0, number.length);
+      let copied = false;
+      try { copied = document.execCommand("copy"); } catch (_) { /* show the number instead */ }
+      input.remove(); done(copied);
+    };
+    zelle.addEventListener("click", () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(number).then(() => done(true)).catch(fallback);
+      else fallback();
     });
   }
 
@@ -2723,7 +2760,7 @@ const DATA = /*__DATA__*/null;
   }
 
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
-  theme(); header(); filters(); tabs(); mobileNav();
+  theme(); donate(); header(); filters(); tabs(); mobileNav();
   // "EXPERT TRACKER" spans exactly the width of "Actions", whatever font the phone ends up using
   const fitTagline = () => {
     const word = document.querySelector(".brand-word"), tagline = document.querySelector(".brand-tag");
