@@ -366,3 +366,62 @@ test('the spot text decides the ball position when the yard count is missing or 
   assert.equal(home.ball_x,70);          // DET 30 = 30 yards from DET's goal line on the right
   assert.equal(home.team_side,'home');   // no team on the point: the drive's team (DET) keeps the ball; the spot names the side of the field, not the offense
 });
+
+const nbaEvent = (id='401990001') => ({
+  id,date:'2026-11-18T03:00:00Z',
+  status:{period:2,displayClock:'5:25',type:{state:'in',completed:false,shortDetail:'5:25 - 2nd'}},
+  competitions:[{status:{period:2,displayClock:'5:25',type:{state:'in',completed:false,shortDetail:'5:25 - 2nd'}},competitors:[
+    {homeAway:'away',team:{id:'30',displayName:'Charlotte Hornets',name:'Hornets',abbreviation:'CHA',color:'1D1160'},score:'42'},
+    {homeAway:'home',team:{id:'13',displayName:'Los Angeles Lakers',name:'Lakers',abbreviation:'LAL',color:'552583'},score:'50'},
+  ]}],
+});
+const nbaSummary = (id='401990001') => ({
+  header:{id,competitions:[{competitors:[
+    {homeAway:'away',team:{id:'30',abbreviation:'CHA',logos:[{href:'https://a.espncdn.com/i/teamlogos/nba/500/cha.png'}]}},
+    {homeAway:'home',team:{id:'13',abbreviation:'LAL',logos:[{href:'https://a.espncdn.com/i/teamlogos/nba/500/lal.png'}]}},
+  ]}]},
+  plays:[
+    {id:'1',team:{id:'30'},period:{number:2},clock:{displayValue:'6:30'},scoringPlay:true,scoreValue:2},
+    {id:'2',team:{id:'13'},period:{number:2},clock:{displayValue:'6:10'},scoringPlay:true,scoreValue:2},
+    {id:'3',team:{id:'13'},period:{number:2},clock:{displayValue:'5:45'},scoringPlay:true,scoreValue:3},
+    {id:'4',team:{id:'13'},period:{number:2},clock:{displayValue:'5:25'},shootingPlay:true,scoringPlay:true,scoreValue:3,pointsAttempted:3,
+      shortDescription:'3PT Shot Made',text:'LeBron James makes 25-foot three point jumper.',coordinate:{x:25,y:17},awayScore:'42',homeScore:'50'},
+    {id:'5',team:{id:'30'},period:{number:2},clock:{displayValue:'5:20'},shootingPlay:true,scoringPlay:false,scoreValue:0,
+      text:'Corrected play with no verified coordinate.',coordinate:{x:null,y:null}},
+  ],
+  winprobability:[{homeWinPercentage:.58},{homeWinPercentage:.617}],
+});
+test('NBA play-by-play becomes a full-court shot, scoring run and win probability', () => {
+  const e=api.parseEvent(nbaEvent()), visual=api.parseNbaVisual(nbaSummary(),e,e.event_id);
+  assert.equal(visual.play_id,'4');
+  assert.equal(visual.team_side,'home');
+  assert.equal(visual.team_abbr,'LAL');
+  assert.equal(visual.team_logo,'https://a.espncdn.com/i/teamlogos/nba/500/lal.png');
+  assert.equal(visual.made,true);
+  assert.equal(visual.hoop_side,'right');
+  assert.equal(visual.court_x,78.72);
+  assert.equal(visual.court_y,50);
+  assert.deepEqual(JSON.parse(JSON.stringify(visual.run)),{team_side:'home',team_abbr:'LAL',points:8,seconds:45});
+  assert.deepEqual(JSON.parse(JSON.stringify(visual.win_probability)),{team_side:'home',team_abbr:'LAL',pct:61.7});
+  assert.equal(visual.updated_at,undefined);
+});
+test('NBA visual rejects another event and unusable shot coordinates', () => {
+  const e=api.parseEvent(nbaEvent());
+  assert.equal(api.parseNbaVisual(nbaSummary('other'),e,e.event_id),null);
+  const bad=nbaSummary(); bad.plays=bad.plays.map(p=>({...p,coordinate:{x:-9999,y:-9999}}));
+  assert.equal(api.parseNbaVisual(bad,e,e.event_id),null);
+});
+test('live NBA fetches and caches the ESPN shot summary for the five-second score poll', async () => {
+  const raw=nbaEvent('401990002'), target={game_id:990002,league:'nba',start_time:raw.date,
+    away_name:'Charlotte Hornets',home_name:'Los Angeles Lakers',espn_event_id:raw.id}, calls=[];
+  const mock=async (url,opts)=>{calls.push({url,opts});return {ok:true,json:async()=>url.includes('/summary?')
+    ?nbaSummary(raw.id):url.includes('/odds?')?{items:[]}:{events:[raw]}};};
+  const first=await api.fetchGames([target],mock), second=await api.fetchGames([target],mock);
+  assert.equal(first.scores[0].nba_visual.team_abbr,'LAL');
+  assert.equal(second.scores[0].nba_visual.play_id,'4');
+  const summaries=calls.filter(x=>x.url.includes('/basketball/nba/summary?'));
+  assert.equal(summaries.length,1);
+  assert.equal(summaries[0].opts.credentials,'omit');
+  assert.equal(summaries[0].opts.cache,'no-store');
+  assert.equal(first.failed.length,0);
+});
