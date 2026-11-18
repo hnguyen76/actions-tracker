@@ -10,6 +10,7 @@ gitignored files: .telegram_bot_token and .telegram_chat_id.
 
 import html
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -24,6 +25,8 @@ TOTAL_MIN_EXPERTS = 5     # same filter as the Total section of the dashboard
 TG_LIMIT = 3800           # Telegram allows 4096 characters per message
 TG_SEND_ATTEMPTS = 3      # keep a transient network/rate-limit error from losing the pregame alert
 TG_RETRY_MAX_S = 30       # stay below the scheduled task's stale-lock window
+LATE_GAME_MIN = 5         # a live lean only joins the daily recap in the last five minutes of Q4 or in OT
+DOMINANT_DAY_PCT = 80     # call out a strongly one-sided day in the last-game alert
 DASHBOARD = "https://hnguyen76.github.io/actions-tracker/"
 TOKEN_FILE, CHAT_FILE = ".telegram_bot_token", ".telegram_chat_id"
 _DAY = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
@@ -71,6 +74,124 @@ def clear_delivery_error(conn: sqlite3.Connection) -> None:
 
 def _local(start: str) -> pd.Timestamp:
     return pd.Timestamp(start).tz_convert(TZ)
+
+
+def _table(tables: dict, name: str) -> pd.DataFrame:
+    value = tables.get(name)
+    return value if isinstance(value, pd.DataFrame) else pd.DataFrame()
+
+
+def _last_slot(start: str, tables: dict) -> bool:
+    """Whether this kickoff is the latest picked game on its Eastern calendar day."""
+    day = _local(start).strftime("%Y-%m-%d")
+    source = _table(tables, "Picks")
+    if source.empty or "start_time" not in source:
+        source = _table(tables, "Decision_Method")
+    starts = []
+    for value in source.get("start_time", pd.Series(dtype=object)).dropna().astype(str).unique():
+        try:
+            if _local(value).strftime("%Y-%m-%d") == day:
+                starts.append(pd.Timestamp(value))
+        except (TypeError, ValueError):
+            continue
+    return bool(starts) and pd.Timestamp(start) == max(starts)
+
+
+def _clock_seconds(value) -> int | None:
+    match = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", str(value or ""))
+    if not match or int(match.group(2)) >= 60:
+        return None
+    return int(match.group(1)) * 60 + int(match.group(2))
+
+
+def _late_live(row, situation=None) -> bool:
+    """Final, OT, or no more than LATE_GAME_MIN minutes left in the fourth quarter."""
+    if str(getattr(row, "state", "")).lower() == "final":
+        return True
+    info = situation if isinstance(situation, dict) else {}
+    period, clock = info.get("period"), info.get("clock")
+    try:
+        period = int(period) if period is not None else None
+    except (TypeError, ValueError):
+        period = None
+    detail = str(getattr(row, "detail", "") or "")
+    if period is None:
+        if re.search(r"\b(?:OT|overtime)\b", detail, re.I):
+            period = 5
+        elif re.search(r"\b4(?:th|Q)\b|\bQ4\b", detail, re.I):
+            period = 4
+    if clock is None:
+        match = re.search(r"\b(\d{1,2}:\d{2})\b", detail)
+        clock = match.group(1) if match else None
+    seconds = _clock_seconds(clock)
+    return bool(period and (period > 4 or (period == 4 and seconds is not None and seconds <= LATE_GAME_MIN * 60)))
+
+
+def _day_record(tables: dict, final_start: str) -> dict[str, int]:
+    """Results before the last game: graded selections plus live selections very near the finish.
+
+    A game can have separate spread/total/moneyline selections, so the denominator is explicitly the number
+    of selections whose outcome is already known or strongly indicated late in the game.
+    """
+    plays = _table(tables, "Decision_Method")
+    result = {"wins": 0, "losses": 0, "pushes": 0, "late_live": 0}
+    needed = {"game_id", "market", "start_time", "result"}
+    if plays.empty or not needed.issubset(plays.columns):
+        return result
+    day = _local(final_start).strftime("%Y-%m-%d")
+    prior = plays[(plays["start_time"].astype(str) < final_start)].copy()
+    if "et_date" in prior:
+        prior = prior[prior["et_date"].astype(str) == day]
+    else:
+        prior = prior[prior["start_time"].map(lambda value: _local(value).strftime("%Y-%m-%d") == day)]
+    prior = prior.drop_duplicates(["game_id", "market"], keep="last")
+
+    in_play = _table(tables, "In_Play")
+    if not in_play.empty and "source" in in_play:
+        in_play = in_play[in_play["source"] == "Cách của bạn"]
+    live_by_key = {(int(r.game_id), str(r.market)): r for r in in_play.itertuples()} if not in_play.empty else {}
+    scores = _table(tables, "Scores")
+    situations = ({int(r.game_id): r.situation for r in scores.itertuples()}
+                  if not scores.empty and {"game_id", "situation"}.issubset(scores.columns) else {})
+
+    for play in prior.itertuples():
+        outcome = play.result if isinstance(play.result, str) else None
+        if outcome not in ("win", "loss", "push"):
+            live = live_by_key.get((int(play.game_id), str(play.market)))
+            if live is None or not _late_live(live, situations.get(int(play.game_id))):
+                continue
+            outcome = live.now if isinstance(live.now, str) else None
+            if outcome in ("win", "loss", "push"):
+                result["late_live"] += 1
+        if outcome == "win":
+            result["wins"] += 1
+        elif outcome == "loss":
+            result["losses"] += 1
+        elif outcome == "push":
+            result["pushes"] += 1
+    return result
+
+
+def _last_game_note(start: str, group_size: int, tables: dict) -> list[str]:
+    if not _last_slot(start, tables):
+        return []
+    label = "TRẬN CUỐI TRONG NGÀY" if group_size == 1 else "KHUNG GIỜ CUỐI TRONG NGÀY"
+    lines = [f"🏁 <b>{label}</b>"]
+    record = _day_record(tables, start)
+    decided = record["wins"] + record["losses"]
+    if not decided:
+        return lines + ["📊 Chưa có kèo trước đó đủ kết quả để tính tỷ lệ."]
+    win_pct = round(record["wins"] * 100 / decided)
+    loss_pct = 100 - win_pct
+    live = f" · gồm {record['late_live']} kèo gần hết giờ" if record["late_live"] else ""
+    pushes = f" · {record['pushes']} push" if record["pushes"] else ""
+    lines.append(f"📊 Trước trận cuối: {record['wins']} thắng · {record['losses']} thua{pushes} — "
+                 f"thắng {win_pct}% / thua {loss_pct}%{live}")
+    dominant, pct = ("thắng", win_pct) if win_pct >= loss_pct else ("thua", loss_pct)
+    if pct >= DOMINANT_DAY_PCT:
+        icon = "🟢" if dominant == "thắng" else "🔴"
+        lines.append(f"{icon} <b>Hôm nay {dominant} chiếm đa số: {pct}%</b>")
+    return lines
 
 
 def _game_lines(game: dict, decisions: pd.DataFrame, experts: dict) -> tuple[list[str], int]:
@@ -124,7 +245,7 @@ def build_messages(games: list[dict], tables: dict, now: str) -> list[str]:
         head = (f"⏰ <b>{local:%H:%M} ET {_DAY[local.day_of_week]} {local:%d/%m}</b> — còn {mins} phút · "
                 f"{len(blocks)} trận")
         foot = DASHBOARD
-        chunk = [head]
+        chunk = [head, *_last_game_note(start, len(blocks), tables)]
         for block in blocks:
             if len("\n\n".join(chunk + [block, foot])) > TG_LIMIT and len(chunk) > 1:
                 messages.append("\n\n".join(chunk))
