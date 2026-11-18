@@ -42,6 +42,13 @@ exit 0
     assert (repo / ".git" / "actions-last-published").read_text("utf-8").strip() == "abc123"
 
 
-def test_termux_setup_installs_always_on_sync_cron():
+def test_termux_setup_installs_always_on_sync_and_overnight_news_crons():
     setup = (ROOT / "scripts" / "termux_setup.sh").read_text("utf-8")
     assert '2-59/5 * * * * $J sync $L' in setup
+    assert '7-52/15 0-10,23 * * * $J news $L' in setup
+
+
+def test_existing_termux_install_self_heals_overnight_news_cron():
+    script = (ROOT / "scripts" / "auto_update.sh").read_text("utf-8")
+    assert 'auto_update.sh news' in script
+    assert '7-52/15 0-10,23 * * *' in script

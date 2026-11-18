@@ -46,11 +46,12 @@ bash scripts/auto_update.sh update
 
 echo "== 5/5 Hen gio (gio cua dien thoai), giong lich tren may tinh =="
 # sync: every 5 min 24/7 (no data scan); update: every 15 min 11:00-23:00 (+ Sunday from 09:00);
-# alert: every 5 min, same hours; live: every 5 min 09:02-23:57
+# news: ESPN breaking + Yahoo every 15 min overnight; alert: every 5 min, same hours; live: every 5 min 09:02-23:57
 J="bash $REPO/scripts/auto_update.sh"
 L=">> $HOME/actions-auto.log 2>&1"
 ( crontab -l 2>/dev/null | grep -v auto_update.sh || true
   echo "2-59/5 * * * * $J sync $L"
+  echo "7-52/15 0-10,23 * * * $J news $L"
   echo "*/15 11-22 * * * $J update $L"
   echo "0 23 * * * $J update $L"
   echo "*/15 9-10 * * 0 $J update $L"

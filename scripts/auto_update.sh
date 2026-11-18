@@ -3,6 +3,7 @@
 #   auto_update.sh update   every 15 min: `run --budget` (picks, ESPN lines/scores, news, rules)
 #   auto_update.sh alert    every 5 min:  Telegram message ~15 min before kickoff (collects first when due)
 #   auto_update.sh live     every 5 min:  ESPN live scores + finals (light)
+#   auto_update.sh news     every 15 min overnight: ESPN breaking + Yahoo Sports, then rebuild
 #   auto_update.sh sync     every 5 min, 24/7: pull code, rebuild locally and publish only when HEAD changed
 # Collection jobs: pull -> run -> commit data/actions.db (only when it changed) -> push -> publish the site.
 # Commits are tagged "(phone <mode>)" so the PC tasks step aside while the phone is active.
@@ -13,8 +14,9 @@ case "$MODE" in
   update) CMD="run --budget" ;;
   alert)  CMD="alert" ;;
   live)   CMD="live" ;;
+  news)   CMD="news" ;;
   sync)   CMD="" ;;
-  *) echo "che do khong hop le: $MODE (update | alert | live | sync)"; exit 2 ;;
+  *) echo "che do khong hop le: $MODE (update | alert | live | news | sync)"; exit 2 ;;
 esac
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
@@ -56,6 +58,20 @@ ensure_sync_cron() {
   ( crontab -l 2>/dev/null || true
     echo "2-59/5 * * * * bash $REPO/scripts/auto_update.sh sync >> $HOME/actions-auto.log 2>&1" ) | crontab -
   echo "Da them lich sync site 24/7 moi 5 phut."
+}
+
+ensure_news_cron() {
+  case "${PREFIX:-}" in
+    *com.termux*) ;;
+    *) return ;;
+  esac
+  command -v crontab >/dev/null 2>&1 || return
+  if crontab -l 2>/dev/null | grep -Fq "auto_update.sh news"; then
+    return
+  fi
+  ( crontab -l 2>/dev/null || true
+    echo "7-52/15 0-10,23 * * * bash $REPO/scripts/auto_update.sh news >> $HOME/actions-auto.log 2>&1" ) | crontab -
+  echo "Da them lich tin ESPN/Yahoo xuyen dem moi 15 phut."
 }
 
 sync_main() {
@@ -101,6 +117,7 @@ collect_and_commit() {
 }
 
 ensure_sync_cron
+ensure_news_cron
 sync_main
 
 # The overnight job never collects or commits data. It only republishes when a new main HEAD has arrived.

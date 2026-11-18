@@ -200,21 +200,26 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 
 /* tabs + filters toolbar */
 .toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin: 16px 0 0; }
-.news-ticker { display: none; position: relative; min-width: 0; height: 42px; overflow: hidden; border: 1px solid var(--border);
-  border-radius: 12px; background: var(--surface); color: var(--ink-2);
+.news-ticker { display: none; position: relative; min-width: 0; height: 42px; overflow: hidden; align-items: stretch; border: 1px solid var(--border);
+  border-radius: 12px; background: var(--surface); color: var(--ink-2); }
+.news-ticker-window { flex: 1; min-width: 0; overflow: hidden;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent); }
+.news-ticker-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; flex: none; padding: 0 11px;
+  color: #fff; background: #c62828; box-shadow: 7px 0 14px color-mix(in srgb, #c62828 28%, transparent);
+  font-size: 9.5px; font-weight: 800; line-height: 1.05; letter-spacing: .08em; text-align: center; }
+.news-ticker-badge.yahoo { background: #6f2da8; box-shadow: 7px 0 14px color-mix(in srgb, #6f2da8 28%, transparent); }
 .news-ticker-track { display: flex; width: max-content; height: 100%; will-change: transform; animation: news-ticker-scroll var(--ticker-duration, 36s) linear infinite; }
 .news-ticker-group { display: flex; align-items: center; gap: 18px; padding: 0 18px 0 10px; white-space: nowrap; }
 .news-ticker-item { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); text-decoration: none; font-size: 12.5px; }
 .news-ticker-item b { color: var(--ink); font-size: 11.5px; letter-spacing: .02em; }
+.news-ticker-item i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--accent); }
 .news-ticker-item.negative i { background: var(--critical); } .news-ticker-item.positive i { background: var(--good); }
-.news-ticker-item i { width: 7px; height: 7px; flex: none; border-radius: 50%; }
 .news-ticker-sep { color: var(--muted); font-size: 9px; }
 .news-ticker:hover .news-ticker-track, .news-ticker:focus-within .news-ticker-track { animation-play-state: paused; }
 @keyframes news-ticker-scroll { to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) {
-  .news-ticker { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .news-ticker-window { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
   .news-ticker-track { animation: none; }
   .news-ticker-group[aria-hidden="true"] { display: none; }
 }
@@ -644,8 +649,9 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <svg class="filter-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"/></svg>
       <span class="filter-count" id="filter-count" hidden></span>
     </button>
-    <div class="news-ticker" id="news-ticker" aria-label="Tin quan trọng của các trận đang live và sắp đấu" aria-live="off" hidden>
-      <div class="news-ticker-track" id="news-ticker-track"></div>
+    <div class="news-ticker" id="news-ticker" aria-label="Tin thể thao mới nhất" aria-live="off" hidden>
+      <span class="news-ticker-badge" id="news-ticker-badge" hidden></span>
+      <div class="news-ticker-window"><div class="news-ticker-track" id="news-ticker-track"></div></div>
     </div>
     <nav class="tabs" role="tablist">
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
@@ -1158,8 +1164,39 @@ const DATA = /*__DATA__*/null;
   }
 
   function importantNewsTicker() {
-    const ticker = document.getElementById("news-ticker"), track = document.getElementById("news-ticker-track");
-    if (!ticker || !track) return;
+    const ticker = document.getElementById("news-ticker"), track = document.getElementById("news-ticker-track"),
+      badge = document.getElementById("news-ticker-badge");
+    if (!ticker || !track || !badge) return;
+    const safeNewsUrl = (value) => {
+      try { const url = new URL(value); return url.protocol === "https:" ? url.href : null; } catch (_) { return null; }
+    };
+    const sports = T("Sports_News");
+    const espn = sports.filter((item) => item.source === "ESPN" && Number(item.is_breaking) === 1 && item.headline_vi)
+      .sort((a, b) => Date.parse(b.published_at || 0) - Date.parse(a.published_at || 0)).slice(0, 10);
+    const yahoo = sports.filter((item) => item.source === "Yahoo Sports" && item.headline_vi)
+      .sort((a, b) => Date.parse(b.published_at || 0) - Date.parse(a.published_at || 0)).slice(0, 10);
+    const headlineItems = espn.length ? [...espn, ...yahoo] : yahoo;
+    if (headlineItems.length) {
+      badge.hidden = false;
+      badge.textContent = espn.length ? "BREAKING NEWS" : "YAHOO SPORTS";
+      badge.classList.toggle("yahoo", !espn.length);
+      const group = el("div", { class: "news-ticker-group" });
+      for (const item of headlineItems) {
+        const href = safeNewsUrl(item.url);
+        const source = item.section || item.source || "Sports";
+        const attrs = { class: "news-ticker-item", title: `${item.source || "Nguồn"} · ${item.headline_en || item.headline_vi}` };
+        if (href) Object.assign(attrs, { href, target: "_blank", rel: "noopener noreferrer" });
+        const node = el(href ? "a" : "span", attrs, el("i", { "aria-hidden": "true" }),
+          el("b", { text: source }), el("span", { text: item.headline_vi }));
+        group.append(node, el("span", { class: "news-ticker-sep", text: "◆", "aria-hidden": "true" }));
+      }
+      const clone = group.cloneNode(true); clone.setAttribute("aria-hidden", "true");
+      track.replaceChildren(group, clone);
+      track.style.setProperty("--ticker-duration", `${Math.max(38, headlineItems.length * 9)}s`);
+      ticker.hidden = false;
+      return;
+    }
+    badge.hidden = true; badge.textContent = ""; badge.classList.remove("yahoo");
     const games = new Map();
     for (const table of ["Live_Games", "Upcoming_Board", "Decision_Method", "Upcoming"]) {
       for (const game of T(table)) {
@@ -1186,8 +1223,7 @@ const DATA = /*__DATA__*/null;
       const when = live ? "LIVE" : new Date(start).toLocaleTimeString("vi-VN", { weekday: "short", hour: "2-digit", minute: "2-digit" });
       const away = game.away_abbr || game.away_name || "", home = game.home_abbr || game.home_name || "";
       const match = away && home ? `${away} @ ${home}` : leagueName(item.league);
-      let href = null;
-      try { const url = new URL(item.url); if (url.protocol === "https:") href = url.href; } catch (_) { }
+      const href = safeNewsUrl(item.url);
       const attrs = { class: `news-ticker-item ${item.sentiment}`, title: `${item.source || "Nguồn"} · ${item.summary}` };
       if (href) Object.assign(attrs, { href, target: "_blank", rel: "noopener noreferrer" });
       const node = el(href ? "a" : "span", attrs, el("i", { "aria-hidden": "true" }),
