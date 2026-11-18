@@ -83,10 +83,26 @@ ensure_alert_cron() {
   if crontab -l 2>/dev/null | grep -Fq "1-59/5 11-23 * * * bash $REPO/scripts/auto_update.sh alert"; then
     return
   fi
-  ( crontab -l 2>/dev/null | grep -v "auto_update.sh alert" || true
+  current_cron="$(crontab -l 2>/dev/null || true)"
+  ( printf '%s\n' "$current_cron" | grep -v "auto_update.sh alert" || true
     echo "1-59/5 11-23 * * * bash $REPO/scripts/auto_update.sh alert >> $HOME/actions-auto.log 2>&1"
     echo "1-59/5 9-10 * * 0 bash $REPO/scripts/auto_update.sh alert >> $HOME/actions-auto.log 2>&1" ) | crontab -
   echo "Da mo rong lich Telegram den 23:59; tam ngung tu 00:00."
+}
+
+ensure_live_cron() {
+  case "${PREFIX:-}" in
+    *com.termux*) ;;
+    *) return ;;
+  esac
+  command -v crontab >/dev/null 2>&1 || return
+  if crontab -l 2>/dev/null | grep -Fq "3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live"; then
+    return
+  fi
+  current_cron="$(crontab -l 2>/dev/null || true)"
+  ( printf '%s\n' "$current_cron" | grep -v "auto_update.sh live" || true
+    echo "3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live >> $HOME/actions-auto.log 2>&1" ) | crontab -
+  echo "Da mo rong lich live score den 03:00; lan quet cuoi khoang 02:58."
 }
 
 sync_main() {
@@ -134,6 +150,7 @@ collect_and_commit() {
 ensure_sync_cron
 ensure_news_cron
 ensure_alert_cron
+ensure_live_cron
 sync_main
 
 # The overnight job never collects or commits data. It only republishes when a new main HEAD has arrived.
