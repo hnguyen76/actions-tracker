@@ -7,8 +7,10 @@
   const FRESH_DATA_MS = 30000;  // a card whose score is older than this (failed poll after a wake-up) is left alone
   const RED_ZONE_REPEAT_MS = 180000;  // the same team back in the red zone this soon (penalty out and in) is the same drive
 
-  // One jump of a team's score: 6-8 is a touchdown (with or without the try), 3 a field goal; 1-2 are tries/safeties.
-  const scoreKind = (before, after) => {
+  // One football score jump: 6-8 is a touchdown (with or without the try), 3 a field goal.
+  // NBA score changes must never be interpreted as football plays (a three-pointer used to announce "FIELD GOAL").
+  const scoreKind = (before, after, league) => {
+    if (String(league || "").toLowerCase() === "nba") return null;
     const d = after - before;
     return d >= 6 && d <= 8 ? "touchdown" : d === 3 ? "field_goal" : null;
   };
@@ -26,7 +28,7 @@
       const fresh = seen && now - seen.at <= STALE_MS;
       if (fresh) {
         for (const [side, before, after] of [["away", seen.away, away], ["home", seen.home, home]]) {
-          const kind = before !== null && after !== null ? scoreKind(before, after) : null;
+          const kind = before !== null && after !== null ? scoreKind(before, after, g.league) : null;
           if (kind) events.push({ game_id: id, kind, side });
         }
         for (const p of plays) {
@@ -222,7 +224,8 @@
     for (const [event, card] of items) {
       const line = el("div", "bp-line");
       const one = event.away && !event.home ? event.away : event.home && !event.away ? event.home : 0;
-      const tag = one >= 6 && one <= 8 ? "TD" : one === 3 ? "FG" : "";
+      const tag = String(card.league || "").toLowerCase() === "nba" ? ""
+        : one >= 6 && one <= 8 ? "TD" : one === 3 ? "FG" : "";
       if (tag) line.append(el("b", "bp-tag", tag));
       const num = (side) => {
         if (!event[side]) return el("span", "bp-num", String(card[side + "_score"]));
