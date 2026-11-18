@@ -30,7 +30,9 @@ keeping established betting terms in English (spread, total, moneyline, favorite
 - Treat `data/actions.db` as read-only in cloud sessions. Never commit it from Codex Cloud.
 - Treat `data/history/*.csv` as read-only unless the owner explicitly requests a historical-data change.
 - Never commit credentials or ignored key files, including `.telegram_bot_token`, `.telegram_chat_id`,
-  `.odds_api_key`, `.env`, cookies, API keys, or account tokens.
+  `.odds_api_key`, `.wagerhub_credentials.json`, `.env`, cookies, API keys, or account tokens.
+- WagerHub is read-only and runs on the owner's S21: detailed rows stay under ignored `data/private/`. Never
+  request or commit its credentials, publish account history, or call wager confirmation/placement/cashier endpoints.
 - Do not commit generated output from `site/` or `reports/`.
 - Do not fetch Action Network from a cloud machine or attempt to bypass its bot protection. Picks are
   collected only by the home-network device. ESPN and Open-Meteo access is allowed when the task needs it.

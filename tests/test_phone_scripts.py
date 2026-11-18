@@ -48,6 +48,13 @@ def test_termux_setup_installs_always_on_sync_and_overnight_news_crons():
     assert '7-52/15 0-10,23 * * * $J news $L' in setup
 
 
+def test_termux_setup_advertises_manual_read_only_wagerhub_setup_without_cron():
+    setup = (ROOT / "scripts" / "termux_setup.sh").read_text("utf-8")
+    assert "python -m actions_tracker wagerhub-setup" in setup
+    cron = setup.split('J="bash $REPO/scripts/auto_update.sh"', 1)[-1]
+    assert "wagerhub-collect" not in cron
+
+
 def test_existing_termux_install_self_heals_overnight_news_cron():
     script = (ROOT / "scripts" / "auto_update.sh").read_text("utf-8")
     assert 'auto_update.sh news' in script
