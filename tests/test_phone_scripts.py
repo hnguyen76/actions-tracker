@@ -63,6 +63,15 @@ def test_telegram_alert_schedule_runs_after_9pm_until_midnight():
     assert 'ensure_alert_cron' in script
 
 
+def test_live_score_schedule_runs_every_five_minutes_until_3am():
+    setup = (ROOT / "scripts" / "termux_setup.sh").read_text("utf-8")
+    script = (ROOT / "scripts" / "auto_update.sh").read_text("utf-8")
+    assert '3-59/5 0-2,9-23 * * * $J live $L' in setup
+    assert '3-59/5 9-23 * * * $J live $L' not in setup
+    assert '3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live' in script
+    assert 'ensure_live_cron' in script
+
+
 def test_existing_termux_cron_is_replaced_with_late_alert_schedule(tmp_path):
     repo, fake_bin = tmp_path / "repo", tmp_path / "bin"
     scripts = repo / "scripts"
@@ -75,7 +84,8 @@ def test_existing_termux_cron_is_replaced_with_late_alert_schedule(tmp_path):
         f"2-59/5 * * * * bash {scripts / 'auto_update.sh'} sync >> {tmp_path}/actions-auto.log 2>&1\n"
         f"7-52/15 0-10,23 * * * bash {scripts / 'auto_update.sh'} news >> {tmp_path}/actions-auto.log 2>&1\n"
         f"1-59/5 11-22 * * * bash {scripts / 'auto_update.sh'} alert >> {tmp_path}/actions-auto.log 2>&1\n"
-        f"1-59/5 9-10 * * 0 bash {scripts / 'auto_update.sh'} alert >> {tmp_path}/actions-auto.log 2>&1\n",
+        f"1-59/5 9-10 * * 0 bash {scripts / 'auto_update.sh'} alert >> {tmp_path}/actions-auto.log 2>&1\n"
+        f"3-59/5 9-23 * * * bash {scripts / 'auto_update.sh'} live >> {tmp_path}/actions-auto.log 2>&1\n",
         "utf-8",
     )
     crontab = fake_bin / "crontab"
@@ -104,3 +114,6 @@ exit 0
     assert "1-59/5 11-23 * * *" in installed
     assert "1-59/5 11-22 * * *" not in installed
     assert installed.count("auto_update.sh alert") == 2
+    assert "3-59/5 0-2,9-23 * * *" in installed
+    assert "3-59/5 9-23 * * *" not in installed
+    assert installed.count("auto_update.sh live") == 1
