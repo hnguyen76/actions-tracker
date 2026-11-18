@@ -74,6 +74,32 @@ Chạy riêng phần tin và picks chuyên gia, rồi dựng lại dashboard; kh
 
 Tạo lại shortcut: `powershell -ExecutionPolicy Bypass -File scripts/install_shortcut.ps1`
 
+### WagerHub — lịch sử tài khoản riêng tư trên S21
+
+Collector WagerHub chỉ dùng để đọc và phân tích các bảng **History / Settled / Transactions**. Code chặn
+trang xác nhận/đặt cược và các trang nạp, rút hoặc chuyển tiền; chỉ POST đúng form đăng nhập, mọi trang tài khoản
+khác đều dùng GET. Credentials và lịch sử chi tiết chỉ nằm trong vùng riêng của Termux, quyền file `600`, tại
+`.wagerhub_credentials.json` và `data/private/`; cả hai đã gitignore và không được đưa lên dashboard public.
+
+Setup một lần trên S21 (nhập password trực tiếp trong Termux, không gửi qua chat):
+
+```bash
+cd ~/actions-tracker
+git pull
+PYTHONPATH=src python -m actions_tracker wagerhub-setup
+```
+
+Đọc lại và in thống kê W-L-P, win rate, net/ROI khi bảng nguồn có đủ cột:
+
+```bash
+cd ~/actions-tracker
+PYTHONPATH=src python -m actions_tracker wagerhub-collect
+```
+
+Nếu giao diện tài khoản dùng tên trang/cột khác, lần setup vẫn lưu `data/private/wagerhub_discovery.json`
+(chỉ đường dẫn không có query string và tên cột, không chứa password/cookie) để hoàn thiện parser. Không tự thêm
+collector vào cron trước khi lần chạy tay đầu tiên đăng nhập và đọc đúng bảng.
+
 ## Chạy tay / phát triển
 
 ```bash

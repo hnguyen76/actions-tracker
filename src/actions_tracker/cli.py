@@ -473,6 +473,8 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--report", default="reports/actions_report.xlsx")
     a.add_argument("--site", default="site")
     sub.add_parser("telegram-setup", help="find the chat id after you pressed Start in the bot, send a test message")
+    sub.add_parser("wagerhub-setup", help="securely configure the read-only WagerHub history collector")
+    sub.add_parser("wagerhub-collect", help="read settled WagerHub history into a local, gitignored report")
     lv = sub.add_parser("live", help="update live scores of games in progress (ESPN only) and rebuild the dashboard")
     lv.add_argument("--leagues", default=",".join(k for k, on in LEAGUES.items() if on))
     lv.add_argument("--db", default="data/actions.db")
@@ -488,6 +490,12 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "telegram-setup":
         return telegram_setup(Path.cwd())
+    if args.cmd == "wagerhub-setup":
+        from actions_tracker.wagerhub import setup
+        return setup(Path.cwd())
+    if args.cmd == "wagerhub-collect":
+        from actions_tracker.wagerhub import collect
+        return collect(Path.cwd())
     if args.cmd == "build":
         return rebuild_site(Path(args.db), Path(args.site), utc_now())
     if args.cmd == "live":
