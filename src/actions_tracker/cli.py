@@ -283,6 +283,14 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
 
     tables = build_tables(conn, now, Path(db_path).parent / "history")
     if news_fetcher is not None:
+        from actions_tracker.sports_news import load_sports_news, refresh_sports_news
+        try:
+            count = refresh_sports_news(conn, now)
+            tables["Sports_News"] = load_sports_news(conn)
+            if count:
+                print(f"Sports news: {count} tin moi hoac thay doi.")
+        except Exception as e:
+            print(f"Sports news chua cap nhat duoc ({type(e).__name__}); dung cache hien co.")
         from actions_tracker.match_news import load_news, refresh_news
         try:
             refresh_news(conn, tables["Upcoming_Board"], now, fetcher=news_fetcher)
@@ -486,12 +494,15 @@ def main(argv: list[str] | None = None) -> int:
         return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
                            utc_now())
     if args.cmd == "news":
+        from actions_tracker.sports_news import load_sports_news, refresh_sports_news
         from actions_tracker.match_news import board_games, load_news, refresh_news
         from actions_tracker.media_picks import load_picks as load_media_picks, refresh_picks
         conn = db.connect(Path(args.db))
         try:
             now = utc_now()
             tables = build_tables(conn, now, Path(args.db).parent / "history")
+            sports_count = refresh_sports_news(conn, now)
+            tables["Sports_News"] = load_sports_news(conn)
             count = refresh_news(conn, tables["Upcoming_Board"], now, fetcher=Fetcher(delay=(0.3, 0.8)),
                                  force=args.force)
             tables["Match_News"] = load_news(conn, tables["Upcoming_Board"], now)
@@ -512,6 +523,7 @@ def main(argv: list[str] | None = None) -> int:
                        {"odds_api_remaining": int(remaining) if remaining is not None else None})
             games = board_games(conn, tables["Upcoming_Board"], now, include_started=True)
             print(f"Tin tuc: {len(games)} tran; {len(tables['Match_News'])} tom tat; {count} tin cap nhat.")
+            print(f"Sports news: {len(tables['Sports_News'])} tin; {sports_count} tin moi hoac thay doi.")
             print(f"Winner: {len(tables['Media_Picks'])} picks chuyen gia; {media_count} picks cap nhat.")
             return 0
         finally:

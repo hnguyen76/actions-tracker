@@ -87,12 +87,13 @@ def test_offline_end_to_end(tmp_path, monkeypatch):
 
 
 def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, monkeypatch):
-    from actions_tracker import match_news, media_picks
+    from actions_tracker import match_news, media_picks, sports_news
     calls, media_calls = [], []
     monkeypatch.setattr("actions_tracker.cli.utc_now", lambda: NOW)
     monkeypatch.setattr("actions_tracker.cli.run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("picks collected")))
     monkeypatch.setattr(match_news, "refresh_news", lambda conn, board, now, **kw: calls.append((now, kw["force"])) or 0)
     monkeypatch.setattr(media_picks, "refresh_picks", lambda conn, board, now, **kw: media_calls.append((now, kw["force"])) or 0)
+    monkeypatch.setattr(sports_news, "refresh_sports_news", lambda conn, now: 0)
     assert main(["news", "--db", str(tmp_path / "a.db"), "--site", str(tmp_path / "site"),
                  "--report", str(tmp_path / "r.xlsx"), "--force"]) == 0
     assert calls == [(NOW, True)]
@@ -104,6 +105,8 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert 'class="filter-icon"' in html and 'id="filter-count"' in html
     assert 'class="solar-space"' in html and 'solar-earth-travel' in html and 'solar-moon-travel' in html
     assert 'id="news-ticker"' in html and 'importantNewsTicker()' in html and 'news-ticker-scroll' in html
+    assert 'id="news-ticker-badge"' in html and 'T("Sports_News")' in html
+    assert 'BREAKING NEWS' in html and 'YAHOO SPORTS' in html and '"Sports_News":[]' in html
     assert 'prefers-reduced-motion: reduce' in html and 'Chuyển sang giao diện ${target}' in html
     assert 'Donate for me' in html and 'https://venmo.com/u/H13unguyen' in html
     assert 'id="zelle-donate"' in html and 'https://enroll.zellepay.com/qr-codes?data=' in html
