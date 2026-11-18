@@ -7,6 +7,8 @@
   const DRIVE_POLL_MS = 10000;
   const halftimeCache = new Map();
   const driveCache = new Map();
+  const NBA_VISUAL_POLL_MS = 5000;  // follow the existing five-second live-score rhythm
+  const nbaVisualCache = new Map();
   const LIVE_ODDS_POLL_MS = 60000;  // DraftKings live spread / total through ESPN, at most once a minute per game
   const liveOddsCache = new Map();
   const SECOND_HALF_POLL_MS = 60000;  // the second-half line during halftime, at most once a minute per game
@@ -82,6 +84,105 @@
   };
   // "away" / "home" for the ESPN team that has the ball on a drive (null when it cannot be matched)
   const driveSide = (summary, event, drive) => sideOfTeam(drive && drive.team, gameTeams(summary, event));
+  const nbaClockSeconds = (value) => {
+    const raw = String(value || "").trim(), match = /^(\d{1,2}):(\d{2}(?:\.\d+)?)$/.exec(raw);
+    if (match) {
+      const seconds = Number(match[2]);
+      return seconds < 60 ? Number(match[1]) * 60 + seconds : null;
+    }
+    const seconds = Number(raw);
+    return Number.isFinite(seconds) && seconds >= 0 && seconds <= 720 ? seconds : null;
+  };
+  const nbaElapsed = (play) => {
+    const period = boundedInteger(play && play.period && play.period.number, 1, 20);
+    const remaining = nbaClockSeconds(play && play.clock && play.clock.displayValue);
+    if (period === null || remaining === null) return null;
+    const before = period <= 4 ? (period - 1) * 720 : 4 * 720 + (period - 5) * 300;
+    return before + (period <= 4 ? 720 : 300) - remaining;
+  };
+  function nbaRun(plays, teams) {
+    const scoring = [];
+    for (const play of plays) {
+      const side = sideOfTeam(play && play.team, teams);
+      const points = boundedInteger(play && play.scoreValue, 1, 4);
+      if (play && play.scoringPlay === true && side && points !== null) scoring.push({ play, side, points });
+    }
+    if (!scoring.length) return null;
+    const side = scoring[scoring.length - 1].side, run = [];
+    for (let i = scoring.length - 1; i >= 0; i--) {
+      if (scoring[i].side !== side) break;
+      run.unshift(scoring[i]);
+    }
+    const points = run.reduce((sum, item) => sum + item.points, 0);
+    if (points < 6) return null;
+    const first = nbaElapsed(run[0].play), last = nbaElapsed(run[run.length - 1].play);
+    return { team_side: side, team_abbr: teams[side].abbr, points,
+      seconds: first !== null && last !== null ? Math.max(0, Math.round(last - first)) : null };
+  }
+  function parseNbaVisual(summary, event, eventId) {
+    if (!summary || String(summary.header && summary.header.id || "") !== String(eventId)
+      || !Array.isArray(summary.plays)) return null;
+    const teams = gameTeams(summary, event), valid = [];
+    for (const play of summary.plays) {
+      const side = sideOfTeam(play && play.team, teams), coordinate = play && play.coordinate || {};
+      if (coordinate.x === null || coordinate.x === undefined || coordinate.y === null || coordinate.y === undefined) continue;
+      const x = Number(coordinate.x), y = Number(coordinate.y);
+      const period = boundedInteger(play && play.period && play.period.number, 1, 20);
+      if (!play || play.shootingPlay !== true || !side || period === null || !Number.isFinite(x) || !Number.isFinite(y)
+        || x < 0 || x > 50 || y < 0 || y > 50) continue;
+      valid.push({ play, side, x, y: Math.min(47, y), period });
+    }
+    if (!valid.length) return null;
+    const latest = valid[valid.length - 1], play = latest.play;
+    // ESPN normalizes every shot to a half court (50 x 47 ft). Put it on a full court and swap ends at halftime.
+    const left = latest.side === "away" ? latest.period <= 2 : latest.period > 2;
+    const distance = 5 + latest.y / 47 * 45;
+    const courtX = left ? distance : 100 - distance, courtY = 8 + latest.x / 50 * 84;
+    let probability = null;
+    for (let i = Array.isArray(summary.winprobability) ? summary.winprobability.length - 1 : -1; i >= 0; i--) {
+      const home = Number(summary.winprobability[i] && summary.winprobability[i].homeWinPercentage);
+      if (!Number.isFinite(home) || home < 0 || home > 1) continue;
+      const side = home >= .5 ? "home" : "away";
+      probability = { team_side: side, team_abbr: teams[side].abbr, pct: Math.round(Math.max(home, 1 - home) * 1000) / 10 };
+      break;
+    }
+    const attempted = boundedInteger(play.pointsAttempted, 1, 3), scored = boundedInteger(play.scoreValue, 0, 4);
+    const made = play.scoringPlay === true && scored !== null && scored > 0;
+    return {
+      play_id: String(play.id || ""), team_side: latest.side, team_abbr: teams[latest.side].abbr,
+      team_logo: teams[latest.side].logo, made, points_attempted: attempted,
+      label: cleanText(play.shortDescription, 40) || (made ? `+${scored || attempted || 2} Points` : attempted === 3 ? "Missed 3PT" : "Missed FG"),
+      text: cleanText(play.text, 300), clock: cleanText(play.clock && play.clock.displayValue, 12), period: latest.period,
+      away_score: score(play.awayScore), home_score: score(play.homeScore),
+      court_x: Math.round(courtX * 100) / 100, court_y: Math.round(courtY * 100) / 100,
+      hoop_side: left ? "left" : "right", win_probability: probability,
+      run: nbaRun(summary.plays, teams),
+    };
+  }
+  async function fetchNbaVisual(game, event, fetcher) {
+    if (game.league !== "nba" || event.state !== "live" || !/^\d+$/.test(event.event_id)
+      || String(game.espn_event_id || "") !== event.event_id) return null;
+    const key = "nba/" + event.event_id;
+    let cached = nbaVisualCache.get(key);
+    if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;
+    if (!cached) cached = { value: null, nextTry: 0, promise: null };
+    cached.nextTry = Date.now() + NBA_VISUAL_POLL_MS;
+    nbaVisualCache.set(key, cached);
+    cached.promise = (async () => {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const url = `https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${encodeURIComponent(event.event_id)}`;
+        const res = await fetcher(url, { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal });
+        if (res.ok) {
+          const visual = parseNbaVisual(await res.json(), event, event.event_id);
+          if (visual) cached.value = visual;
+        }
+      } catch (error) { /* Keep the last valid shot through a transient ESPN failure. */ }
+      finally { clearTimeout(timeout); }
+      return cached.value;
+    })().finally(() => { cached.promise = null; });
+    return cached.promise;
+  }
   // the ball on the field axis: 0 = away goal line (left) .. 100 = home goal line (right). The spot text names the
   // half of the field ("PIT 16" = 16 yards from PIT's goal line, whoever has the ball); yardsToEndzone counts for
   // the team holding the ball at that moment (after a punt that is the receiving team)
@@ -398,8 +499,10 @@
           if (e.state !== "live") {
             driveCache.delete(game.league + "/" + e.event_id);
             liveOddsCache.delete(game.league + "/" + e.event_id);
+            nbaVisualCache.delete("nba/" + e.event_id);
           }
-          const liveOdds = e.state === "live" ? await fetchLiveOdds(game, e, fetcher) : null;
+          const [liveOdds, nbaVisual] = e.state === "live"
+            ? await Promise.all([fetchLiveOdds(game, e, fetcher), fetchNbaVisual(game, e, fetcher)]) : [null, null];
           // the second-half line is only shown during halftime; it is dropped as soon as the 2nd half starts
           let secondHalf = null;
           if (e.state === "live" && e.is_halftime) {
@@ -410,6 +513,7 @@
           result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
             state: e.state, detail: e.detail, situation, drive, updated_at: checked, graded: false,
             ...(liveOdds ? { live_odds: liveOdds } : {}),
+            ...(nbaVisual ? { nba_visual: nbaVisual } : {}),
             ...(secondHalf ? { second_half: secondHalf } : {}) });
         }));
       } catch (error) { result.failed.push(...part.map((g) => Number(g.game_id))); }
@@ -417,6 +521,6 @@
     }));
     return result;
   }
-  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, parseLiveOdds,
+  root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, parseNbaVisual, parseLiveOdds,
     parseSecondHalf, impliedSecondHalf, halftimeEnd, fetchGames };
 })(globalThis);

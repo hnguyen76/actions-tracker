@@ -247,3 +247,31 @@ test('bet strip: the pick in the state colour, the margin pulsing beside it whil
   assert.ok(!margin.className.split(' ').includes('asb-bet-flash'));
   assert.equal(h.nodes('asb-bet')[0].attributes['aria-label'], 'CIN -4.5 thắng 23.5');
 });
+
+test('live NBA renders the latest ESPN shot on a stable full court and patches it in place', () => {
+  const h = harness(), visual = {
+    play_id:'4',team_side:'home',team_abbr:'LAL',team_logo:'https://a.espncdn.com/i/teamlogos/nba/500/lal.png',
+    made:true,points_attempted:3,label:'3PT Shot Made',text:'LeBron James makes 25-foot three point jumper.',
+    clock:'5:25',period:2,court_x:78.72,court_y:50,hoop_side:'right',
+    run:{team_side:'home',team_abbr:'LAL',points:8,seconds:45},
+    win_probability:{team_side:'home',team_abbr:'LAL',pct:61.7},
+  };
+  const base={league:'nba',detail:'5:25 - 2nd',away_abbr:'CHA',home_abbr:'LAL',away_name:'Charlotte Hornets',home_name:'Los Angeles Lakers',
+    away_score:42,home_score:50,situation:{period:2,clock:'5:25',away_color:'#1d1160',home_color:'#552583'},nba_visual:visual};
+  h.api.render(h.host,[game(base)]);
+  const card=h.nodes('asb-card')[0];
+  assert.equal(h.nodes('asb-nba-visual').length,1);
+  assert.equal(h.nodes('asb-court').length,1);
+  assert.equal(h.nodes('asb-shot-arc').length,1);
+  assert.equal(h.nodes('asb-shot-marker').length,1);
+  assert.equal(h.nodes('asb-nba-wp')[0].textContent,'WP LAL 61.7%');
+  assert.equal(h.nodes('asb-nba-run')[0].textContent,'↑ LAL 8–0 · 0:45');
+  assert.match(h.nodes('asb-nba-play')[0].textContent,/LeBron James/);
+  h.api.render(h.host,[game({...base,detail:'5:02 - 2nd',nba_visual:{...visual,play_id:'6',made:false,label:'Missed 3PT',clock:'5:02',
+    text:'LaMelo Ball misses 27-foot three point jumper.',team_side:'away',team_abbr:'CHA',team_logo:null,court_x:22,court_y:38,hoop_side:'left',run:null}})]);
+  assert.equal(h.nodes('asb-card')[0],card);
+  assert.equal(h.nodes('asb-nba-visual').length,1);
+  assert.ok(h.nodes('asb-nba-visual')[0].className.includes('asb-shot-missed'));
+  assert.equal(h.nodes('asb-shot-x').length,1);
+  assert.match(h.nodes('asb-nba-play')[0].textContent,/LaMelo Ball/);
+});

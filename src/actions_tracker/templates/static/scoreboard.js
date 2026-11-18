@@ -247,6 +247,93 @@
     return section;
   }
 
+  function nbaCourtSvg(visual) {
+    const svg = svgNode("svg", "asb-court-svg", { viewBox: "0 0 1000 500", preserveAspectRatio: "none",
+      "aria-hidden": "true", focusable: "false" });
+    svg.append(
+      svgNode("rect", "asb-court-floor", { x: 15, y: 18, width: 970, height: 464, rx: 22 }),
+      svgNode("line", "asb-court-line", { x1: 500, y1: 18, x2: 500, y2: 482 }),
+      svgNode("circle", "asb-court-line asb-court-center", { cx: 500, cy: 250, r: 58 }),
+      svgNode("rect", "asb-court-line asb-court-paint", { x: 15, y: 153, width: 190, height: 194 }),
+      svgNode("rect", "asb-court-line asb-court-paint", { x: 795, y: 153, width: 190, height: 194 }),
+      svgNode("circle", "asb-court-line", { cx: 205, cy: 250, r: 58 }),
+      svgNode("circle", "asb-court-line", { cx: 795, cy: 250, r: 58 }),
+      svgNode("line", "asb-court-board", { x1: 55, y1: 212, x2: 55, y2: 288 }),
+      svgNode("line", "asb-court-board", { x1: 945, y1: 212, x2: 945, y2: 288 }),
+      svgNode("circle", "asb-court-hoop", { cx: 72, cy: 250, r: 12 }),
+      svgNode("circle", "asb-court-hoop", { cx: 928, cy: 250, r: 12 }),
+      svgNode("path", "asb-court-line", { d: "M15 72H70A205 205 0 0 1 70 428H15" }),
+      svgNode("path", "asb-court-line", { d: "M985 72H930A205 205 0 0 0 930 428H985" }));
+    const shotX = Math.max(0, Math.min(100, Number(visual.court_x))) * 10;
+    const shotY = Math.max(0, Math.min(100, Number(visual.court_y))) * 5;
+    const hoopX = visual.hoop_side === "left" ? 72 : 928, hoopY = 250;
+    const controlX = (shotX + hoopX) / 2, controlY = Math.max(28, Math.min(shotY, hoopY) - 125);
+    svg.append(svgNode("path", "asb-shot-arc " + (visual.made ? "made" : "missed"),
+      { d: `M${shotX.toFixed(1)} ${shotY.toFixed(1)}Q${controlX.toFixed(1)} ${controlY.toFixed(1)} ${hoopX} ${hoopY}` }));
+    const marker = svgNode("g", "asb-shot-marker " + (visual.made ? "made" : "missed"),
+      { transform: `translate(${shotX.toFixed(1)} ${shotY.toFixed(1)})` });
+    marker.append(svgNode("circle", "asb-shot-ring", { r: 24 }), svgNode("circle", "asb-shot-ball", { r: 11 }));
+    marker.append(svgNode("path", "asb-shot-seam", { d: "M-10 0H10M0-10C-5-5-5 5 0 10M0-10C5-5 5 5 0 10" }));
+    if (!visual.made) marker.append(svgNode("path", "asb-shot-x", { d: "M-18-18 18 18M18-18-18 18" }));
+    svg.append(marker);
+    return svg;
+  }
+
+  function nbaVisual(game) {
+    const visual = game.nba_visual;
+    if (league(game) !== "NBA" || game.state !== "live" || !visual || typeof visual !== "object"
+      || !Number.isFinite(Number(visual.court_x)) || !Number.isFinite(Number(visual.court_y))
+      || !["left", "right"].includes(visual.hoop_side)) return null;
+    const section = node("section", "asb-nba-visual " + (visual.made ? "asb-shot-made" : "asb-shot-missed"));
+    const side = visual.team_side === "home" ? "home" : "away";
+    const team = text(visual.team_abbr) || abbreviation(game, side);
+    const result = text(visual.label) || (visual.made ? "+ Points" : "Missed shot");
+    section.setAttribute("aria-label", [team, result, visual.clock && visual.clock + " hiệp " + visual.period,
+      text(visual.text)].filter(Boolean).join(", "));
+    const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
+    const tone = teamColor({ team: { color: String(situation[side + "_color"] || "").replace(/^#/, "") } }) || "#3978d4";
+    section.setAttribute("style", "--asb-nba-tone:" + tone);
+
+    const head = node("div", "asb-nba-head"), identity = node("div", "asb-nba-team");
+    const logoUrl = espnImage(visual.team_logo);
+    if (logoUrl) {
+      const logo = node("img", "asb-nba-logo");
+      logo.setAttribute("src", logoUrl); logo.setAttribute("alt", ""); logo.setAttribute("loading", "lazy");
+      logo.onerror = () => logo.remove(); identity.append(logo);
+    }
+    identity.append(node("strong", "", team), node("span", "asb-nba-result", result));
+    head.append(identity);
+    const probability = visual.win_probability;
+    if (probability && Number.isFinite(Number(probability.pct))) {
+      const wp = node("span", "asb-nba-wp", `WP ${text(probability.team_abbr) || ""} ${Number(probability.pct).toFixed(1)}%`);
+      wp.setAttribute("title", "ESPN win probability"); head.append(wp);
+    }
+    section.append(head);
+
+    const court = node("div", "asb-court");
+    court.setAttribute("role", "img");
+    court.setAttribute("aria-label", `${result} của ${team} tại vị trí cú ném do ESPN cung cấp`);
+    court.append(nbaCourtSvg(visual));
+    section.append(court);
+    const run = visual.run;
+    if (run && Number(run.points) >= 6) {
+      const elapsed = Math.max(0, Math.round(Number(run.seconds)));
+      const seconds = Number.isFinite(elapsed) && elapsed > 0
+        ? ` · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
+      const streak = node("div", "asb-nba-run");
+      const trend = node("span", "asb-nba-trend", "↑ ");
+      trend.setAttribute("aria-hidden", "true");
+      streak.append(trend, node("span", "", `${text(run.team_abbr) || "Đội"} ${Number(run.points)}–0${seconds}`));
+      section.append(streak);
+    }
+    const detail = node("div", "asb-nba-play");
+    const clock = [text(visual.clock), integer(visual.period) && periodLabel(Number(visual.period))].filter(Boolean).join(" · ");
+    if (clock) detail.append(node("strong", "", clock));
+    if (text(visual.text)) detail.append(node("span", "", visual.text));
+    section.append(detail);
+    return section;
+  }
+
   // "Bạn đặt" strip: the bet against the live score - spread margin after the line, or total vs the line
   function betStatus(game) {
     const side = text(game.bet_side), market = text(game.market) || "spread";
@@ -417,6 +504,8 @@
       }
     }
     card.append(main);
+    const nba = nbaVisual(game);
+    if (nba) card.append(nba);
     const bet = betStrip(game);
     if (bet) card.append(bet);
     const liveOdds = liveOddsLine(game);
@@ -488,13 +577,13 @@
     current.dataset.gameId = fresh.dataset.gameId;
     const label = typeof fresh.getAttribute === "function" ? fresh.getAttribute("aria-label") : fresh.attributes["aria-label"];
     if (label) current.setAttribute("aria-label", label);
-    const order = ["asb-meta", "asb-main", "asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"];
+    const order = ["asb-meta", "asb-main", "asb-nba-visual", "asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"];
     patchBlock(current, fresh, "asb-meta", order, "live-card-pregame");
     let main = directChild(current, "asb-main"), freshMain = directChild(fresh, "asb-main");
     if (!main || !freshMain) main = patchBlock(current, fresh, "asb-main", order, "live-card-pregame");
     else for (const name of ["asb-away", "asb-quarters", "asb-home"])
       patchBlock(main, freshMain, name, ["asb-away", "asb-quarters", "asb-home"]);
-    for (const name of ["asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"])
+    for (const name of ["asb-nba-visual", "asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"])
       patchBlock(current, fresh, name, order, "live-card-pregame");
     return current;
   }

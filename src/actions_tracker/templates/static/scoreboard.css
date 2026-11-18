@@ -71,6 +71,50 @@
   font: 500 13px/1 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: -.02em; }
 .asb-last-play { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; margin-top: 10px; color: var(--ink-2); font-size: 12px; line-height: 1.45; }
 .asb-last-play strong { color: var(--ink); white-space: nowrap; }
+
+/* NBA shot map: ESPN supplies a 50 x 47 half-court coordinate; the browser expands it to a stable full court. */
+.asb-nba-visual { margin-top: 12px; padding: 12px; min-width: 0; overflow: hidden; contain: layout paint;
+  border: 1px solid color-mix(in srgb, var(--asb-nba-tone) 36%, var(--border)); border-radius: 12px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--asb-nba-tone) 8%, var(--raised)), var(--raised)); }
+.asb-nba-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
+.asb-nba-team { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink); font-size: 13px; }
+.asb-nba-logo { width: 27px; height: 27px; flex: 0 0 auto; object-fit: contain; }
+.asb-nba-result { padding: 4px 8px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--asb-nba-tone) 13%, transparent);
+  font-size: 11px; font-weight: 750; line-height: 1; white-space: nowrap; text-overflow: ellipsis; }
+.asb-shot-made .asb-nba-result { color: var(--win); }
+.asb-shot-missed .asb-nba-result { color: var(--loss); }
+.asb-nba-wp { flex: 0 0 auto; color: var(--ink-2); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.asb-court { position: relative; aspect-ratio: 2 / 1; max-height: 320px; margin-top: 10px; overflow: hidden; isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--asb-nba-tone) 30%, var(--border)); border-radius: 10px;
+  background: #c99f72; box-shadow: inset 0 0 28px rgb(45 24 10 / 16%); }
+.asb-court::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgb(255 255 255 / 3%) 0 2px, rgb(71 36 11 / 3%) 2px 4px),
+    repeating-linear-gradient(90deg, transparent 0 44px, rgb(82 43 16 / 12%) 44px 45px); }
+.asb-court-svg { width: 100%; height: 100%; display: block; }
+.asb-court-floor { fill: rgb(242 219 185 / 42%); stroke: rgb(63 39 24 / 40%); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.asb-court-line { fill: none; stroke: rgb(79 50 31 / 58%); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.asb-court-center { fill: color-mix(in srgb, var(--asb-nba-tone) 12%, transparent); }
+.asb-court-paint { fill: color-mix(in srgb, var(--asb-nba-tone) 15%, transparent); }
+.asb-court-board { stroke: rgb(255 255 255 / 92%); stroke-width: 5; vector-effect: non-scaling-stroke; }
+.asb-court-hoop { fill: none; stroke: #e45f2b; stroke-width: 4; vector-effect: non-scaling-stroke; }
+.asb-shot-arc { fill: none; stroke: var(--win); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 11 8;
+  vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px rgb(255 255 255 / 55%)); animation: asb-shot-flight 1.8s linear infinite; }
+.asb-shot-arc.missed { stroke: var(--loss); }
+.asb-shot-ring { fill: rgb(10 15 24 / 70%); stroke: var(--win); stroke-width: 4; vector-effect: non-scaling-stroke;
+  animation: asb-shot-ring 1.8s ease-out infinite; }
+.asb-shot-marker.missed .asb-shot-ring { stroke: var(--loss); }
+.asb-shot-ball { fill: #ec8429; stroke: #56290e; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.asb-shot-seam { fill: none; stroke: #54280e; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.asb-shot-x { fill: none; stroke: var(--loss); stroke-width: 4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+@keyframes asb-shot-flight { to { stroke-dashoffset: -38; } }
+@keyframes asb-shot-ring { 0%, 100% { opacity: .95; } 50% { opacity: .35; } }
+.asb-nba-run { margin-top: 9px; padding: 7px 10px; border-radius: 8px; color: var(--ink); display: flex; align-items: center;
+  justify-content: center; gap: 3px; background: color-mix(in srgb, var(--loss) 9%, var(--surface-2));
+  font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.asb-nba-trend { color: var(--loss); font-size: 16px; line-height: 1; }
+.asb-nba-play { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 9px; margin-top: 9px;
+  color: var(--ink-2); font-size: 11px; line-height: 1.4; }
+.asb-nba-play strong { color: var(--ink); white-space: nowrap; }
 @media (max-width: 700px) {
   .asb-card { padding: 12px; }
   .asb-meta { grid-template-columns: 1fr auto; gap: 4px 8px; margin-bottom: 14px; }
@@ -103,6 +147,13 @@
   .asb-yard-numbers { height: 11px; margin-top: 5px; }
   .asb-yard-number { font-size: 10px; }
   .asb-last-play { grid-template-columns: 1fr; gap: 3px; font-size: 11px; }
+  .asb-nba-visual { padding: 10px 8px; }
+  .asb-nba-logo { width: 24px; height: 24px; }
+  .asb-nba-team { gap: 5px; font-size: 12px; }
+  .asb-nba-result { max-width: 116px; padding: 4px 6px; font-size: 10px; }
+  .asb-nba-wp { font-size: 10px; }
+  .asb-court { border-radius: 8px; }
+  .asb-nba-play { grid-template-columns: 1fr; gap: 2px; font-size: 10.5px; }
 }
 
 .asb-2h { margin-top: 10px; padding: 8px 12px; border-radius: 9px; border: 1px dashed color-mix(in srgb, var(--warning) 55%, transparent);
@@ -172,4 +223,6 @@
 @keyframes bp-num-flash { from { opacity: 1; text-shadow: 0 0 10px currentColor; } to { opacity: .25; text-shadow: none; } }
 .bp-toast b { font-weight: 800; letter-spacing: .06em; }
 @keyframes bp-toast { 0% { opacity: 0; transform: translateY(-12px); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .bp-overlay, .bp-card, .bp-bad .bp-card, .bp-overlay::before, .bp-toast { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .asb-shot-arc, .asb-shot-ring, .bp-overlay, .bp-card, .bp-bad .bp-card, .bp-overlay::before, .bp-toast { animation: none; }
+}
