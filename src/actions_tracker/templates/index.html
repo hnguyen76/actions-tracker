@@ -168,7 +168,7 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .chip.err { color: var(--ink); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
 .chip.err::before { background: var(--critical); }
 [hidden] { display: none !important; }
-.filter-toggle, .bottombar, .sheet, .sheet-backdrop { display: none; }
+.filter-toggle, .bottombar { display: none; }
 .clist { display: grid; gap: 8px; }
 .crow { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
   contain: layout paint style; }
@@ -435,7 +435,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   .grid2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-  body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  body { padding-bottom: calc(62px + env(safe-area-inset-bottom)); }
   .topbar { padding-top: env(safe-area-inset-top); }
   .topbar .wrap { flex-wrap: wrap; gap: 6px 10px; }
   .brand { flex: 1; min-width: 0; }
@@ -458,22 +458,16 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   .toolbar.open .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .toolbar.open #range-wrap { grid-column: 1 / -1; }
   .filters select { width: 100%; }
-  .bottombar { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 92%, transparent);
+  .bottombar { display: flex; align-items: center; gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; scroll-snap-type: x proximity;
+    padding: 5px 7px calc(5px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 92%, transparent);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--border); }
-  .bottombar button { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0;
-    color: var(--muted); font: 600 11px/1.1 Inter, system-ui, sans-serif; padding: 6px 2px; border-radius: 10px; cursor: pointer; }
+  .bottombar::-webkit-scrollbar { display: none; }
+  .bottombar button { display: grid; place-items: center; flex: 0 0 48px; min-width: 44px; height: 44px; scroll-snap-align: center;
+    background: none; border: 0; color: var(--muted); padding: 8px; border-radius: 13px; cursor: pointer; }
   .bottombar svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
   .bottombar svg .dot { fill: currentColor; stroke: none; }
-  .bottombar button[aria-current="page"] { color: var(--accent); }
-  .sheet-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(0,0,0,.45); }
-  .sheet:not([hidden]) { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: var(--surface);
-    border-radius: 18px 18px 0 0; border-top: 1px solid var(--border); padding: 8px 14px calc(18px + env(safe-area-inset-bottom)); }
-  .sheet-handle { width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); margin: 4px auto 12px; }
-  .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .sheet-grid button { font: 600 15px/1.2 Inter, system-ui, sans-serif; color: var(--ink); background: var(--surface-2);
-    border: 1px solid var(--border); border-radius: 12px; padding: 14px 12px; text-align: left; cursor: pointer; }
-  .sheet-grid button[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+  .bottombar button[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .wrap { padding: 0 16px; }
   body { font-size: 15px; }
   .topbar { position: static; }
@@ -877,16 +871,19 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   </section>
 
   <nav class="bottombar" id="bottombar" aria-label="Điều hướng">
-    <button type="button" data-go="upcoming" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Kèo</span></button>
-    <button type="button" data-go="inplay"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" class="dot"/></svg><span>Đang đá</span></button>
-    <button type="button" data-go="rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span>Cách của bạn</span></button>
-    <button type="button" data-go="more"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Thêm</span></button>
+    <button type="button" data-go="upcoming" aria-label="Kèo" title="Kèo" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+    <button type="button" data-go="inplay" aria-label="Đang đá" title="Đang đá"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" class="dot"/></svg></button>
+    <button type="button" data-go="past" aria-label="Kèo đã qua" title="Kèo đã qua"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+    <button type="button" data-go="rules" aria-label="Cách của bạn" title="Cách của bạn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
+    <button type="button" data-go="forecast" aria-label="Dự báo" title="Dự báo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V6M4 18h16M7 15l4-4 3 2 5-6"/></svg></button>
+    <button type="button" data-go="nba" aria-label="NBA" title="NBA"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3c-2.5 2.4-4 5.4-4 9s1.5 6.6 4 9M12 3c2.5 2.4 4 5.4 4 9s-1.5 6.6-4 9"/></svg></button>
+    <button type="button" data-go="experts" aria-label="Experts" title="Experts"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6.5 20v-2a5.5 5.5 0 0 1 11 0v2M5 10a2.5 2.5 0 0 0 0 5M19 10a2.5 2.5 0 0 1 0 5"/></svg></button>
+    <button type="button" data-go="consensus" aria-label="Consensus" title="Consensus"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M3.5 18a4.5 4.5 0 0 1 9 0M11.5 18a4.5 4.5 0 0 1 9 0M9.5 13.5h5"/></svg></button>
+    <button type="button" data-go="trend" aria-label="Xu hướng" title="Xu hướng"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l5-5 3 3 7-8"/></svg></button>
+    <button type="button" data-go="history" aria-label="Lịch sử mùa" title="Lịch sử mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v16H4zM7 3v4M17 3v4M4 10h16M8 14h3M8 17h6"/></svg></button>
+    <button type="button" data-go="season-chart" aria-label="Biểu đồ cả mùa" title="Biểu đồ cả mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16M8 17v-5M12 17V7M16 17v-8M20 17V5"/></svg></button>
+    <button type="button" data-go="season" aria-label="Cách của bạn cả mùa" title="Cách của bạn cả mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v4a4 4 0 0 1-8 0V4ZM8 6H4v1a5 5 0 0 0 5 5M16 6h4v1a5 5 0 0 1-5 5M12 12v5M8 20h8M9 17h6"/></svg></button>
   </nav>
-  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
-  <div class="sheet" id="more-sheet" hidden role="dialog" aria-label="Các trang khác">
-    <div class="sheet-handle"></div>
-    <div class="sheet-grid" id="sheet-grid"></div>
-  </div>
 
   <footer class="donate-footer">
     <span class="donate-label">Donate for me</span>
@@ -2675,29 +2672,13 @@ const DATA = /*__DATA__*/null;
     const inplay = document.body.dataset.go === "inplay";
     document.querySelectorAll("#bottombar button").forEach((b) => {
       const g = b.dataset.go;
-      const on = g === "inplay" ? inplay : g === "more" ? !["upcoming", "rules"].includes(tab) : !inplay && g === tab;
+      const on = g === "inplay" ? inplay : !inplay && g === tab;
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
   }
   function mobileNav() {
-    const sheet = document.getElementById("more-sheet"), back = document.getElementById("sheet-backdrop");
-    const close = () => { sheet.hidden = true; back.hidden = true; };
-    back.addEventListener("click", close);
-    const grid = document.getElementById("sheet-grid");
-    grid.replaceChildren(...[...document.querySelectorAll("nav.tabs button")].map((t) => {
-      const b = el("button", { type: "button", text: t.textContent });
-      b.addEventListener("click", () => { close(); document.body.dataset.go = ""; goTab(t.dataset.tab); window.scrollTo(0, 0); syncBottom(); });
-      return b;
-    }));
     document.querySelectorAll("#bottombar button").forEach((b) => b.addEventListener("click", () => {
       const g = b.dataset.go;
-      if (g === "more") {
-        grid.querySelectorAll("button").forEach((x, i) => {
-          const t = document.querySelectorAll("nav.tabs button")[i];
-          if (t && t.getAttribute("aria-selected") === "true") x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current");
-        });
-        sheet.hidden = false; back.hidden = false; return;
-      }
       document.body.dataset.go = g === "inplay" ? "inplay" : "";
       goTab(g === "inplay" ? "upcoming" : g);
       if (g === "inplay") {
