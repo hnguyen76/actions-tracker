@@ -74,6 +74,15 @@ def test_mobile_game_cards_start_collapsed_and_are_keyboard_accessible(tmp_path)
     assert 'open: true' not in html
 
 
+def test_mobile_nav_uses_one_active_background(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert '.bottombar button[aria-current="page"] svg { background: transparent;' in css
+    assert '.bottombar button[aria-current="page"] { color: var(--accent); background:' in css
+    assert '-webkit-tap-highlight-color: transparent' in css
+    assert 'svg { background: var(--accent-wash)' not in css
+
+
 def test_site_version_changes_with_the_template_or_a_static_file():
     from actions_tracker.build_site import site_version
     base = site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"2")])
