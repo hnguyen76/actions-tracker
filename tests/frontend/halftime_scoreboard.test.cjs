@@ -174,6 +174,14 @@ test('at halftime the card shows the second-half line; it is gone once the 2nd h
   h.api.render(h.host, [game({ ...g, detail: '15:00 - 3rd', situation: { period: 3, clock: '15:00' } })]);
   assert.equal(h.nodes('asb-2h').length, 0);
 });
+test('an inferred second-half line is visibly marked as approximate', () => {
+  const h = harness();
+  h.api.render(h.host, [game({ away_abbr: 'BALL', home_abbr: 'OHIO', second_half: { away: 7.5, home: -7.5, total: 26.5, implied: true } })]);
+  const row = h.nodes('asb-2h')[0];
+  assert.equal(row.textContent, '⏱ ≈2H · BALL +7.5 · OHIO -7.5 · Total 26.5');
+  assert.match(row.attributes.title, /suy ra/);
+  assert.match(row.attributes['aria-label'], /Line hiệp 2 suy ra/);
+});
 
 test('team names: ESPN logo and nickname replace the long name; full name until ESPN data arrives', () => {
   const h = harness();

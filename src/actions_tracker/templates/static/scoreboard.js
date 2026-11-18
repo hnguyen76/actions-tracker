@@ -338,9 +338,10 @@
     if (Number.isFinite(h.total)) parts.push("Total " + usNumber(h.total));
     if (!parts.length) return null;
     const row = node("div", "asb-2h");
-    row.setAttribute("title", "Line hiệp 2 trực tiếp của DraftKings qua ESPN");
-    row.setAttribute("aria-label", "Line hiệp 2 trực tiếp " + parts.join(", ") + " qua ESPN");
-    row.append(node("span", "asb-2h-label", "⏱ 2H"));
+    const implied = h.implied === true;
+    row.setAttribute("title", implied ? "Line hiệp 2 suy ra từ live odds toàn trận của ESPN" : "Line hiệp 2 trực tiếp của DraftKings qua ESPN");
+    row.setAttribute("aria-label", (implied ? "Line hiệp 2 suy ra " : "Line hiệp 2 trực tiếp ") + parts.join(", ") + " qua ESPN");
+    row.append(node("span", "asb-2h-label", implied ? "⏱ ≈2H" : "⏱ 2H"));
     for (const part of parts) row.append(node("span", "", " · "), node("span", "asb-2h-val", part));
     return row;
   }
