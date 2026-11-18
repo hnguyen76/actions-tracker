@@ -226,6 +226,8 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .live-card-pregame > summary { display: flex; justify-content: space-between; align-items: center; margin: 0; cursor: pointer; list-style: none; }
 .live-card-pregame > summary::-webkit-details-marker { display: none; }
 .live-card-pregame > summary::after { content: "▾"; font-size: 13px; transition: transform .15s; }
+.live-pregame-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  color: var(--accent); background: var(--raised); font-size: 18px; line-height: 1; }
 .live-card-pregame[open] > summary { margin-bottom: 10px; }
 .live-card-pregame[open] > summary::after { transform: rotate(180deg); }
 .live-card-pregame .detail-grid { border-top: 0; padding-top: 0; }
@@ -1513,7 +1515,8 @@ const DATA = /*__DATA__*/null;
         const card = [...scoreHost.querySelectorAll(".asb-card")].find((node) => Number(node.dataset.gameId) === Number(game.game_id));
         // closed by default to keep the live card short; the viewer opens it when needed (kept open across live updates)
         if (card && !card.querySelector(".live-card-pregame")) card.append(el("details", { class: "live-card-pregame" },
-          el("summary", { class: "detail-h", text: "Thông tin trước trận" }), liveDecisionDetail(game)));
+          el("summary", { class: "detail-h live-pregame-summary", "aria-label": "Thông tin trước trận", title: "Thông tin trước trận" },
+            el("span", { class: "live-pregame-icon", "aria-hidden": "true", text: "ⓘ" })), liveDecisionDetail(game)));
       }
     }
   }

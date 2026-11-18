@@ -288,7 +288,9 @@
     const label = b.pick + " " + word + (b.state === "push" ? "" : " " + b.margin);
     strip.setAttribute("aria-label", label);
     strip.setAttribute("title", label);
-    strip.append(node("span", "asb-bet-pick", b.pick));
+    const ticket = node("span", "asb-bet-label", "🎟");
+    ticket.setAttribute("aria-hidden", "true");
+    strip.append(ticket, node("span", "asb-bet-pick", b.pick));
     if (b.state !== "push") {
       const margin = node("span", "asb-bet-margin", b.margin);
       if (game.state === "live") {
@@ -320,8 +322,9 @@
     const full = "Live odds " + pick + (price ? " " + price : "") + " qua ESPN";
     row.setAttribute("aria-label", full);
     row.setAttribute("title", full);
-    row.append(node("span", "asb-live-odds-label", "📡 ESPN"), node("span", "", " · "),
-      node("span", "asb-live-odds-val", pick + (price ? " (" + price + ")" : "")));
+    const icon = node("span", "asb-live-odds-label", "📡");
+    icon.setAttribute("aria-hidden", "true");
+    row.append(icon, node("span", "asb-live-odds-val", pick + (price ? " (" + price + ")" : "")));
     return row;
   }
 
