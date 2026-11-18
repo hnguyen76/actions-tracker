@@ -21,15 +21,15 @@ test('spread bet: margin after the line decides winning or losing', () => {
   assert.equal(kc.margin, '4');
   const dog = betStatus({ bet_side: 'home', market: 'spread', line: 3.5, away_score: 10, home_score: 3, away_abbr: 'A', home_abbr: 'H' });
   assert.equal(dog.state, 'loss');
-  assert.equal(dog.margin, '3,5');
+  assert.equal(dog.margin, '3.5');
   assert.equal(betStatus({ bet_side: 'home', market: 'spread', line: 3, away_score: 3, home_score: 0 }).state, 'push');
 });
 
 test('total bet and missing data', () => {
   const { betStatus } = load();
   assert.equal(betStatus({ bet_side: 'under', market: 'total', line: 46.5, away_score: 20, home_score: 17 }).state, 'win');
-  assert.equal(betStatus({ bet_side: 'under', market: 'total', line: 46.5, away_score: 20, home_score: 17 }).margin, '9,5');
-  assert.equal(betStatus({ bet_side: 'over', market: 'total', line: 46.5, away_score: 20, home_score: 17 }).margin, '9,5');
+  assert.equal(betStatus({ bet_side: 'under', market: 'total', line: 46.5, away_score: 20, home_score: 17 }).margin, '9.5');
+  assert.equal(betStatus({ bet_side: 'over', market: 'total', line: 46.5, away_score: 20, home_score: 17 }).margin, '9.5');
   assert.equal(betStatus({ bet_side: 'over', market: 'total', line: 46.5, away_score: 20, home_score: 17 }).state, 'loss');
   assert.equal(betStatus({ bet_side: 'home', market: 'spread', line: null, away_score: 1, home_score: 2 }), null);
 });
