@@ -59,6 +59,55 @@ def test_weekday_user_decision_keeps_a_small_total_in_telegram():
     assert "⭐ Total: <b>Under 221,5</b> · 3 expert" in msg
 
 
+def _last_game_tables(final_start=SOON, late_detail="2:00 - 4th"):
+    prior = "2026-11-14T22:00:00.000Z"
+    tables = _tables()
+    tables["Picks"] = pd.DataFrame([
+        dict(game_id=10, start_time=prior), dict(game_id=1, start_time=final_start),
+    ])
+    tables["Decision_Method"] = pd.DataFrame([
+        dict(game_id=10, league="nba", market="spread", start_time=prior, et_date="2026-11-14", result="win"),
+        dict(game_id=11, league="nba", market="spread", start_time=prior, et_date="2026-11-14", result="loss"),
+        dict(game_id=12, league="nba", market="total", start_time=prior, et_date="2026-11-14", result="loss"),
+        dict(game_id=13, league="ncaaf", market="spread", start_time=prior, et_date="2026-11-14", result="loss"),
+        dict(game_id=14, league="nba", market="spread", start_time=prior, et_date="2026-11-14", result=None),
+        dict(game_id=1, league="ncaaf", market="spread", start_time=final_start, et_date="2026-11-14", result=None),
+    ])
+    tables["In_Play"] = pd.DataFrame([
+        dict(game_id=14, league="nba", market="spread", state="live", detail=late_detail,
+             source="Cách của bạn", now="loss"),
+    ])
+    tables["Scores"] = pd.DataFrame([
+        dict(game_id=14, situation={"period": 4, "clock": late_detail.split(" ", 1)[0]}),
+    ])
+    return tables
+
+
+def test_last_game_message_reports_eighty_percent_losses_including_late_live_lean():
+    games = [dict(id=1, league="ncaaf", start_time=SOON, home_abbr="UK", away_abbr="FLA")]
+    [msg] = alerts.build_messages(games, _last_game_tables(), NOW)
+    assert "🏁 <b>TRẬN CUỐI TRONG NGÀY</b>" in msg
+    assert "1 thắng · 4 thua — thắng 20% / thua 80% · gồm 1 kèo gần hết giờ" in msg
+    assert "🔴 <b>Hôm nay thua chiếm đa số: 80%</b>" in msg
+
+
+def test_live_lean_before_last_five_minutes_is_not_counted():
+    games = [dict(id=1, league="ncaaf", start_time=SOON, home_abbr="UK", away_abbr="FLA")]
+    [msg] = alerts.build_messages(games, _last_game_tables(late_detail="7:43 - 4th"), NOW)
+    assert "1 thắng · 3 thua — thắng 25% / thua 75%" in msg
+    assert "gần hết giờ" not in msg and "chiếm đa số" not in msg
+
+
+def test_game_is_not_labeled_last_when_a_later_picked_game_exists():
+    tables = _last_game_tables()
+    tables["Picks"] = pd.concat([tables["Picks"], pd.DataFrame([
+        dict(game_id=99, start_time="2026-11-15T00:30:00.000Z"),
+    ])], ignore_index=True)
+    games = [dict(id=1, league="ncaaf", start_time=SOON, home_abbr="UK", away_abbr="FLA")]
+    [msg] = alerts.build_messages(games, tables, NOW)
+    assert "TRẬN CUỐI" not in msg and "Trước trận cuối" not in msg
+
+
 def test_long_slot_is_split_under_the_telegram_limit(tmp_path):
     games = [dict(id=i, league="ncaaf", start_time=SOON, home_abbr=f"H{i}", away_abbr=f"A{i}") for i in range(80)]
     decisions = pd.DataFrame([dict(game_id=i, market="spread", action="paper", pick=f"H{i} -3", stake_u=0.0,
