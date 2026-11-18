@@ -324,6 +324,21 @@
     if (out.home === null && out.away !== null) out.home = -out.away;
     return out.away === null && out.total === null ? null : out;
   }
+  // Some ESPN games expose a live full-game market at halftime but no propBets collection (404 for the
+  // 2H endpoint). Remove the first-half score from that live market to get the equivalent second-half line.
+  // Mark it as implied so the scoreboard never presents it as a direct DraftKings 2H market.
+  function impliedSecondHalf(live, event) {
+    const awayScore = finite(event && event.away_score), homeScore = finite(event && event.home_score);
+    if (!live || awayScore === null || homeScore === null) return null;
+    const half = (value) => Math.round(value * 2) / 2;
+    const awayFull = finite(live.spread && live.spread.away && live.spread.away.line);
+    const homeFull = finite(live.spread && live.spread.home && live.spread.home.line);
+    const fullTotal = finite(live.total && live.total.line);
+    const away = awayFull === null ? null : half(awayScore - homeScore + awayFull);
+    const home = homeFull === null ? null : half(homeScore - awayScore + homeFull);
+    const total = fullTotal === null || fullTotal < awayScore + homeScore ? null : half(fullTotal - awayScore - homeScore);
+    return away === null && home === null && total === null ? null : { away, home, total, implied: true };
+  }
   async function fetchSecondHalf(game, event, fetcher) {
     if (!["nfl", "ncaaf"].includes(game.league) || !/^\d+$/.test(event.event_id)
       || String(game.espn_event_id || "") !== event.event_id) return null;
@@ -387,7 +402,10 @@
           const liveOdds = e.state === "live" ? await fetchLiveOdds(game, e, fetcher) : null;
           // the second-half line is only shown during halftime; it is dropped as soon as the 2nd half starts
           let secondHalf = null;
-          if (e.state === "live" && e.is_halftime) secondHalf = await fetchSecondHalf(game, e, fetcher);
+          if (e.state === "live" && e.is_halftime) {
+            secondHalf = await fetchSecondHalf(game, e, fetcher);
+            if (!secondHalf) secondHalf = impliedSecondHalf(liveOdds, e);
+          }
           else secondHalfCache.delete(game.league + "/" + e.event_id);
           result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
             state: e.state, detail: e.detail, situation, drive, updated_at: checked, graded: false,
@@ -400,5 +418,5 @@
     return result;
   }
   root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, parseLiveOdds,
-    parseSecondHalf, halftimeEnd, fetchGames };
+    parseSecondHalf, impliedSecondHalf, halftimeEnd, fetchGames };
 })(globalThis);

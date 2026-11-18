@@ -273,6 +273,13 @@ test('second-half lines are read per team from the live prop bets', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(api.parseSecondHalf(propBets(),'17','8'))),{away:-1.5,home:1.5,total:23.5});
   assert.equal(api.parseSecondHalf({items:[]},'17','8'),null);
 });
+test('halftime live full-game odds imply a 2H line when ESPN omits propBets', () => {
+  const live={spread:{away:{line:1.5},home:{line:-1.5}},total:{line:60.5}};
+  assert.deepEqual(JSON.parse(JSON.stringify(api.impliedSecondHalf(live,{away_score:20,home_score:14}))),
+    {away:7.5,home:-7.5,total:26.5,implied:true});
+  assert.equal(api.impliedSecondHalf(null,{away_score:20,home_score:14}),null);
+  assert.equal(api.impliedSecondHalf({total:{line:30}},{away_score:20,home_score:14}),null);
+});
 test('live full-game odds stay attached; second-half props are fetched only at halftime', async () => {
   const raw=event(), start=new Date(Date.now()-90*60000).toISOString(), ended=new Date(Date.now()-3*60000).toISOString();
   raw.id='401873066';raw.date=start;raw.season={type:2};raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
@@ -298,6 +305,15 @@ test('live full-game odds stay attached; second-half props are fetched only at h
   assert.equal(calls2.filter(x=>x.includes('/odds?')).length,1);
   assert.deepEqual(JSON.parse(JSON.stringify(third.scores[0].live_odds)),api.parseLiveOdds(playingLive));
   assert.equal(third.scores[0].second_half,undefined);
+});
+test('halftime fetch falls back to the implied 2H line when the live provider has no propBets ref', async () => {
+  const raw=event();raw.id='401873068';raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
+  raw.status.displayClock='0:00';raw.competitions[0].competitors[0].score='20';raw.competitions[0].competitors[1].score='14';
+  const live=liveMarket(raw.id);delete live.propBets;live.spread=-1.5;live.overUnder=60.5;
+  live.awayTeamOdds.current.pointSpread.american='+1.5';live.homeTeamOdds.current.pointSpread.american='-1.5';
+  const target={...game,start_time:raw.date,espn_event_id:raw.id};
+  const result=await api.fetchGames([target],async url=>({ok:true,json:async()=>url.includes('/odds?')?{items:[live]}:{events:[raw]}}));
+  assert.deepEqual(JSON.parse(JSON.stringify(result.scores[0].second_half)),{away:7.5,home:-7.5,total:26.5,implied:true});
 });
 test('ESPN nickname and espncdn logo are kept on the situation', () => {
   const raw=event();
