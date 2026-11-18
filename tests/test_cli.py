@@ -102,9 +102,11 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert '"Media_Picks":[]' in html and 'label: "Chuyên gia chọn winner"' in html
     assert 'class: "live-card-pregame"' in html and 'liveDecisionDetail(game)' in html
     assert 'class="filter-icon"' in html and 'id="filter-count"' in html
-    assert 'class="theme-icon"' in html and 'Chuyển sang giao diện ${target}' in html
-    assert 'Donate for me' in html and 'https://venmo.com/u/h13unguyen' in html
-    assert 'id="zelle-donate"' in html and '4708945321' in html and 'navigator.clipboard.writeText(number)' in html
+    assert 'class="theme-orbit"' in html and 'theme-earth-spin' in html and 'theme-orbit-spin' in html
+    assert 'prefers-reduced-motion: reduce' in html and 'Chuyển sang giao diện ${target}' in html
+    assert 'Donate for me' in html and 'https://venmo.com/u/H13unguyen' in html
+    assert 'id="zelle-donate"' in html and 'https://enroll.zellepay.com/qr-codes?data=' in html
+    assert '4708945321' in html and 'navigator.clipboard.writeText(number)' in html
     assert 'const DECISION_HOT' in html and 'Object.assign({}, DECISION_HOT, { detail: decisionDetail })' in html
 
 
