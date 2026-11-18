@@ -97,6 +97,12 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .btn:hover { background: var(--raised); }
 .btn.primary { background: var(--accent); border-color: transparent; color: #fff; }
 .btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.icon-control { position: relative; justify-content: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+.theme-icon { font-size: 22px; line-height: 1; }
+.filter-icon { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.filter-count { position: absolute; top: -3px; right: -3px; display: grid; place-items: center; min-width: 18px; height: 18px;
+  padding: 0 4px; border: 2px solid var(--page); border-radius: 999px; color: #fff; background: var(--accent); font-size: 10px; font-weight: 800; line-height: 1; }
+.toolbar.open .filter-toggle { color: var(--accent); background: var(--accent-wash); }
 
 /* status + KPI row */
 .status { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; justify-content: flex-end; min-width: 0; }
@@ -349,14 +355,14 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   .brand h1 { font-size: 16.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .brand-mark { height: 38px; }
   .brand .sub { font-size: 12px; }
-  #theme-toggle { padding: 6px 10px; font-size: 13px; }
+  #theme-toggle { width: 42px; height: 42px; padding: 0; }
   .status { order: 3; flex-basis: 100%; justify-content: flex-start; }
   .status:not(:has(.chip.err)) { display: none; }
   .status .chip:not(.err) { display: none; }
   .status .chip.err { font-size: 11.5px; padding: 3px 9px; }
   nav.tabs { display: none; }
   .toolbar { margin-top: 10px; align-items: center; }
-  .filter-toggle { display: inline-flex; align-items: center; gap: 6px; }
+  .filter-toggle { display: inline-flex; align-items: center; }
   .filters { display: none; width: 100%; }
   .toolbar.open .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .toolbar.open #range-wrap { grid-column: 1 / -1; }
@@ -533,7 +539,7 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
     </div>
     <div class="status" id="league-status"></div>
     <div class="actions">
-      <button class="btn" id="theme-toggle" type="button" aria-label="Đổi giao diện sáng/tối">Sáng</button>
+      <button class="btn icon-control" id="theme-toggle" type="button" aria-label="Chuyển sang giao diện sáng" title="Giao diện sáng"><span class="theme-icon" aria-hidden="true">☀️</span></button>
     </div>
   </div>
 </header>
@@ -543,7 +549,10 @@ footer { color: var(--muted); font-size: 13.5px; padding: 8px 0 40px; }
   <div hidden class="data-health" id="data-health" aria-label="Chất lượng dữ liệu"></div>
 
   <div class="toolbar" id="toolbar">
-    <button class="btn filter-toggle" id="filter-toggle" type="button" aria-expanded="false">Lọc</button>
+    <button class="btn icon-control filter-toggle" id="filter-toggle" type="button" aria-expanded="false" aria-label="Mở bộ lọc" title="Lọc">
+      <svg class="filter-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"/></svg>
+      <span class="filter-count" id="filter-count" hidden></span>
+    </button>
     <nav class="tabs" role="tablist">
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
     <button role="tab" data-tab="rules" aria-selected="false">Quy tắc</button>
@@ -1007,10 +1016,14 @@ const DATA = /*__DATA__*/null;
 
   function theme() {
     const btn = document.getElementById("theme-toggle");
+    const icon = btn.querySelector(".theme-icon");
     const apply = (t) => {
       if (t === "light") document.documentElement.setAttribute("data-theme", "light");
       else document.documentElement.removeAttribute("data-theme");
-      btn.textContent = t === "light" ? "Tối" : "Sáng";
+      const target = t === "light" ? "tối" : "sáng";
+      icon.textContent = t === "light" ? "🌙" : "☀️";
+      btn.setAttribute("aria-label", `Chuyển sang giao diện ${target}`);
+      btn.setAttribute("title", `Giao diện ${target}`);
     };
     let saved = null;
     try { saved = localStorage.getItem("theme"); } catch (e) { /* storage blocked */ }
@@ -2493,13 +2506,18 @@ const DATA = /*__DATA__*/null;
       syncBottom();
     }));
     document.querySelectorAll("nav.tabs button").forEach((t) => t.addEventListener("click", syncBottom));
-    const tb = document.getElementById("toolbar"), ft = document.getElementById("filter-toggle");
+    const tb = document.getElementById("toolbar"), ft = document.getElementById("filter-toggle"), count = document.getElementById("filter-count");
     const label = () => {
       const n = ["f-league", "f-market"].filter((id) => document.getElementById(id).value !== "ALL").length
         + (document.getElementById("f-range").value !== "0" ? 1 : 0);
-      ft.textContent = n ? `Lọc · ${n}` : "Lọc";
+      count.hidden = !n;
+      count.textContent = n || "";
+      const action = tb.classList.contains("open") ? "Đóng" : "Mở";
+      const active = n ? `, ${n} bộ lọc đang dùng` : "";
+      ft.setAttribute("aria-label", `${action} bộ lọc${active}`);
+      ft.setAttribute("title", n ? `Lọc · ${n}` : "Lọc");
     };
-    ft.addEventListener("click", () => { tb.classList.toggle("open"); ft.setAttribute("aria-expanded", String(tb.classList.contains("open"))); });
+    ft.addEventListener("click", () => { tb.classList.toggle("open"); ft.setAttribute("aria-expanded", String(tb.classList.contains("open"))); label(); });
     ["f-league", "f-market", "f-range"].forEach((id) => document.getElementById(id).addEventListener("change", label));
     label();
     PHONE.addEventListener("change", () => render());
