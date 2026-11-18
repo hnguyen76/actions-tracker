@@ -16,6 +16,14 @@ const card = (extra = {}) => ({ game_id: 1, state: 'live', away_score: 14, home_
 const pick = { id: '9001', kind: 'interception', side: 'home', text: 'Pass intercepted.' };
 const plain = (events) => JSON.parse(JSON.stringify(events));
 
+test('detect: NBA score changes never become football touchdown or field-goal notices', () => {
+  const { detect } = load(), m = new Map();
+  let t = 1e6;
+  detect(m, [card({ league: 'nba', away_score: 100, home_score: 100 })], t);
+  assert.deepEqual(plain(detect(m, [card({ league: 'nba', away_score: 103, home_score: 100 })], t += 5000)), []);
+  assert.deepEqual(plain(detect(m, [card({ league: 'nba', away_score: 103, home_score: 107 })], t += 5000)), []);
+});
+
 test('detect: first look only records, then score jumps and new big plays become events', () => {
   const { detect } = load(), m = new Map();
   let t = 1e6;
@@ -103,6 +111,13 @@ test('observe: alerts queue one at a time; a turnover against the bet side is sh
   assert.match(shown[0].textContent, /PIT cướp banh/);
   assert.ok(shown[0].classList.contains('bp-bad'));
   env.click(shown[0]);
+  assert.equal(env.find('bp-overlay').length, 0);
+});
+
+test('observe: an NBA three-pointer updates without showing a FIELD GOAL overlay', () => {
+  const { env, api } = page();
+  api.observe([live({ league: 'nba', away_score: 100, home_score: 100 })]);
+  api.observe([live({ league: 'nba', away_score: 103, home_score: 100 })]);
   assert.equal(env.find('bp-overlay').length, 0);
 });
 
@@ -205,4 +220,19 @@ test('observe: back after a gap, a short top line with the new score; the change
   assert.equal(ms, 6000);
   hide();
   assert.equal(env.find('bp-toast').length, 0);
+});
+
+test('observe: an NBA catch-up score does not use the football FG label', () => {
+  const env = fakeDom();
+  let now = 1e6;
+  const api = load({ document: env.document, matchMedia: () => ({ matches: false }), requestAnimationFrame: () => 0,
+    setTimeout: () => 0, clearTimeout() {}, ActionsScoreboard: { betStatus: () => null },
+    Date: class extends Date { static now() { return now; } } });
+  api.observe([live({ league: 'nba', away_score: 100, home_score: 100 })]);
+  now += 120000;
+  api.observe([live({ league: 'nba', away_score: 103, home_score: 100 })]);
+  const line = env.find('bp-toast');
+  assert.equal(line.length, 1);
+  assert.doesNotMatch(line[0].textContent, /^FG/);
+  assert.match(line[0].textContent, /PIT 103 – 100 CIN$/);
 });
