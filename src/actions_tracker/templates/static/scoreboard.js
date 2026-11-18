@@ -72,6 +72,10 @@
   };
   const league = (game) => String(game.league || "").toUpperCase();
   const abbreviation = (game, side) => text(game[side + "_abbr"]) || text(game[side + "_name"]) || (side === "away" ? "Đội khách" : "Đội nhà");
+  // Betting lines use the American decimal point on the live card (46.5, never 46,5).
+  const usNumber = (value) => String(Math.round(Number(value) * 1000) / 1000);
+  const signed = (value) => (Number(value) > 0 ? "+" : "") + usNumber(value);
+  const americanOdds = (value) => Number.isFinite(Number(value)) ? signed(value) : null;
   // one rhythm for every live pulse on the page (TV dot, game clock): the phase comes from the wall clock,
   // so a clock re-drawn every poll stays in step with the TV dot
   const PULSE_MS = 2400;
@@ -250,9 +254,9 @@
     const line = Number(game.line);
     const away = integer(game.away_score), home = integer(game.home_score);
     if (!side || !Number.isFinite(line) || away === null || home === null) return null;
-    const fmt = (x) => (x > 0 ? "+" : "") + String(x).replace(".", ",");
-    const pts = (x) => String(Math.abs(x)).replace(".", ",");
-    // margin: how far the bet is ahead or behind after the line, just the number beside the state pill ("ĐANG THẮNG 16,5")
+    const fmt = (x) => signed(x);
+    const pts = (x) => usNumber(Math.abs(x));
+    // margin: how far the bet is ahead or behind after the line, just the number beside the pick ("CIN -4.5  16.5")
     if (market === "spread" && (side === "home" || side === "away")) {
       const mine = side === "home" ? home : away, theirs = side === "home" ? away : home;
       const margin = mine + line - theirs;
@@ -266,14 +270,14 @@
       const total = away + home, margin = (total - line) * (side === "over" ? 1 : -1);
       return {
         state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
-        pick: (side === "over" ? "Over " : "Under ") + String(line).replace(".", ","),
+        pick: (side === "over" ? "Over " : "Under ") + usNumber(line),
         margin: pts(total - line),
       };
     }
     return null;
   }
 
-  // "CIN -4,5  23,5": the pick in green (winning) or red (losing), the margin beside it pulsing on the page rhythm
+  // "CIN -4.5  23.5": the pick in green (winning) or red (losing), the margin beside it pulsing on the page rhythm
   // while the game is live; the words ("đang thắng") are kept for screen readers and the tooltip
   function betStrip(game) {
     const b = betStatus(game);
@@ -296,20 +300,45 @@
     return strip;
   }
 
-  // during halftime only: the live second-half line from ESPN (DraftKings), e.g. "PIT -1,5 · CIN +1,5 · Total 23,5"
+  // The one full-game live market that matches the user's play; never show spread on a total play or vice versa.
+  function liveOddsLine(game) {
+    const live = game.live_odds, market = text(game.market), side = text(game.bet_side);
+    if (game.state !== "live" || !live || typeof live !== "object") return null;
+    let pick = null, price = null;
+    if (market === "spread" && (side === "away" || side === "home")) {
+      const selected = live.spread && live.spread[side], line = Number(selected && selected.line);
+      if (!Number.isFinite(line)) return null;
+      pick = abbreviation(game, side) + " " + signed(line);
+      price = americanOdds(selected.odds);
+    } else if (market === "total" && (side === "over" || side === "under")) {
+      const line = Number(live.total && live.total.line);
+      if (!Number.isFinite(line)) return null;
+      pick = (side === "over" ? "Over " : "Under ") + usNumber(line);
+      price = americanOdds(live.total[side + "_odds"]);
+    } else return null;
+    const row = node("div", "asb-live-odds");
+    const full = "Live odds " + pick + (price ? " " + price : "") + " qua ESPN";
+    row.setAttribute("aria-label", full);
+    row.setAttribute("title", full);
+    row.append(node("span", "asb-live-odds-label", "📡 ESPN"), node("span", "", " · "),
+      node("span", "asb-live-odds-val", pick + (price ? " (" + price + ")" : "")));
+    return row;
+  }
+
+  // during halftime only: the live second-half line from ESPN (DraftKings), e.g. "PIT -1.5 · CIN +1.5 · Total 23.5"
   function secondHalfLine(game) {
     const h = game.second_half;
     if (!h || typeof h !== "object") return null;
-    const fmt = (x) => (x > 0 ? "+" : "") + String(x).replace(".", ",");
     const parts = [];
-    if (Number.isFinite(h.away)) parts.push(abbreviation(game, "away") + " " + fmt(h.away));
-    if (Number.isFinite(h.home)) parts.push(abbreviation(game, "home") + " " + fmt(h.home));
-    if (Number.isFinite(h.total)) parts.push("Total " + String(h.total).replace(".", ","));
+    if (Number.isFinite(h.away)) parts.push(abbreviation(game, "away") + " " + signed(h.away));
+    if (Number.isFinite(h.home)) parts.push(abbreviation(game, "home") + " " + signed(h.home));
+    if (Number.isFinite(h.total)) parts.push("Total " + usNumber(h.total));
     if (!parts.length) return null;
     const row = node("div", "asb-2h");
     row.setAttribute("title", "Line hiệp 2 trực tiếp của DraftKings qua ESPN");
-    row.append(node("span", "asb-2h-label", "Line hiệp 2"));
-    for (const part of parts) row.append(node("span", "", " · "), node("span", "asb-2h-val", part));  // "Total 23,5" never splits
+    row.setAttribute("aria-label", "Line hiệp 2 trực tiếp " + parts.join(", ") + " qua ESPN");
+    row.append(node("span", "asb-2h-label", "⏱ 2H"));
+    for (const part of parts) row.append(node("span", "", " · "), node("span", "asb-2h-val", part));
     return row;
   }
 
@@ -386,6 +415,8 @@
     card.append(main);
     const bet = betStrip(game);
     if (bet) card.append(bet);
+    const liveOdds = liveOddsLine(game);
+    if (liveOdds) card.append(liveOdds);
     if (live && halftime) {
       const second = secondHalfLine(game);
       if (second) card.append(second);
@@ -453,13 +484,13 @@
     current.dataset.gameId = fresh.dataset.gameId;
     const label = typeof fresh.getAttribute === "function" ? fresh.getAttribute("aria-label") : fresh.attributes["aria-label"];
     if (label) current.setAttribute("aria-label", label);
-    const order = ["asb-meta", "asb-main", "asb-bet", "asb-2h", "asb-situation", "asb-drive"];
+    const order = ["asb-meta", "asb-main", "asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"];
     patchBlock(current, fresh, "asb-meta", order, "live-card-pregame");
     let main = directChild(current, "asb-main"), freshMain = directChild(fresh, "asb-main");
     if (!main || !freshMain) main = patchBlock(current, fresh, "asb-main", order, "live-card-pregame");
     else for (const name of ["asb-away", "asb-quarters", "asb-home"])
       patchBlock(main, freshMain, name, ["asb-away", "asb-quarters", "asb-home"]);
-    for (const name of ["asb-bet", "asb-2h", "asb-situation", "asb-drive"])
+    for (const name of ["asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"])
       patchBlock(current, fresh, name, order, "live-card-pregame");
     return current;
   }

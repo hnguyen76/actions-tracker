@@ -161,16 +161,16 @@ test('bet strip: pick and margin, no state pill and no ATS explanation line', ()
   const h = harness();
   h.api.render(h.host, [game({ detail: '0:00 - 2nd', away_abbr: 'PIT', home_abbr: 'CIN', away_score: 3, home_score: 24,
     bet_side: 'home', market: 'spread', line: -4.5 })]);
-  assert.equal(h.nodes('asb-bet-pick')[0].textContent, 'CIN -4,5');
+  assert.equal(h.nodes('asb-bet-pick')[0].textContent, 'CIN -4.5');
   assert.equal(h.nodes('asb-bet-state').length, 0);  // no "ĐANG THẮNG" pill: the colour says it
-  assert.equal(h.nodes('asb-bet-margin')[0].textContent, '16,5');
+  assert.equal(h.nodes('asb-bet-margin')[0].textContent, '16.5');
   assert.equal(h.nodes('asb-bet-ats').length, 0);
 });
 test('at halftime the card shows the second-half line; it is gone once the 2nd half starts', () => {
   const h = harness();
   const g = { away_abbr: 'PIT', home_abbr: 'CIN', second_half: { away: -1.5, home: 1.5, total: 23.5 } };
   h.api.render(h.host, [game(g)]);
-  assert.equal(h.nodes('asb-2h')[0].textContent, 'Line hiệp 2 · PIT -1,5 · CIN +1,5 · Total 23,5');
+  assert.equal(h.nodes('asb-2h')[0].textContent, '⏱ 2H · PIT -1.5 · CIN +1.5 · Total 23.5');
   h.api.render(h.host, [game({ ...g, detail: '15:00 - 3rd', situation: { period: 3, clock: '15:00' } })]);
   assert.equal(h.nodes('asb-2h').length, 0);
 });
@@ -187,6 +187,24 @@ test('team names: ESPN logo and nickname replace the long name; full name until 
   assert.equal(logos[0].attributes.src, logo);
   h.api.render(h.host, [game({ detail: '12:15 - 3rd', away_name: 'Pittsburgh Steelers', home_name: 'Cincinnati Bengals', situation: { period: 3, clock: '12:15' } })]);
   assert.deepEqual(h.nodes('asb-name').map((n) => n.textContent), ['Pittsburgh Steelers', 'Cincinnati Bengals']);
+});
+test('live ESPN odds show only the market and side of the play, using American decimals', () => {
+  const h = harness(), market = {
+    provider: 'DraftKings - Live Odds',
+    spread: { away: { line: 6.5, odds: -112 }, home: { line: -6.5, odds: -108 } },
+    total: { line: 44.5, over_odds: -110, under_odds: -112 },
+  };
+  const playing = { detail: '5:47 - 2nd', situation: { period: 2, clock: '5:47' }, live_odds: market };
+  h.api.render(h.host, [game({ ...playing, away_abbr: 'PIT', home_abbr: 'CIN', market: 'spread', bet_side: 'home', line: -4.5 })]);
+  let row = h.nodes('asb-live-odds')[0];
+  assert.equal(row.textContent, '📡 ESPN · CIN -6.5 (-108)');
+  assert.match(row.attributes['aria-label'], /Live odds CIN -6\.5 -108 qua ESPN/);
+  h.api.render(h.host, [game({ ...playing, market: 'total', bet_side: 'under', line: 46.5 })]);
+  row = h.nodes('asb-live-odds')[0];
+  assert.equal(row.textContent, '📡 ESPN · Under 44.5 (-112)');
+  assert.ok(!row.textContent.includes('CIN'));
+  h.api.render(h.host, [game({ ...playing, market: 'ml', bet_side: 'home', line: null })]);
+  assert.equal(h.nodes('asb-live-odds').length, 0);
 });
 test('live clock pulses in step with the TV dot; halftime and final clocks stay still', () => {
   const h = harness();
@@ -207,17 +225,17 @@ test('bet strip: the pick in the state colour, the margin pulsing beside it whil
   h.api.render(h.host, [game({ ...bet, detail: '13:02 - 4th', away_score: 3, home_score: 31, situation: { period: 4, clock: '13:02' } })]);
   let strip = h.nodes('asb-bet')[0];
   assert.ok(strip.className.split(' ').includes('asb-bet-win'));
-  assert.equal(strip.attributes['aria-label'], 'CIN -4,5 đang thắng 23,5');
+  assert.equal(strip.attributes['aria-label'], 'CIN -4.5 đang thắng 23.5');
   let margin = h.nodes('asb-bet-margin')[0];
-  assert.equal(margin.textContent, '23,5');
+  assert.equal(margin.textContent, '23.5');
   assert.ok(margin.className.split(' ').includes('asb-bet-flash'));
   assert.equal(margin.attributes.style, `animation-delay:-${BASE % 2400}ms`);  // same rhythm as the clock and the TV dot
   h.api.render(h.host, [game({ ...bet, detail: '13:02 - 4th', away_score: 21, home_score: 17, situation: { period: 4, clock: '13:02' } })]);
   strip = h.nodes('asb-bet')[0];
   assert.ok(strip.className.split(' ').includes('asb-bet-loss'));
-  assert.equal(strip.attributes['aria-label'], 'CIN -4,5 đang thua 8,5');
+  assert.equal(strip.attributes['aria-label'], 'CIN -4.5 đang thua 8.5');
   h.api.render(h.host, [game({ ...bet, state: 'final', away_score: 3, home_score: 31 })]);
   margin = h.nodes('asb-bet-margin')[0];
   assert.ok(!margin.className.split(' ').includes('asb-bet-flash'));
-  assert.equal(h.nodes('asb-bet')[0].attributes['aria-label'], 'CIN -4,5 thắng 23,5');
+  assert.equal(h.nodes('asb-bet')[0].attributes['aria-label'], 'CIN -4.5 thắng 23.5');
 });
