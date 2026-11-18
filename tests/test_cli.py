@@ -103,7 +103,8 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert '"Media_Picks":[]' in html and 'label: "Chuyên gia chọn winner"' in html
     assert 'class: "live-card-pregame"' in html and 'liveDecisionDetail(game)' in html
     assert 'class="filter-icon"' in html and 'id="filter-count"' in html
-    assert 'class="solar-space"' in html and 'solar-earth-travel' in html and 'solar-moon-travel' in html
+    assert 'class="theme-toggle-icon"' in html and 'class="theme-sun"' in html and 'class="theme-moon"' in html
+    assert 'class="solar-space"' not in html and 'solar-earth-travel' not in html
     assert 'id="news-ticker"' in html and 'importantNewsTicker()' in html and 'news-ticker-scroll' in html
     assert 'id="news-ticker-badge"' in html and 'T("Sports_News")' in html
     assert 'BREAKING NEWS' in html and 'YAHOO SPORTS' in html and '"Sports_News":[]' in html
