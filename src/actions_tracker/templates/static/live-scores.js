@@ -285,8 +285,11 @@
       const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 6000);
       try {
         const id = encodeURIComponent(event.event_id);
+        // ESPN's CDN can keep the canonical odds URL stale for several minutes even with browser no-store.
+        // One URL per polling minute bypasses that edge-cache entry without increasing our request rate.
+        const cacheMinute = Math.floor(Date.now() / LIVE_ODDS_POLL_MS);
         const url = `https://sports.core.api.espn.com/v2/sports/${PATHS[game.league].replace("/", "/leagues/")}`
-          + `/events/${id}/competitions/${id}/odds?lang=en&region=us`;
+          + `/events/${id}/competitions/${id}/odds?lang=en&region=us&live=${cacheMinute}`;
         const res = await fetcher(url, { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal });
         if (res.ok) {
           const body = await res.json();

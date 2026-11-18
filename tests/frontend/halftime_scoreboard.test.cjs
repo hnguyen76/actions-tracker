@@ -197,11 +197,11 @@ test('live ESPN odds show only the market and side of the play, using American d
   const playing = { detail: '5:47 - 2nd', situation: { period: 2, clock: '5:47' }, live_odds: market };
   h.api.render(h.host, [game({ ...playing, away_abbr: 'PIT', home_abbr: 'CIN', market: 'spread', bet_side: 'home', line: -4.5 })]);
   let row = h.nodes('asb-live-odds')[0];
-  assert.equal(row.textContent, '📡 ESPN · CIN -6.5 (-108)');
+  assert.equal(row.textContent, '📡CIN -6.5 (-108)');
   assert.match(row.attributes['aria-label'], /Live odds CIN -6\.5 -108 qua ESPN/);
   h.api.render(h.host, [game({ ...playing, market: 'total', bet_side: 'under', line: 46.5 })]);
   row = h.nodes('asb-live-odds')[0];
-  assert.equal(row.textContent, '📡 ESPN · Under 44.5 (-112)');
+  assert.equal(row.textContent, '📡Under 44.5 (-112)');
   assert.ok(!row.textContent.includes('CIN'));
   h.api.render(h.host, [game({ ...playing, market: 'ml', bet_side: 'home', line: null })]);
   assert.equal(h.nodes('asb-live-odds').length, 0);

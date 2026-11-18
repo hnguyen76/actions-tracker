@@ -290,6 +290,7 @@ test('live full-game odds stay attached; second-half props are fetched only at h
   assert.equal(props.length,1);
   assert.match(props[0],/^https:\/\/sports\.core\.api\.espn\.com\/.*\/odds\/200\/propBets\?.*limit=1000/);
   assert.ok(calls.some(x=>x.startsWith('https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873066/competitions/401873066/odds?')));
+  assert.match(calls.find(x=>x.includes('/odds?')), /[?&]live=\d+$/);
   const playing=event();playing.id='401873067';
   const calls2=[];
   const playingLive=liveMarket(playing.id);
