@@ -289,11 +289,20 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 .pill.dim { color: var(--ink-2); }
 .muted { color: var(--muted); }
 .card.decide { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
-.decide-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 12px; }
+.decide-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .decide-head h2 { margin: 0; }
-.day-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.day-chip { font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink-2); background: var(--surface-2);
-  border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.decide-title-icon { display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 14px;
+  color: var(--accent); background: var(--accent-wash); }
+.decide-title-icon svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+.decide-title-icon svg .dot { fill: currentColor; stroke: none; }
+.day-chips { display: flex; flex: 1; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.day-chips::-webkit-scrollbar { display: none; }
+.day-chip { display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 48px; font-family: inherit;
+  color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 0; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
+.day-calendar { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.day-calendar text { fill: currentColor; stroke: none; font: 700 14px Inter, system-ui, sans-serif; text-anchor: middle; }
 .day-chip[aria-pressed="true"] { color: var(--ink); background: var(--accent-wash); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 .verdict { border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--border); }
 .verdict.go { background: color-mix(in srgb, var(--win) 12%, var(--surface)); border-color: color-mix(in srgb, var(--win) 40%, transparent); }
@@ -621,7 +630,9 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   <section class="panel active" id="tab-upcoming">
     <div class="card decide">
       <div class="decide-head">
-        <h2 id="decide-title">Quyết định</h2>
+        <h2 class="decide-title-icon" id="decide-title" aria-label="Quyết định" title="Quyết định">
+          <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false"><circle cx="14" cy="14" r="10"/><circle cx="14" cy="14" r="5"/><circle cx="14" cy="14" r="1.6" class="dot"/></svg>
+        </h2>
         <div class="day-chips" id="decide-days"></div>
       </div>
       <div class="verdict" id="decide-verdict"></div>
@@ -1601,7 +1612,12 @@ const DATA = /*__DATA__*/null;
     if (!days.includes(state.day)) state.day = days.includes(today) ? today : days[0] || null;
     const chips = document.getElementById("decide-days");
     chips.replaceChildren(...days.slice(0, 5).map((d) => {
-      const b = el("button", { type: "button", class: "day-chip", "aria-pressed": String(d === state.day), text: dayLabel(d) });
+      const label = dayLabel(d), day = String(Number(d.slice(8, 10)));
+      const calendar = svgEl("svg", { class: "day-calendar", viewBox: "0 0 40 40", "aria-hidden": "true" });
+      calendar.append(svgEl("rect", { x: "4", y: "6", width: "32", height: "30", rx: "7" }),
+        svgEl("path", { d: "M4 15h32M12 3v7M28 3v7" }), svgEl("text", { x: "20", y: "29" }, day));
+      const b = el("button", { type: "button", class: "day-chip", "aria-pressed": String(d === state.day),
+        "aria-label": label, title: label }, calendar);
       b.addEventListener("click", () => { state.day = d; decideCard(); });
       return b;
     }));
@@ -1617,7 +1633,10 @@ const DATA = /*__DATA__*/null;
       || (r.action === "skip" && !r.rule_ids && bigTotal(r)));
     const skips = rows.filter((r) => r.action === "skip" && !r.rule_ids && !bigTotal(r));
     const bets = act.filter((r) => r.action === "bet"), paper = act.filter((r) => r.action === "paper");
-    document.getElementById("decide-title").textContent = state.day ? "Quyết định — " + dayLabel(state.day) : "Quyết định";
+    const title = document.getElementById("decide-title");
+    const titleLabel = state.day ? "Quyết định — " + dayLabel(state.day) : "Quyết định";
+    title.setAttribute("aria-label", titleLabel);
+    title.setAttribute("title", titleLabel);
     const verdict = document.getElementById("decide-verdict");
     verdict.replaceChildren();
     if (state.day && bets.length) {

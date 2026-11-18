@@ -324,9 +324,9 @@ tr.heat-yellow > td:first-child, tr.heat-green > td:first-child, tr.heat-purple 
 .verdict.hold { border-left: 0; box-shadow: inset 4px 0 0 var(--warning), inset 0 0 0 1px var(--border); }
 .verdict-main { font-size: 21px; letter-spacing: -.025em; }
 .day-chip {
-  min-height: 38px;
+  min-height: 48px;
   border-color: transparent;
-  padding: 7px 14px;
+  padding: 0;
   background: var(--surface-2);
   box-shadow: inset 0 0 0 1px var(--border);
 }

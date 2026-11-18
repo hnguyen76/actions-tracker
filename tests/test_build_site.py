@@ -83,6 +83,15 @@ def test_mobile_nav_uses_one_active_background(tmp_path):
     assert 'svg { background: var(--accent-wash)' not in css
 
 
+def test_decision_days_are_icon_only_but_accessible(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'class="decide-title-icon"' in html and 'class: "day-calendar"' in html
+    assert '"aria-label": label, title: label' in html
+    assert 'svgEl("text", { x: "20", y: "29" }, day)' in html
+    assert 'class: "day-chip", "aria-pressed": String(d === state.day), text: dayLabel(d)' not in html
+    assert 'document.getElementById("decide-title").textContent' not in html
+
+
 def test_site_version_changes_with_the_template_or_a_static_file():
     from actions_tracker.build_site import site_version
     base = site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"2")])
