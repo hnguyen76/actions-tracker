@@ -472,7 +472,7 @@ def main(argv: list[str] | None = None) -> int:
     b = sub.add_parser("build", help="rebuild the dashboard from the current database without network access")
     b.add_argument("--db", default="data/actions.db")
     b.add_argument("--site", default="site")
-    n = sub.add_parser("news", help="refresh news and expert winners for highlighted football games, then rebuild")
+    n = sub.add_parser("news", help="refresh news and expert winners for upcoming/live games, then rebuild")
     n.add_argument("--db", default="data/actions.db")
     n.add_argument("--site", default="site")
     n.add_argument("--report", default="reports/actions_report.xlsx")
@@ -510,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
             remaining = db.get_meta(conn, "odds_api_remaining")
             build_site(tables, status, Path(args.site), Path(args.report), now,
                        {"odds_api_remaining": int(remaining) if remaining is not None else None})
-            games = board_games(conn, tables["Upcoming_Board"], now)
+            games = board_games(conn, tables["Upcoming_Board"], now, include_started=True)
             print(f"Tin tuc: {len(games)} tran; {len(tables['Match_News'])} tom tat; {count} tin cap nhat.")
             print(f"Winner: {len(tables['Media_Picks'])} picks chuyen gia; {media_count} picks cap nhat.")
             return 0

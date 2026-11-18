@@ -43,9 +43,9 @@ def _item(**changes):
     return item | changes
 
 
-def test_exact_threshold_and_deduplication_exclude_other_leagues_and_started_games(tmp_path):
+def test_exact_threshold_and_deduplication_include_tracked_leagues_but_not_started_games(tmp_path):
     conn = _db(tmp_path)
-    assert [g["id"] for g in news.eligible_games(conn, _board(), NOW)] == [1, 5]
+    assert [g["id"] for g in news.eligible_games(conn, _board(), NOW)] == [1, 3, 5]
     assert news.eligible_games(conn, pd.DataFrame(), NOW) == []
 
 
@@ -96,10 +96,11 @@ def test_refresh_only_fetches_eligible_teams_and_hourly_cache(tmp_path):
     calls = []
     fetcher = lambda url: calls.append(url) or _html()
     assert news.refresh_news(conn, board, NOW, fetcher) == 1
-    assert set(calls) == {"https://www.rotowire.com/football/news.php?team=BUF", "https://www.rotowire.com/football/news.php?team=NYJ"}
+    assert set(calls) == {"https://www.rotowire.com/football/news.php?team=BUF", "https://www.rotowire.com/football/news.php?team=NYJ",
+                          "https://www.rotowire.com/basketball/news.php?team=BOS", "https://www.rotowire.com/basketball/news.php?team=NYK"}
     [row] = news.load_news(conn, board, NOW).to_dict("records")
     assert row["game_id"] == 1 and row["team_abbr"] == "BUF" and row["sentiment"] == "negative"
-    assert news.refresh_news(conn, board, NOW, fetcher) == 0 and len(calls) == 2
+    assert news.refresh_news(conn, board, NOW, fetcher) == 0 and len(calls) == 4
 
 
 def test_refresh_accepts_existing_fetcher_object(tmp_path):
@@ -108,6 +109,35 @@ def test_refresh_accepts_existing_fetcher_object(tmp_path):
         def get_text(self, url):
             return _html()
     assert news.refresh_news(conn, _board(), NOW, Fetcher()) == 1
+
+
+def test_refresh_collects_nba_availability_news(tmp_path):
+    conn = _db(tmp_path)
+    calls = []
+    board = _board().query("game_id == 3")
+    assert news.refresh_news(conn, board, NOW, lambda url: calls.append(url) or _html(
+        player="NBA Starter", team="Boston Celtics", code="BOS")) == 1
+    assert set(calls) == {"https://www.rotowire.com/basketball/news.php?team=BOS",
+                          "https://www.rotowire.com/basketball/news.php?team=NYK"}
+    [row] = news.load_news(conn, board, NOW).to_dict("records")
+    assert row["league"] == "nba" and row["game_id"] == 3 and row["team_abbr"] == "BOS"
+
+
+def test_refresh_keeps_scanning_recent_live_games_with_picks(tmp_path):
+    conn = _db(tmp_path)
+    db.upsert_picks(conn, [dict(id=404, expert_id=1, game_id=4, league="nfl", market="spread", pick_side="home")], NOW)
+    calls = []
+    def fetch(url):
+        calls.append(url)
+        return _html(team="Green Bay Packers", code="GB") if "team=GB" in url else "<html></html>"
+    board = _board().query("game_id == 1")
+    assert news.refresh_news(conn, board, NOW, fetch) == 1
+    assert set(calls) == {"https://www.rotowire.com/football/news.php?team=BUF",
+                          "https://www.rotowire.com/football/news.php?team=NYJ",
+                          "https://www.rotowire.com/football/news.php?team=GB",
+                          "https://www.rotowire.com/football/news.php?team=MIN"}
+    [row] = news.load_news(conn, board, NOW).to_dict("records")
+    assert row["game_id"] == 4 and row["team_abbr"] == "GB"
 
 
 def test_newer_cleared_update_supersedes_older_same_player_injury(tmp_path):
@@ -150,7 +180,7 @@ def test_fetch_failures_preserve_fresh_news_and_are_cached(tmp_path):
     assert news.refresh_news(conn, board, NOW, broken) == 0
     assert not news.load_news(conn, board, NOW).empty
     news.refresh_news(conn, board, NOW, broken)
-    assert len(calls) == 4
+    assert len(calls) == 6
     assert news.load_news(conn, _board(), "2026-11-18T00:00:00Z").empty
 
 

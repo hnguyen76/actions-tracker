@@ -1,4 +1,4 @@
-"""Source-linked availability news for highlighted upcoming football games.
+"""Source-linked availability news for upcoming and recent live NFL, NCAAF and NBA games.
 
 Only explicit availability updates are classified automatically. Analysis from the
 other approved publishers can be added with ``add_verified_news`` after review.
@@ -31,6 +31,15 @@ _NFL = dict(zip(
      "tampa bay buccaneers", "tennessee titans", "washington commanders"],
     "ARI ATL BAL BUF CAR CHI CIN CLE DAL DEN DET GB HOU IND JAX KC LV LAC LAR MIA MIN NE NO NYG NYJ PHI PIT SF SEA TB TEN WAS".split()))
 _NFL_ALIASES = {"JAC": "JAX", "NOR": "NO", "NOS": "NO", "NWE": "NE", "GNB": "GB", "SFO": "SF", "TAM": "TB"}
+_NBA = dict(zip(
+    ["atlanta hawks", "boston celtics", "brooklyn nets", "charlotte hornets", "chicago bulls",
+     "cleveland cavaliers", "dallas mavericks", "denver nuggets", "detroit pistons", "golden state warriors",
+     "houston rockets", "indiana pacers", "los angeles clippers", "los angeles lakers", "memphis grizzlies",
+     "miami heat", "milwaukee bucks", "minnesota timberwolves", "new orleans pelicans", "new york knicks",
+     "oklahoma city thunder", "orlando magic", "philadelphia 76ers", "phoenix suns", "portland trail blazers",
+     "sacramento kings", "san antonio spurs", "toronto raptors", "utah jazz", "washington wizards"],
+    "ATL BOS BKN CHA CHI CLE DAL DEN DET GSW HOU IND LAC LAL MEM MIA MIL MIN NOP NYK OKC ORL PHI PHX POR SAC SAS TOR UTA WAS".split()))
+_NBA_ALIASES = {"GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTH": "UTA", "WSH": "WAS"}
 
 
 def _time(value):
@@ -71,7 +80,7 @@ def eligible_games(conn, board, now):
     cursor = conn.execute(f"SELECT * FROM games WHERE id IN ({','.join('?' for _ in ids)})", ids)
     names = [c[0] for c in cursor.description]
     return [g for row in cursor for g in [dict(zip(names, row))]
-            if g["league"] in ("nfl", "ncaaf") and _time(g["start_time"]) > _time(now)
+            if g["league"] in ("nfl", "ncaaf", "nba") and _time(g["start_time"]) > _time(now)
             and g.get("status") not in ("complete", "closed", "canceled", "cancelled", "postponed")]
 
 
@@ -89,16 +98,18 @@ def board_games(conn, board, now, include_started=False):
         cursor = conn.execute(f"SELECT * FROM games WHERE id IN ({','.join('?' for _ in ids)})", sorted(ids))
         names = [c[0] for c in cursor.description]
         games = [g for row in cursor for g in [dict(zip(names, row))]
-                 if g["league"] in ("nfl", "ncaaf") and _time(g["start_time"]) > _time(now)
+                 if g["league"] in ("nfl", "ncaaf", "nba") and _time(g["start_time"]) > _time(now)
                  and g.get("status") not in ("complete", "closed", "canceled", "cancelled", "postponed")]
     if include_started:
         since = (_time(now) - timedelta(hours=RECENT_H)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         upto = _time(now).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        cursor = conn.execute("SELECT * FROM games g WHERE league IN ('nfl','ncaaf') AND start_time > ? AND start_time <= ? "
+        cursor = conn.execute("SELECT * FROM games g WHERE league IN ('nfl','ncaaf','nba') AND start_time > ? AND start_time <= ? "
                               "AND EXISTS (SELECT 1 FROM picks p WHERE p.game_id = g.id)", (since, upto))
         names = [c[0] for c in cursor.description]
         seen = {g["id"] for g in games}
-        games += [g for row in cursor for g in [dict(zip(names, row))] if g["id"] not in seen]
+        games += [g for row in cursor for g in [dict(zip(names, row))]
+                  if g["id"] not in seen and g.get("status") not in
+                  ("complete", "closed", "canceled", "cancelled", "postponed")]
     return games
 
 
@@ -114,8 +125,9 @@ def _schema(conn):
 def _same_team(record, game, side):
     source, full = _norm(record.get("team")), _norm(game.get(side + "_name"))
     abbr = str(game.get(side + "_abbr") or "").upper()
-    if game["league"] == "nfl":
-        expected = _NFL.get(full, _NFL_ALIASES.get(abbr, abbr))
+    if game["league"] in ("nfl", "nba"):
+        teams, aliases = (_NFL, _NFL_ALIASES) if game["league"] == "nfl" else (_NBA, _NBA_ALIASES)
+        expected = teams.get(full, aliases.get(abbr, abbr))
         return str(record.get("team_code", "")).upper() == expected or source == full and bool(full)
     if not source:
         return False
@@ -261,9 +273,9 @@ def _download(url):
 
 
 def refresh_news(conn, board, now, fetcher=None, force=False):
-    """Refresh public reports at most hourly per URL; failures leave fresh cache intact."""
+    """Refresh public reports for upcoming and recent live games; failures leave fresh cache intact."""
     try:
-        games = board_games(conn, board, now)  # every game on the board, not only the 8+ highlights
+        games = board_games(conn, board, now, include_started=True)  # upcoming board plus picked games live <12h
         if not games:
             return 0
         _schema(conn)
@@ -274,8 +286,10 @@ def refresh_news(conn, board, now, fetcher=None, force=False):
             else:
                 for side in ("home", "away"):
                     abbr = str(game.get(side + "_abbr") or "").upper()
-                    code = _NFL.get(_norm(game.get(side + "_name")), _NFL_ALIASES.get(abbr, abbr))
-                    urls.add("https://www.rotowire.com/football/news.php" + ("?team=" + code if code in _NFL.values() else ""))
+                    teams, aliases = (_NBA, _NBA_ALIASES) if game["league"] == "nba" else (_NFL, _NFL_ALIASES)
+                    code = teams.get(_norm(game.get(side + "_name")), aliases.get(abbr, abbr))
+                    sport = "basketball" if game["league"] == "nba" else "football"
+                    urls.add(f"https://www.rotowire.com/{sport}/news.php" + ("?team=" + code if code in teams.values() else ""))
         records = []
         scope = ",".join(str(game["id"]) for game in games)
         for url in sorted(urls):
@@ -291,7 +305,8 @@ def refresh_news(conn, board, now, fetcher=None, force=False):
                 parsed = parse_rotowire(download(url))
                 if not parsed:
                     error = "no_public_reports"
-                records.extend(("ncaaf" if "/cfootball/" in url else "nfl", r) for r in parsed)
+                league = "ncaaf" if "/cfootball/" in url else "nba" if "/basketball/" in url else "nfl"
+                records.extend((league, r) for r in parsed)
             except Exception as exc:  # a news provider must never stop the picks collector
                 error = type(exc).__name__
             conn.execute("INSERT OR REPLACE INTO match_news_refresh VALUES (?,?,?)", (cache_key, now, error))

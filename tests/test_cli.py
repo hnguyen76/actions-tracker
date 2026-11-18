@@ -103,6 +103,8 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert 'class: "live-card-pregame"' in html and 'liveDecisionDetail(game)' in html
     assert 'class="filter-icon"' in html and 'id="filter-count"' in html
     assert 'class="solar-space"' in html and 'solar-earth-travel' in html and 'solar-moon-travel' in html
+    assert 'class="holiday-showcase"' in html and 'holiday-firework-pop' in html and 'holiday-snow-fall' in html
+    assert 'id="news-ticker"' in html and 'importantNewsTicker()' in html and 'news-ticker-scroll' in html
     assert 'prefers-reduced-motion: reduce' in html and 'Chuyển sang giao diện ${target}' in html
     assert 'Donate for me' in html and 'https://venmo.com/u/H13unguyen' in html
     assert 'id="zelle-donate"' in html and 'https://enroll.zellepay.com/qr-codes?data=' in html
