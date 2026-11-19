@@ -76,88 +76,8 @@ body {
   -webkit-backdrop-filter: saturate(140%) blur(18px);
   backdrop-filter: saturate(140%) blur(18px);
 }
-.topbar .wrap { position: relative; min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
+.topbar .wrap { min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
 .brand-mark { height: 46px; }  /* no CSS filter: it boxed the logo in light mode and clipped the pass arc */
-.holiday-story {
-  position: absolute;
-  z-index: 0;
-  top: 7px;
-  left: clamp(118px, 16vw, 215px);
-  right: 58px;
-  display: none;
-  width: calc(100% - clamp(118px, 16vw, 215px) - 58px);
-  height: 58px;
-  overflow: visible;
-  pointer-events: none;
-}
-.brand, .actions { position: relative; z-index: 1; }
-.season-winter-story .holiday-story { display: block; }
-.season-thanksgiving.season-winter-story .brand-static { animation: none; opacity: 1; }
-.season-thanksgiving.season-winter-story .logo-play { display: none; }
-.holiday-story-stage { opacity: 0; animation: holiday-stage-cycle 24s ease-in-out infinite; }
-.holiday-ground { fill: none; stroke: color-mix(in srgb, var(--border-strong) 64%, transparent); stroke-width: 1.2; stroke-linecap: round; }
-.holiday-tree { transform-box: fill-box; transform-origin: center bottom; animation: holiday-tree-bump 24s ease-in-out infinite; }
-.holiday-tree-green { fill: url(#story-tree); stroke: #073e2b; stroke-width: .9; }
-.holiday-tree-snow { fill: #fff; opacity: .88; transform: translateY(-2px); }
-.holiday-tree-garland { fill: none; stroke: #ffd34f; stroke-width: 1.5; stroke-linecap: round; }
-.holiday-tree-trunk { fill: #754126; }
-.holiday-ornament-a { fill: #ff5e57; } .holiday-ornament-b { fill: #63a4ff; }
-.holiday-snowman { transform-box: fill-box; transform-origin: center bottom; animation: holiday-snowman-hit 24s ease-in-out infinite; }
-.holiday-snowball { fill: url(#story-snow); stroke: #a7cbe3; stroke-width: .8; }
-.holiday-snowman-arm { fill: none; stroke: #75513b; stroke-width: 1.7; stroke-linecap: round; }
-.holiday-snowman-hat { fill: #263447; stroke: #111b29; stroke-width: 1.3; stroke-linecap: round; }
-.holiday-snowman-eye, .holiday-snowman-button { fill: #263447; }
-.holiday-snowman-nose { fill: #f28c28; }
-.holiday-scarf { fill: none; stroke: #e24444; stroke-width: 2.4; stroke-linecap: round; }
-.holiday-impact { opacity: 0; fill: #ffd34f; filter: url(#story-glow); transform-box: fill-box; transform-origin: center; animation: holiday-impact-pop 24s ease-out infinite; }
-.holiday-turkey-runner { opacity: 0; transform-box: fill-box; transform-origin: center bottom; animation: holiday-turkey-trip 24s ease-in-out infinite; }
-.holiday-turkey-body { fill: #8f4a26; } .holiday-turkey-wing { fill: #6b3418; }
-.holiday-turkey-neck { fill: #93502b; } .holiday-turkey-head { fill: #b06a3b; }
-.holiday-turkey-beak { fill: var(--tg-2); } .holiday-turkey-wattle { fill: var(--tg-3); }
-.holiday-turkey-eye-white { fill: #fff; } .holiday-turkey-eye { fill: #141414; }
-.holiday-feather-a { fill: var(--tg-3); } .holiday-feather-b { fill: var(--tg-1); } .holiday-feather-c { fill: var(--tg-2); }
-.holiday-turkey-leg { fill: none; stroke: var(--tg-2); stroke-width: 1.8; stroke-linecap: round; }
-.holiday-turkey-leg-a, .holiday-turkey-leg-b { transform-box: fill-box; transform-origin: top center; }
-.holiday-turkey-leg-a { animation: holiday-leg-a 24s linear infinite; }
-.holiday-turkey-leg-b { animation: holiday-leg-b 24s linear infinite; }
-.holiday-football { opacity: 0; transform-box: fill-box; transform-origin: center; animation: holiday-ball-flight 24s cubic-bezier(.22, .7, .22, 1) infinite; }
-.holiday-football ellipse { fill: #9b562e; stroke: #54270f; stroke-width: 1; }
-.holiday-football path { fill: none; stroke: #fff; stroke-width: 1.1; stroke-linecap: round; }
-.holiday-ball-glow { opacity: 0; fill: none; stroke: #ffd34f; stroke-width: 1.4; filter: url(#story-glow); animation: holiday-ball-land 24s ease-out infinite; }
-
-@keyframes holiday-stage-cycle { 0%, 70%, 99%, 100% { opacity: 0; } 72%, 97% { opacity: 1; } }
-@keyframes holiday-turkey-trip {
-  0%, 72% { opacity: 0; transform: translate(0, 0) rotate(0); }
-  73% { opacity: 1; transform: translate(0, 0) rotate(0); }
-  77% { opacity: 1; transform: translate(18px, -4px) rotate(-7deg); }
-  79% { transform: translate(38px, 0) rotate(4deg); }
-  82% { transform: translate(132px, -2px) rotate(-2deg); }
-  85% { transform: translate(245px, 0) rotate(3deg); }
-  87% { transform: translate(338px, 0) rotate(8deg); }
-  89% { opacity: 1; transform: translate(351px, 8px) rotate(72deg); }
-  96% { opacity: 1; transform: translate(354px, 9px) rotate(78deg); }
-  98%, 100% { opacity: 0; transform: translate(354px, 9px) rotate(78deg); }
-}
-@keyframes holiday-ball-flight {
-  0%, 71% { opacity: 0; transform: translate(-28px, -13px) rotate(-25deg); }
-  72% { opacity: 1; transform: translate(-28px, -13px) rotate(-25deg); }
-  77% { opacity: 1; transform: translate(45px, 4px) rotate(155deg); }
-  79% { transform: translate(72px, 5px) rotate(205deg); }
-  82% { transform: translate(166px, 3px) rotate(315deg); }
-  85% { transform: translate(279px, 5px) rotate(445deg); }
-  87% { transform: translate(372px, 5px) rotate(535deg); }
-  89% { transform: translate(421px, -22px) rotate(635deg); }
-  92% { transform: translate(512px, -37px) rotate(790deg); }
-  95% { opacity: 1; transform: translate(625px, -16px) rotate(950deg); }
-  97% { opacity: 1; transform: translate(625px, -16px) rotate(950deg); }
-  98%, 100% { opacity: 0; transform: translate(625px, -16px) rotate(950deg); }
-}
-@keyframes holiday-snowman-hit { 0%, 86%, 100% { transform: rotate(0); } 88% { transform: rotate(14deg); } 90% { transform: rotate(-7deg); } 93% { transform: rotate(4deg); } 95% { transform: rotate(0); } }
-@keyframes holiday-impact-pop { 0%, 86%, 91%, 100% { opacity: 0; transform: scale(.2) rotate(0); } 88% { opacity: 1; transform: scale(1.25) rotate(24deg); } 89% { opacity: .75; transform: scale(.8) rotate(42deg); } }
-@keyframes holiday-tree-bump { 0%, 93%, 100% { transform: rotate(0); } 95% { transform: rotate(3deg); } 96% { transform: rotate(-2deg); } 97% { transform: rotate(0); } }
-@keyframes holiday-ball-land { 0%, 94%, 98%, 100% { opacity: 0; transform: scale(.3); } 95%, 97% { opacity: .9; transform: scale(1.15); } }
-@keyframes holiday-leg-a { 0%, 78%, 89%, 100% { transform: rotate(0); } 80%, 84% { transform: rotate(30deg); } 82%, 86% { transform: rotate(-30deg); } }
-@keyframes holiday-leg-b { 0%, 78%, 89%, 100% { transform: rotate(0); } 80%, 84% { transform: rotate(-30deg); } 82%, 86% { transform: rotate(30deg); } }
 .logo-play { opacity: 0; }
 .logo-play-ground { fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-linecap: round; }
 /* the quarterback: helmet with stripe and face mask, #7 jersey, pants, gloves, cleats */
@@ -566,5 +486,4 @@ footer { padding-bottom: 52px; }
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
   .season-thanksgiving .logo-turkey-leg-a, .season-thanksgiving .logo-turkey-leg-b { animation: none; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }
-  .season-winter-story .holiday-story { display: none; }
 }
