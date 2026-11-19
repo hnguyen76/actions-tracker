@@ -158,7 +158,6 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .news-ticker-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; flex: none; padding: 0 11px;
   color: #fff; background: #c62828; box-shadow: 7px 0 14px color-mix(in srgb, #c62828 28%, transparent);
   font-size: 9.5px; font-weight: 800; line-height: 1.05; letter-spacing: .08em; text-align: center; }
-.news-ticker-badge.yahoo { background: #6f2da8; box-shadow: 7px 0 14px color-mix(in srgb, #6f2da8 28%, transparent); }
 .news-ticker-track { display: flex; width: max-content; height: 100%; will-change: transform; animation: news-ticker-scroll var(--ticker-duration, 36s) linear infinite; }
 .news-ticker-group { display: flex; align-items: center; gap: 18px; padding: 0 18px 0 10px; white-space: nowrap; }
 .news-ticker-item { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); text-decoration: none; font-size: 12.5px; }
@@ -1183,9 +1182,8 @@ const DATA = /*__DATA__*/null;
       .sort((a, b) => Date.parse(b.published_at || 0) - Date.parse(a.published_at || 0)).slice(0, 10);
     const headlineItems = espn.length ? [...espn, ...yahoo] : yahoo;
     if (headlineItems.length) {
-      badge.hidden = false;
-      badge.textContent = espn.length ? "BREAKING NEWS" : "YAHOO SPORTS";
-      badge.classList.toggle("yahoo", !espn.length);
+      badge.hidden = !espn.length;
+      badge.textContent = espn.length ? "BREAKING NEWS" : "";
       const group = el("div", { class: "news-ticker-group" });
       for (const item of headlineItems) {
         const href = safeNewsUrl(item.url);
@@ -1202,7 +1200,7 @@ const DATA = /*__DATA__*/null;
       ticker.hidden = false;
       return;
     }
-    badge.hidden = true; badge.textContent = ""; badge.classList.remove("yahoo");
+    badge.hidden = true; badge.textContent = "";
     const games = new Map();
     for (const table of ["Live_Games", "Upcoming_Board", "Decision_Method", "Upcoming"]) {
       for (const game of T(table)) {
