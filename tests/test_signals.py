@@ -66,6 +66,60 @@ def test_signals_for_the_side_bet():
     assert ("🟢", "Tiền lớn nghiêng về bạn: vé 30% · tiền 55%") in two
 
 
+def test_weekday_signal_shows_this_weeks_graded_similar_pick_bucket_only():
+    decisions = _df([dict(game_id=9, market="spread", bet_side="home")],
+                    ["game_id", "market", "bet_side"])
+    plays = pd.DataFrame([
+        dict(game_id=9, market="spread", start_time="2026-11-20T01:00:00Z", et_date="2026-11-19",
+             day_group="T2-6", votes=8, total_votes=9, result=None),
+        dict(game_id=1, market="spread", start_time="2026-11-17T01:00:00Z", et_date="2026-11-16",
+             day_group="T2-6", votes=3, total_votes=4, result="win"),
+        dict(game_id=2, market="total", start_time="2026-11-18T01:00:00Z", et_date="2026-11-17",
+             day_group="T2-6", votes=5, total_votes=6, result="win"),
+        dict(game_id=3, market="ml", start_time="2026-11-19T01:00:00Z", et_date="2026-11-18",
+             day_group="T2-6", votes=4, total_votes=5, result="loss"),
+        # Different pick-share bucket, prior week, and weekend are all excluded.
+        dict(game_id=4, market="spread", start_time="2026-11-18T02:00:00Z", et_date="2026-11-17",
+             day_group="T2-6", votes=2, total_votes=3, result="loss"),
+        dict(game_id=5, market="spread", start_time="2026-11-13T01:00:00Z", et_date="2026-11-12",
+             day_group="T2-6", votes=4, total_votes=5, result="loss"),
+        dict(game_id=6, market="spread", start_time="2026-11-16T01:00:00Z", et_date="2026-11-15",
+             day_group="T7-CN", votes=8, total_votes=9, result="loss"),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays)
+    [row] = got.to_dict("records")
+    assert (row["tone"], row["text"]) == (
+        "🟢", "Kèo đã qua tuần này · pick tương đương 75–90%: 2 thắng · 1 thua")
+
+
+def test_weekly_pick_record_is_not_shown_on_weekends_or_without_prior_graded_plays():
+    decisions = _df([dict(game_id=9, market="spread", bet_side="home")],
+                    ["game_id", "market", "bet_side"])
+    weekend = pd.DataFrame([dict(game_id=9, market="spread", start_time="2026-11-22T18:00:00Z",
+                                 et_date="2026-11-22", day_group="T7-CN", votes=8, total_votes=9,
+                                 result=None)])
+    assert signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=weekend).empty
+
+
+def test_weekday_signal_is_red_when_the_similar_pick_group_is_losing():
+    decisions = _df([dict(game_id=9, market="ml", bet_side="home")],
+                    ["game_id", "market", "bet_side"])
+    plays = pd.DataFrame([
+        dict(game_id=9, market="ml", start_time="2026-11-20T01:00:00Z", et_date="2026-11-19",
+             day_group="T2-6", votes=2, total_votes=2, result=None),
+        dict(game_id=1, market="spread", start_time="2026-11-17T01:00:00Z", et_date="2026-11-16",
+             day_group="T2-6", votes=3, total_votes=3, result="loss"),
+        dict(game_id=2, market="total", start_time="2026-11-18T01:00:00Z", et_date="2026-11-17",
+             day_group="T2-6", votes=4, total_votes=4, result="loss"),
+        dict(game_id=3, market="ml", start_time="2026-11-19T01:00:00Z", et_date="2026-11-18",
+             day_group="T2-6", votes=11, total_votes=12, result="win"),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays)
+    [row] = got.to_dict("records")
+    assert (row["tone"], row["text"]) == (
+        "🔴", "Kèo đã qua tuần này · pick tương đương 90–100%: 1 thắng · 2 thua")
+
+
 def test_parse_open_and_summary():
     odds = [{"pointSpread": {"home": {"open": {"line": "-1.5", "odds": "-110"}}, "away": {"open": {"line": "+1.5", "odds": "-110"}}},
              "total": {"over": {"open": {"line": "o48.5", "odds": "-110"}}, "under": {"open": {"line": "u48.5"}}}}]
