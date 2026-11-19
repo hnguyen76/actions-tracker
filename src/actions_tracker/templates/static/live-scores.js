@@ -57,6 +57,13 @@
     const exact = events.filter((e) => within(e) && normalize(e.home_name) === home && normalize(e.away_name) === away);
     return exact.length === 1 ? exact[0] : null;
   }
+  // fetchGames only passes an event returned by matchEvent. When the collector has not persisted an ESPN id yet,
+  // a unique full-team/orientation/time match is still safe for read-only ESPN detail and odds requests. A stored
+  // id that disagrees remains blocked instead of silently switching to another event.
+  function canFetchMatchedEvent(game, event) {
+    const eventId = String(event && event.event_id || ""), stored = String(game && game.espn_event_id || "");
+    return /^\d+$/.test(eventId) && (!stored || stored === eventId);
+  }
   const boundedInteger = (value, min, max) => {
     if (typeof value !== "number" && (typeof value !== "string" || !/^\d+(?:\.0+)?$/.test(value.trim()))) return null;
     const n = Number(value);
@@ -160,8 +167,7 @@
     };
   }
   async function fetchNbaVisual(game, event, fetcher) {
-    if (game.league !== "nba" || event.state !== "live" || !/^\d+$/.test(event.event_id)
-      || String(game.espn_event_id || "") !== event.event_id) return null;
+    if (game.league !== "nba" || event.state !== "live" || !canFetchMatchedEvent(game, event)) return null;
     const key = "nba/" + event.event_id;
     let cached = nbaVisualCache.get(key);
     if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;
@@ -281,8 +287,7 @@
     };
   }
   async function fetchDrive(game, event, fetcher) {
-    if (!["nfl", "ncaaf"].includes(game.league) || !/^\d+$/.test(event.event_id)
-      || String(game.espn_event_id || "") !== event.event_id) return null;
+    if (!["nfl", "ncaaf"].includes(game.league) || !canFetchMatchedEvent(game, event)) return null;
     const key = game.league + "/" + event.event_id;
     let cached = driveCache.get(key);
     if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;
@@ -374,8 +379,7 @@
     return result.spread || result.total ? result : null;
   }
   async function fetchOddsList(game, event, fetcher) {
-    if (!Object.keys(PATHS).includes(game.league) || !/^\d+$/.test(event.event_id)
-      || String(game.espn_event_id || "") !== event.event_id) return null;
+    if (!Object.keys(PATHS).includes(game.league) || !canFetchMatchedEvent(game, event)) return null;
     const key = game.league + "/" + event.event_id;
     let cached = liveOddsCache.get(key);
     if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;
@@ -413,8 +417,8 @@
     const out = { away: null, home: null, total: null };
     for (const item of Array.isArray(body && body.items) ? body.items : []) {
       const name = String(item && item.type && item.type.name || "");
-      const value = Number(item && item.current && item.current.target && item.current.target.value);
-      if (!Number.isFinite(value)) continue;
+      const value = finite(item && item.current && item.current.target && item.current.target.value);
+      if (value === null) continue;
       if (/^2nd half spread$/i.test(name)) {
         const id = (String(item.team && item.team.$ref || "").match(/\/teams\/(\d+)/) || [])[1];
         if (id && id === String(awayId)) out.away = value;
@@ -441,8 +445,7 @@
     return away === null && home === null && total === null ? null : { away, home, total, implied: true };
   }
   async function fetchSecondHalf(game, event, fetcher) {
-    if (!["nfl", "ncaaf"].includes(game.league) || !/^\d+$/.test(event.event_id)
-      || String(game.espn_event_id || "") !== event.event_id) return null;
+    if (!Object.keys(PATHS).includes(game.league) || !canFetchMatchedEvent(game, event)) return null;
     const key = game.league + "/" + event.event_id;
     let cached = secondHalfCache.get(key);
     if (cached && (cached.promise || Date.now() < cached.nextTry)) return cached.promise || cached.value;

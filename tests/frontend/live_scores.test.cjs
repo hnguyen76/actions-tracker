@@ -149,19 +149,22 @@ test('fetch groups games by league/date and returns scores without modifying ori
   const result=await api.fetchGames([game,{...game,game_id:290824}],async (url,opts) => {
     calls.push({url,opts}); return {ok:true,json:async()=>({events:[event()]})};
   });
-  assert.equal(calls.length,1);
-  assert.match(calls[0].url,/football\/nfl\/scoreboard\?dates=20261115$/);
-  assert.equal(calls[0].opts.credentials,'omit');
-  assert.equal(calls[0].opts.cache,'no-store');
+  const scoreboardCalls=calls.filter(x=>x.url.includes('/scoreboard?')),oddsCalls=calls.filter(x=>x.url.includes('/odds?'));
+  assert.equal(scoreboardCalls.length,1);
+  assert.equal(oddsCalls.length,1);  // both rows share the unique team-matched ESPN event and its odds cache
+  assert.match(scoreboardCalls[0].url,/football\/nfl\/scoreboard\?dates=20261115$/);
+  assert.equal(scoreboardCalls[0].opts.credentials,'omit');
+  assert.equal(scoreboardCalls[0].opts.cache,'no-store');
   assert.equal(result.scores.length,2);
   assert.equal(result.scores[0].graded,false);
   assert.equal(game.away_score,undefined);
 });
 test('live football fetches current drive by verified event id and caches it for ten seconds', async () => {
-  const target={...game,espn_event_id:'401873053'},calls=[];
+  const raw=event();raw.id='401873071';
+  const target={...game,start_time:raw.date,espn_event_id:raw.id},calls=[];
   const mock=async (url,opts) => {
     calls.push({url,opts});
-    return {ok:true,json:async()=>url.includes('/summary?')?driveSummary():{events:[event()]}};
+    return {ok:true,json:async()=>url.includes('/summary?')?driveSummary(raw.id):url.includes('/odds?')?{items:[]}:{events:[raw]}};
   };
   const first=await api.fetchGames([target],mock),second=await api.fetchGames([target],mock);
   assert.equal(calls.filter(x=>x.url.includes('/summary?')).length,1);
@@ -171,6 +174,16 @@ test('live football fetches current drive by verified event id and caches it for
   const summaryCall=calls.find(x=>x.url.includes('/summary?'));
   assert.equal(summaryCall.opts.credentials,'omit');
   assert.equal(summaryCall.opts.cache,'no-store');
+});
+test('a unique football team match gets its field graphic before the ESPN id is persisted', async () => {
+  const raw=event();raw.id='401873070';
+  const target={...game,start_time:raw.date},calls=[];  // no espn_event_id yet
+  const mock=async (url,opts)=>{calls.push({url,opts});return {ok:true,json:async()=>url.includes('/summary?')
+    ?driveSummary(raw.id):url.includes('/odds?')?{items:[]}:{events:[raw]}};};
+  const result=await api.fetchGames([target],mock);
+  assert.equal(result.scores[0].drive.spot,'DET 32');
+  assert.equal(calls.filter(x=>x.url.includes('/summary?')).length,1);
+  assert.equal(result.failed.length,0);
 });
 test('college request includes all FBS groups; one league failure preserves successful scores', async () => {
   const urls=[];
@@ -272,6 +285,20 @@ test('full-game live spread and total are parsed separately with their prices', 
 test('second-half lines are read per team from the live prop bets', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(api.parseSecondHalf(propBets(),'17','8'))),{away:-1.5,home:1.5,total:23.5});
   assert.equal(api.parseSecondHalf({items:[]},'17','8'),null);
+  assert.equal(api.parseSecondHalf({items:[{type:{name:'2nd Half Spread'},team:teamRef('17'),current:{target:{value:null}}}]},'17','8'),null);
+});
+test('NBA halftime reads the direct ESPN second-half spread and total', async () => {
+  const raw=event();raw.id='401910012';raw.date=new Date(Date.now()-90*60000).toISOString();
+  raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};raw.status.displayClock='0:00';
+  const target={...game,league:'nba',start_time:raw.date,espn_event_id:raw.id},calls=[];
+  const live=liveMarket(raw.id);
+  live.propBets.$ref=`http://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/events/${raw.id}/competitions/${raw.id}/odds/200/propBets?lang=en&region=us`;
+  const mock=async url=>{calls.push(url);return {ok:true,json:async()=>url.includes('/propBets')?propBets()
+    :url.includes('/odds?')?{items:[live]}:{events:[raw]}};};
+  const result=await api.fetchGames([target],mock);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.scores[0].second_half)),{away:-1.5,home:1.5,total:23.5});
+  assert.ok(calls.some(x=>x.includes('/sports/basketball/leagues/nba/')));
+  assert.equal(result.failed.length,0);
 });
 test('halftime live full-game odds imply a 2H line when ESPN omits propBets', () => {
   const live={spread:{away:{line:1.5},home:{line:-1.5}},total:{line:60.5}};
@@ -314,6 +341,17 @@ test('halftime fetch falls back to the implied 2H line when the live provider ha
   const target={...game,start_time:raw.date,espn_event_id:raw.id};
   const result=await api.fetchGames([target],async url=>({ok:true,json:async()=>url.includes('/odds?')?{items:[live]}:{events:[raw]}}));
   assert.deepEqual(JSON.parse(JSON.stringify(result.scores[0].second_half)),{away:7.5,home:-7.5,total:26.5,implied:true});
+});
+test('a unique team match can fetch halftime odds before its ESPN id is persisted', async () => {
+  const raw=event();raw.id='401866467';raw.status.type={state:'in',name:'STATUS_HALFTIME',shortDetail:'Halftime'};
+  raw.status.displayClock='0:00';raw.competitions[0].competitors[0].score='20';raw.competitions[0].competitors[1].score='14';
+  const live=liveMarket(raw.id);delete live.propBets;live.spread=-1.5;live.overUnder=60.5;
+  live.awayTeamOdds.current.pointSpread.american='+1.5';live.homeTeamOdds.current.pointSpread.american='-1.5';
+  const target={...game,start_time:raw.date},calls=[];  // no espn_event_id yet
+  const result=await api.fetchGames([target],async url=>{calls.push(url);return {ok:true,json:async()=>url.includes('/odds?')?{items:[live]}:{events:[raw]}};});
+  assert.deepEqual(JSON.parse(JSON.stringify(result.scores[0].second_half)),{away:7.5,home:-7.5,total:26.5,implied:true});
+  assert.ok(calls.some(x=>x.includes(`/events/${raw.id}/competitions/${raw.id}/odds?`)));
+  assert.equal(result.failed.length,0);
 });
 test('ESPN nickname and espncdn logo are kept on the situation', () => {
   const raw=event();
@@ -411,9 +449,9 @@ test('NBA visual rejects another event and unusable shot coordinates', () => {
   const bad=nbaSummary(); bad.plays=bad.plays.map(p=>({...p,coordinate:{x:-9999,y:-9999}}));
   assert.equal(api.parseNbaVisual(bad,e,e.event_id),null);
 });
-test('live NBA fetches and caches the ESPN shot summary for the five-second score poll', async () => {
+test('a unique NBA team match fetches and caches the shot graphic before its ESPN id is persisted', async () => {
   const raw=nbaEvent('401990002'), target={game_id:990002,league:'nba',start_time:raw.date,
-    away_name:'Charlotte Hornets',home_name:'Los Angeles Lakers',espn_event_id:raw.id}, calls=[];
+    away_name:'Charlotte Hornets',home_name:'Los Angeles Lakers'}, calls=[];
   const mock=async (url,opts)=>{calls.push({url,opts});return {ok:true,json:async()=>url.includes('/summary?')
     ?nbaSummary(raw.id):url.includes('/odds?')?{items:[]}:{events:[raw]}};};
   const first=await api.fetchGames([target],mock), second=await api.fetchGames([target],mock);
