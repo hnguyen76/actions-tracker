@@ -3,7 +3,7 @@
 1. line movement (opening vs current DraftKings line via ESPN)      4. rest days / bye / short week
 2. NFL key numbers 3 and 7                                         5. key-player injury status
 3. form of the experts on the same side (30-day units at pick)     6. same-situation season rate (forecast)
-7. public tickets vs money (Action Network public page)
+7. public tickets vs money (Action Network public page)             8. same-share plays graded this ET week
 The cover forecast (6) is listed first, and only when it is for the side being bet.
 These are descriptive aids, not tested rules.
 """
@@ -11,6 +11,8 @@ These are descriptive aids, not tested rules.
 import json
 
 import pandas as pd
+
+from actions_tracker.analysis.consensus import bucket_of
 
 SIGNAL_COLS = ["game_id", "market", "side", "order", "tone", "text", "highlight"]
 _OTHER = {"home": "away", "away": "home", "over": "under", "under": "over"}
@@ -73,9 +75,46 @@ def _key_injuries(value) -> list[str]:
         return []
 
 
+def _weekly_pick_record(play, method_plays: pd.DataFrame) -> tuple[str, str] | None:
+    """Record before this play in its ET week and consensus-share bucket.
+
+    The record is descriptive only: it never changes the selected side.
+    """
+    if play is None or method_plays is None or method_plays.empty or getattr(play, "day_group", None) != "T2-6":
+        return None
+    votes = pd.to_numeric(getattr(play, "votes", None), errors="coerce")
+    total = pd.to_numeric(getattr(play, "total_votes", None), errors="coerce")
+    day = pd.to_datetime(getattr(play, "et_date", None), errors="coerce")
+    if pd.isna(votes) or pd.isna(total) or total <= 0 or pd.isna(day):
+        return None
+    week_start = (day - pd.Timedelta(days=day.dayofweek)).strftime("%Y-%m-%d")
+    bucket = bucket_of(100.0 * float(votes) / float(total))
+    graded = method_plays[
+        (method_plays["day_group"] == "T2-6")
+        & method_plays["result"].isin(["win", "loss", "push"])
+        & (method_plays["et_date"].astype(str) >= week_start)
+        & (method_plays["et_date"].astype(str) <= str(play.et_date))
+        & (method_plays["start_time"].astype(str) < str(play.start_time))
+    ].copy()
+    if graded.empty:
+        return None
+    shares = 100.0 * pd.to_numeric(graded["votes"], errors="coerce") / pd.to_numeric(
+        graded["total_votes"], errors="coerce")
+    graded = graded[[bucket_of(x) == bucket if pd.notna(x) else False for x in shares]]
+    if graded.empty:
+        return None
+    wins = int((graded["result"] == "win").sum())
+    losses = int((graded["result"] == "loss").sum())
+    pushes = int((graded["result"] == "push").sum())
+    tone = "🟢" if wins > losses else "🔴" if losses > wins else "⚪"
+    push_text = f" · {pushes} hòa" if pushes else ""
+    label = bucket.replace("-", "–")
+    return tone, f"Kèo đã qua tuần này · pick tương đương {label}%: {wins} thắng · {losses} thua{push_text}"
+
+
 def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame, opening: pd.DataFrame,
             context: pd.DataFrame, public: pd.DataFrame, expert_sides: pd.DataFrame,
-            forecast: pd.DataFrame) -> pd.DataFrame:
+            forecast: pd.DataFrame, method_plays: pd.DataFrame | None = None) -> pd.DataFrame:
     if decisions is None or decisions.empty:
         return pd.DataFrame(columns=SIGNAL_COLS)
     g_by = {int(r.id): r for r in games.itertuples()} if len(games) else {}
@@ -84,6 +123,8 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
     ctx = {int(r.game_id): r for r in context.itertuples()} if len(context) else {}
     pub = {(int(r.game_id), r.market, r.side): r for r in public.itertuples()} if len(public) else {}
     fc = {int(r.game_id): r for r in forecast.itertuples()} if forecast is not None and len(forecast) else {}
+    method = {(int(r.game_id), r.market): r for r in method_plays.itertuples()} \
+        if method_plays is not None and len(method_plays) else {}
     rows = []
     for d in decisions.drop_duplicates(["game_id", "market"]).itertuples():
         gid, market, side = int(d.game_id), d.market, getattr(d, "bet_side", None)
@@ -97,6 +138,9 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             line = "" if f.line is None or pd.isna(f.line) else " " + _fmt(f.line)
             out.append(("⚪", f"Dự báo cover {f.pick}{line}: {f.p_win * 100:.0f}% ({int(f.basis_n)} kèo tương tự)"
                               " — chưa kiểm chứng"))
+        weekly = _weekly_pick_record(method.get((gid, market)), method_plays)
+        if weekly:
+            out.append(weekly)
         # 1. line movement
         o, c = opn.get((gid, market, side)), cur.get((gid, market, side))
         if o is not None and c is not None and not pd.isna(o) and not pd.isna(c) and abs(c - o) >= 0.5:
