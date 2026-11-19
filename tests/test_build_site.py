@@ -56,6 +56,19 @@ def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_pat
     assert ".season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }" in css
 
 
+def test_winter_logo_story_catches_trips_and_lands_the_ball_on_a_tree(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'class="holiday-story"' in html and "season-winter-story" in html
+    for character in ("holiday-turkey-runner", "holiday-snowman", "holiday-tree", "holiday-football"):
+        assert f'class="{character}"' in html
+    for motion in ("holiday-turkey-trip", "holiday-ball-flight", "holiday-snowman-hit", "holiday-tree-bump"):
+        assert f"@keyframes {motion}" in css
+    assert "24s cubic-bezier" in css
+    assert ".season-winter-story .holiday-story { display: none; }" in css
+
+
 def test_decision_pick_count_highlights_have_three_flashing_levels(tmp_path):
     out = build_site({}, [], tmp_path / "site", None, "t")
     html = out.read_text("utf-8")

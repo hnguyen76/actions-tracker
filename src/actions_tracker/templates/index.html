@@ -474,6 +474,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     const [y, m, d] = ymd, firstDow = new Date(Date.UTC(y, 10, 1)).getUTCDay();
     const thanksgiving = 1 + ((4 - firstDow + 7) % 7) + 21;
     if (m === 11 && d >= 1 && d <= thanksgiving + 3) document.documentElement.classList.add("season-thanksgiving");
+    if ((m === 11 && d >= 15) || m === 12 || (m === 1 && d <= 7)) document.documentElement.classList.add("season-winter-story");
   })();
 </script>
 <header class="topbar">
@@ -579,6 +580,55 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
         </g>
       </svg></h1><div class="sub" hidden><span id="updated"></span> · <span id="refresh-countdown" style="font-variant-numeric:tabular-nums;white-space:nowrap" title="Thời gian đến lần kiểm tra dữ liệu mới của site">Quét sau 03:00</span></div></div>
     </div>
+    <svg class="holiday-story" viewBox="0 0 720 64" aria-hidden="true" focusable="false">
+      <defs>
+        <radialGradient id="story-snow" cx="35%" cy="26%" r="76%"><stop offset="0" stop-color="#fff"/><stop offset=".72" stop-color="#e8f4ff"/><stop offset="1" stop-color="#b9d7ee"/></radialGradient>
+        <linearGradient id="story-tree" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#31a36b"/><stop offset="1" stop-color="#0b5b3c"/></linearGradient>
+        <filter id="story-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="2.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <g class="holiday-story-stage">
+        <path class="holiday-ground" d="M8 56H694"/>
+        <g class="holiday-tree" transform="translate(625 0)">
+          <path class="holiday-tree-snow" d="M0 8-13 27h8l-17 20h44L5 27h8Z"/>
+          <path class="holiday-tree-green" d="M0 7-15 28h9l-18 21h48L6 28h9Z"/>
+          <path class="holiday-tree-garland" d="M-10 28Q0 35 10 28M-16 42Q0 51 16 42"/>
+          <circle class="holiday-ornament holiday-ornament-a" cx="-7" cy="34" r="2.1"/><circle class="holiday-ornament holiday-ornament-b" cx="8" cy="41" r="2.1"/>
+          <path class="holiday-tree-trunk" d="M-4 49H4V57H-4Z"/>
+        </g>
+        <g class="holiday-snowman" transform="translate(410 0)">
+          <path class="holiday-snowman-arm" d="M-9 34-21 27m12 8-17 1M10 34l13-8m-13 9 18 1"/>
+          <circle class="holiday-snowball" cx="0" cy="43" r="13"/><circle class="holiday-snowball" cx="0" cy="25" r="9.5"/>
+          <path class="holiday-snowman-hat" d="M-11 17H11M-7 16l1-10H7l1 10Z"/>
+          <circle class="holiday-snowman-eye" cx="-3.2" cy="23" r="1"/><circle class="holiday-snowman-eye" cx="3.2" cy="23" r="1"/>
+          <path class="holiday-snowman-nose" d="M0 25 10 28 0 29Z"/>
+          <circle class="holiday-snowman-button" cx="0" cy="39" r="1.1"/><circle class="holiday-snowman-button" cx="0" cy="45" r="1.1"/>
+          <path class="holiday-scarf" d="M-8 31Q0 34 8 31M5 32l4 11"/>
+        </g>
+        <g class="holiday-impact" transform="translate(389 31)"><path d="M0-8 2-2 8-4 4 1 9 5 2 4 0 10-2 4-9 5-4 1-8-4-2-2Z"/></g>
+        <g class="holiday-turkey-runner">
+          <g class="holiday-turkey-art" transform="translate(40 35)">
+            <g class="holiday-turkey-tail">
+              <path d="M-8 0C-17-5-20-15-15-23-7-20-4-10-8 0Z" class="holiday-feather-a"/>
+              <path d="M-5-1C-10-12-6-22 1-26 7-19 5-8-5-1Z" class="holiday-feather-b"/>
+              <path d="M-2 0C2-12 11-18 19-14 18-5 9 2-2 0Z" class="holiday-feather-c"/>
+            </g>
+            <path class="holiday-turkey-leg holiday-turkey-leg-a" d="M-2 8-5 15m3-7 4 7"/>
+            <path class="holiday-turkey-leg holiday-turkey-leg-b" d="M5 8 2 15m3-7 5 6"/>
+            <ellipse class="holiday-turkey-body" cx="0" cy="0" rx="12" ry="9"/>
+            <path class="holiday-turkey-wing" d="M-6-2C-1-7 8-5 9 2 3 7-4 5-6-2Z"/>
+            <path class="holiday-turkey-neck" d="M7-5q6-4 7-10l6 2q-2 9-10 12Z"/>
+            <circle class="holiday-turkey-head" cx="18" cy="-14" r="6"/>
+            <path class="holiday-turkey-beak" d="M23-16 31-13 23-11Z"/><path class="holiday-turkey-wattle" d="M24-11q4 4 0 8-3-3 0-8Z"/>
+            <circle class="holiday-turkey-eye-white" cx="20" cy="-16" r="1.7"/><circle class="holiday-turkey-eye" cx="20.5" cy="-16" r=".9"/>
+          </g>
+        </g>
+        <g class="holiday-football">
+          <ellipse cx="0" cy="24" rx="7" ry="4.2"/>
+          <path d="M-3.5 24h7m-2.4-1.5v3m-2.2-3v3"/>
+        </g>
+        <g class="holiday-ball-glow"><circle cx="625" cy="8" r="9"/></g>
+      </g>
+    </svg>
     <div class="status" id="league-status"></div>
     <div class="actions">
       <button class="btn icon-control theme-toggle" id="theme-toggle" type="button" aria-label="Chuyển sang giao diện sáng" title="Giao diện sáng">
