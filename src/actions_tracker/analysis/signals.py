@@ -4,6 +4,7 @@
 2. NFL key numbers 3 and 7                                         5. key-player injury status
 3. form of the experts on the same side (30-day units at pick)     6. same-situation season rate (forecast)
 7. public tickets vs money (Action Network public page)             8. same-share plays graded this ET week
+9. same-share season history, kept separate from the live record
 The cover forecast (6) is listed first, and only when it is for the side being bet.
 These are descriptive aids, not tested rules.
 """
@@ -13,6 +14,7 @@ import json
 import pandas as pd
 
 from actions_tracker.analysis.consensus import bucket_of
+from actions_tracker.analysis.my_method import MIN_PICKS
 
 SIGNAL_COLS = ["game_id", "market", "side", "order", "tone", "text", "highlight"]
 _OTHER = {"home": "away", "away": "home", "over": "under", "under": "over"}
@@ -80,7 +82,8 @@ def _weekly_pick_record(play, method_plays: pd.DataFrame) -> tuple[str, str] | N
 
     The record is descriptive only: it never changes the selected side.
     """
-    if play is None or method_plays is None or method_plays.empty or getattr(play, "day_group", None) != "T2-6":
+    day_group = getattr(play, "day_group", None)
+    if play is None or method_plays is None or method_plays.empty or day_group not in ("T2-6", "T7-CN"):
         return None
     votes = pd.to_numeric(getattr(play, "votes", None), errors="coerce")
     total = pd.to_numeric(getattr(play, "total_votes", None), errors="coerce")
@@ -90,7 +93,7 @@ def _weekly_pick_record(play, method_plays: pd.DataFrame) -> tuple[str, str] | N
     week_start = (day - pd.Timedelta(days=day.dayofweek)).strftime("%Y-%m-%d")
     bucket = bucket_of(100.0 * float(votes) / float(total))
     graded = method_plays[
-        (method_plays["day_group"] == "T2-6")
+        (method_plays["day_group"] == day_group)
         & method_plays["result"].isin(["win", "loss", "push"])
         & (method_plays["et_date"].astype(str) >= week_start)
         & (method_plays["et_date"].astype(str) <= str(play.et_date))
@@ -109,12 +112,62 @@ def _weekly_pick_record(play, method_plays: pd.DataFrame) -> tuple[str, str] | N
     tone = "🟢" if wins > losses else "🔴" if losses > wins else "⚪"
     push_text = f" · {pushes} hòa" if pushes else ""
     label = bucket.replace("-", "–")
-    return tone, f"Kèo đã qua tuần này · pick tương đương {label}%: {wins} thắng · {losses} thua{push_text}"
+    period = "Tuần này T2–T6" if day_group == "T2-6" else "Cuối tuần này T7–CN"
+    return tone, (f"{period} · pick tương đương {label}%: {len(graded)} trận"
+                  f" · {wins} thắng · {losses} thua{push_text}")
+
+
+def _history_pick_record(play, history_plays: pd.DataFrame) -> tuple[str, str] | None:
+    """Season record for this share bucket, never mixed with the live expert count.
+
+    Weekdays follow the majority across the markets available in the NFL/NCAAF
+    history.  Weekends use the user's method: spread only and fade the majority.
+    """
+    day_group = getattr(play, "day_group", None)
+    if play is None or history_plays is None or history_plays.empty or day_group not in ("T2-6", "T7-CN"):
+        return None
+    if day_group == "T7-CN" and getattr(play, "market", None) != "spread":
+        return None
+    votes = pd.to_numeric(getattr(play, "votes", None), errors="coerce")
+    total = pd.to_numeric(getattr(play, "total_votes", None), errors="coerce")
+    if pd.isna(votes) or pd.isna(total) or total <= 0:
+        return None
+    bucket = bucket_of(100.0 * float(votes) / float(total))
+    graded = history_plays[
+        (history_plays["day_group"] == day_group)
+        & history_plays["side_result"].isin(["win", "loss", "push"])
+    ].copy()
+    if day_group == "T7-CN":
+        graded = graded[(graded["market"] == "spread")
+                        & (pd.to_numeric(graded["total_votes"], errors="coerce") >= MIN_PICKS)]
+    if graded.empty:
+        return None
+    if "bucket" in graded.columns:
+        graded = graded[graded["bucket"] == bucket]
+    else:
+        shares = 100.0 * pd.to_numeric(graded["votes"], errors="coerce") / pd.to_numeric(
+            graded["total_votes"], errors="coerce")
+        graded = graded[[bucket_of(x) == bucket if pd.notna(x) else False for x in shares]]
+    if graded.empty:
+        return None
+    results = graded["side_result"]
+    if day_group == "T7-CN":
+        results = results.map({"win": "loss", "loss": "win", "push": "push"})
+    wins = int((results == "win").sum())
+    losses = int((results == "loss").sum())
+    pushes = int((results == "push").sum())
+    tone = "🟢" if wins > losses else "🔴" if losses > wins else "⚪"
+    push_text = f" · {pushes} hòa" if pushes else ""
+    label = bucket.replace("-", "–")
+    period = "T2–T6 · follow" if day_group == "T2-6" else "T7–CN · fade spread"
+    return tone, (f"Lịch sử mùa NFL/NCAAF ({period}, pick_count) · {label}%: {len(graded)} trận"
+                  f" · {wins} thắng · {losses} thua{push_text}")
 
 
 def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame, opening: pd.DataFrame,
             context: pd.DataFrame, public: pd.DataFrame, expert_sides: pd.DataFrame,
-            forecast: pd.DataFrame, method_plays: pd.DataFrame | None = None) -> pd.DataFrame:
+            forecast: pd.DataFrame, method_plays: pd.DataFrame | None = None,
+            history_plays: pd.DataFrame | None = None) -> pd.DataFrame:
     if decisions is None or decisions.empty:
         return pd.DataFrame(columns=SIGNAL_COLS)
     g_by = {int(r.id): r for r in games.itertuples()} if len(games) else {}
@@ -141,6 +194,9 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
         weekly = _weekly_pick_record(method.get((gid, market)), method_plays)
         if weekly:
             out.append(weekly)
+        history = _history_pick_record(method.get((gid, market)), history_plays)
+        if history:
+            out.append(history)
         # 1. line movement
         o, c = opn.get((gid, market, side)), cur.get((gid, market, side))
         if o is not None and c is not None and not pd.isna(o) and not pd.isna(c) and abs(c - o) >= 0.5:

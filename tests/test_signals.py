@@ -89,16 +89,27 @@ def test_weekday_signal_shows_this_weeks_graded_similar_pick_bucket_only():
     got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "🟢", "Kèo đã qua tuần này · pick tương đương 75–90%: 2 thắng · 1 thua")
+        "🟢", "Tuần này T2–T6 · pick tương đương 75–90%: 3 trận · 2 thắng · 1 thua")
 
 
-def test_weekly_pick_record_is_not_shown_on_weekends_or_without_prior_graded_plays():
+def test_weekend_signal_uses_prior_graded_weekend_method_plays_only():
     decisions = _df([dict(game_id=9, market="spread", bet_side="home")],
                     ["game_id", "market", "bet_side"])
-    weekend = pd.DataFrame([dict(game_id=9, market="spread", start_time="2026-11-22T18:00:00Z",
-                                 et_date="2026-11-22", day_group="T7-CN", votes=8, total_votes=9,
-                                 result=None)])
-    assert signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=weekend).empty
+    weekend = pd.DataFrame([
+        dict(game_id=9, market="spread", start_time="2026-11-22T18:00:00Z",
+             et_date="2026-11-22", day_group="T7-CN", votes=8, total_votes=9, result=None),
+        dict(game_id=1, market="spread", start_time="2026-11-21T18:00:00Z",
+             et_date="2026-11-21", day_group="T7-CN", votes=5, total_votes=6, result="win"),
+        dict(game_id=2, market="spread", start_time="2026-11-21T20:00:00Z",
+             et_date="2026-11-21", day_group="T7-CN", votes=4, total_votes=5, result="loss"),
+        # Same bucket but a weekday is excluded.
+        dict(game_id=3, market="spread", start_time="2026-11-20T20:00:00Z",
+             et_date="2026-11-20", day_group="T2-6", votes=7, total_votes=8, result="loss"),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=weekend)
+    [row] = got.to_dict("records")
+    assert (row["tone"], row["text"]) == (
+        "⚪", "Cuối tuần này T7–CN · pick tương đương 75–90%: 2 trận · 1 thắng · 1 thua")
 
 
 def test_weekday_signal_is_red_when_the_similar_pick_group_is_losing():
@@ -117,7 +128,52 @@ def test_weekday_signal_is_red_when_the_similar_pick_group_is_losing():
     got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "🔴", "Kèo đã qua tuần này · pick tương đương 90–100%: 1 thắng · 2 thua")
+        "🔴", "Tuần này T2–T6 · pick tương đương 90–100%: 3 trận · 1 thắng · 2 thua")
+
+
+def test_history_signal_keeps_pick_count_separate_and_follows_on_weekdays():
+    decisions = _df([dict(game_id=9, market="ml", bet_side="home")],
+                    ["game_id", "market", "bet_side"])
+    plays = pd.DataFrame([dict(game_id=9, market="ml", start_time="2026-11-20T01:00:00Z",
+                               et_date="2026-11-19", day_group="T2-6", votes=2, total_votes=3,
+                               result=None)])
+    history = pd.DataFrame([
+        dict(day_group="T2-6", market="spread", bucket="60-75", side_result="win", total_votes=3),
+        dict(day_group="T2-6", market="total", bucket="60-75", side_result="loss", total_votes=4),
+        dict(day_group="T2-6", market="ml", bucket="60-75", side_result="loss", total_votes=5),
+        dict(day_group="T2-6", market="spread", bucket="75-90", side_result="win", total_votes=5),
+        dict(day_group="T7-CN", market="spread", bucket="60-75", side_result="win", total_votes=5),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays,
+                  history_plays=history)
+    [row] = got.to_dict("records")
+    assert (row["tone"], row["text"]) == (
+        "🔴", "Lịch sử mùa NFL/NCAAF (T2–T6 · follow, pick_count) · 60–75%: 3 trận · 1 thắng · 2 thua")
+
+
+def test_history_signal_fades_spread_on_weekends():
+    decisions = _df([dict(game_id=9, market="spread", bet_side="away")],
+                    ["game_id", "market", "bet_side"])
+    plays = pd.DataFrame([dict(game_id=9, market="spread", start_time="2026-11-22T18:00:00Z",
+                               et_date="2026-11-22", day_group="T7-CN", votes=5, total_votes=6,
+                               result=None)])
+    history = pd.DataFrame([
+        # side_result is the majority result; the weekend method flips it.
+        dict(day_group="T7-CN", market="spread", bucket="75-90", side_result="loss", total_votes=6),
+        dict(day_group="T7-CN", market="spread", bucket="75-90", side_result="loss", total_votes=9),
+        dict(day_group="T7-CN", market="spread", bucket="75-90", side_result="win", total_votes=5),
+        dict(day_group="T7-CN", market="spread", bucket="75-90", side_result="push", total_votes=8),
+        dict(day_group="T7-CN", market="total", bucket="75-90", side_result="loss", total_votes=6),
+        dict(day_group="T2-6", market="spread", bucket="75-90", side_result="loss", total_votes=6),
+        # A weekend row below the method's five-pick minimum is excluded.
+        dict(day_group="T7-CN", market="spread", bucket="75-90", side_result="loss", total_votes=4),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays,
+                  history_plays=history)
+    [row] = got.to_dict("records")
+    assert (row["tone"], row["text"]) == (
+        "🟢", "Lịch sử mùa NFL/NCAAF (T7–CN · fade spread, pick_count) · 75–90%: "
+             "4 trận · 2 thắng · 1 thua · 1 hòa")
 
 
 def test_parse_open_and_summary():
