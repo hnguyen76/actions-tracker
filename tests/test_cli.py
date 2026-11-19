@@ -107,7 +107,8 @@ def test_news_command_refreshes_and_rebuilds_without_collecting_picks(tmp_path, 
     assert 'class="solar-space"' not in html and 'solar-earth-travel' not in html
     assert 'id="news-ticker"' in html and 'importantNewsTicker()' in html and 'news-ticker-scroll' in html
     assert 'id="news-ticker-badge"' in html and 'T("Sports_News")' in html
-    assert 'BREAKING NEWS' in html and 'YAHOO SPORTS' in html and '"Sports_News":[]' in html
+    assert 'BREAKING NEWS' in html and 'YAHOO SPORTS' not in html and '"Sports_News":[]' in html
+    assert 'badge.hidden = !espn.length' in html
     assert 'prefers-reduced-motion: reduce' in html and 'Chuyển sang giao diện ${target}' in html
     assert 'Donate for me' in html and 'https://venmo.com/u/H13unguyen' in html
     assert 'id="zelle-donate"' in html and 'https://enroll.zellepay.com/qr-codes?data=' in html
