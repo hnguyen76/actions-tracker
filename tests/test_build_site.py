@@ -97,10 +97,14 @@ def test_mobile_nav_uses_one_active_background(tmp_path):
 
 
 def test_decision_days_are_icon_only_but_accessible(tmp_path):
-    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
     assert 'class="decide-title-icon"' in html and 'class: "day-calendar"' in html
     assert '"aria-label": label, title: label' in html
     assert 'svgEl("text", { x: "20", y: "29" }, day)' in html
+    assert 'isWeekend = weekday === 0 || weekday === 6' in html
+    assert 'class: `day-chip${isWeekend ? " weekend" : ""}`' in html
+    assert '.day-chip.weekend' in html and 'color: var(--warning)' in html
     assert 'class: "day-chip", "aria-pressed": String(d === state.day), text: dayLabel(d)' not in html
     assert 'document.getElementById("decide-title").textContent' not in html
 

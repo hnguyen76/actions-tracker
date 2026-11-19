@@ -302,7 +302,11 @@ tr.detail-row.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   -webkit-tap-highlight-color: transparent; }
 .day-calendar { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .day-calendar text { fill: currentColor; stroke: none; font: 700 14px Inter, system-ui, sans-serif; text-anchor: middle; }
+.day-chip.weekend { color: var(--warning); background: color-mix(in srgb, var(--warning) 9%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--border)); }
 .day-chip[aria-pressed="true"] { color: var(--ink); background: var(--accent-wash); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.day-chip.weekend[aria-pressed="true"] { color: var(--warning); background: color-mix(in srgb, var(--warning) 17%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--warning) 66%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 12%, transparent); }
 .verdict { border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--border); }
 .verdict.go { background: color-mix(in srgb, var(--win) 12%, var(--surface)); border-color: color-mix(in srgb, var(--win) 40%, transparent); }
 .verdict.hold { border-left: 4px solid var(--warning); }
@@ -1661,10 +1665,11 @@ const DATA = /*__DATA__*/null;
     const chips = document.getElementById("decide-days");
     chips.replaceChildren(...days.slice(0, 5).map((d) => {
       const label = dayLabel(d), day = String(Number(d.slice(8, 10)));
+      const weekday = new Date(d + "T12:00:00Z").getUTCDay(), isWeekend = weekday === 0 || weekday === 6;
       const calendar = svgEl("svg", { class: "day-calendar", viewBox: "0 0 40 40", "aria-hidden": "true" });
       calendar.append(svgEl("rect", { x: "4", y: "6", width: "32", height: "30", rx: "7" }),
         svgEl("path", { d: "M4 15h32M12 3v7M28 3v7" }), svgEl("text", { x: "20", y: "29" }, day));
-      const b = el("button", { type: "button", class: "day-chip", "aria-pressed": String(d === state.day),
+      const b = el("button", { type: "button", class: `day-chip${isWeekend ? " weekend" : ""}`, "aria-pressed": String(d === state.day),
         "aria-label": label, title: label }, calendar);
       b.addEventListener("click", () => { state.day = d; decideCard(); });
       return b;
