@@ -109,5 +109,6 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     games = pd.read_sql_query("SELECT id, league, home_abbr, away_abbr FROM games", conn)
     signal_inputs = include_live_decisions(tables["Decisions"], tables["In_Play"])
     tables["Signals"] = signals(signal_inputs, games, current, opening, ctx, public,
-                                expert_sides(eligible, forms), tables["Forecast"], tables["Decision_Method"])
+                                expert_sides(eligible, forms), tables["Forecast"], tables["Decision_Method"],
+                                tables["History_Plays"])
     return tables
