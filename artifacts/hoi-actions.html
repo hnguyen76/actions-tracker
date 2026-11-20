@@ -172,6 +172,7 @@ button:disabled { opacity: .5; cursor: default; }
   let ctl = null;       // AbortController of the question being answered
   let sample = null;
   let off = false;
+  let waiting = "";     // a question asked before any data came; asked again as soon as data arrives
   const ready = (window.claude && window.claude.use ? window.claude.use("sample") : Promise.resolve(null)).catch(() => null);
 
   const stampOf = (text) => { const m = /\((.*)\):/.exec(text.split("\n")[0]); return m ? m[1] : ""; };
@@ -188,6 +189,7 @@ button:disabled { opacity: .5; cursor: default; }
     history = [];
     save();
     showData();
+    if (waiting) { const q = waiting; waiting = ""; ask(q); }
   }
   function showData() {
     const pill = $("data-pill");
@@ -268,7 +270,13 @@ button:disabled { opacity: .5; cursor: default; }
     if (!q || ctl || off) return;
     if (!sample) sample = await ready;
     if (!sample) { turnOff(); return; }
-    if (!data) { $("empty").animate?.([{ opacity: .3 }, { opacity: 1 }], 500); return; }
+    if (!data) {
+      $("q").value = "";
+      bubble("you", q);
+      bubble("bot err", "Chưa có dữ liệu → bấm ? trên dashboard, hoặc dán (Paste) vào ô Hỏi.");
+      waiting = q;
+      return;
+    }
     $("q").value = "";
     bubble("you", q);
     const out = bubble("bot thinking", "…");
