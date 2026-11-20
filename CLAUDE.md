@@ -11,9 +11,6 @@ in English (spread, total, moneyline, favorite, underdog, fade).
 - So a code change merged into `main` goes live by itself within ~5–15 minutes. Do not publish from here.
 - Dashboard: https://hnguyen76.github.io/actions-tracker/ — template `src/actions_tracker/templates/index.html`,
   static JS/CSS in `src/actions_tracker/templates/static/`, built by `src/actions_tracker/build_site.py`.
-- "?" opens the Hỏi Actions artifact (https://claude.ai/artifact/3pMbgv9aTTrbptD5dDhwTE, source `artifacts/hoi-actions.html`,
-  republish it with the Artifact tool). Claude answers there with the viewer's Claude account; the dashboard passes its
-  data in the link's #name (`static/ask.js`) and copies it to the clipboard for a paste.
 
 ## Hard rules
 - Never fetch actionnetwork.com from a cloud machine and never work around its bot block (no internal/app
