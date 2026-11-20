@@ -1,21 +1,12 @@
-/* "?" button: ask Claude about the page, answered right here. The owner's own Anthropic API key (kept only in this
-   browser's localStorage, never in the repo or the site) calls the Claude API directly through the official SDK
-   (anthropic-sdk.js, loaded on first open). Each question goes along with a fresh short text summary of the page. */
+/* "?" button: opens the "Hỏi Actions" page on claude.ai, where Claude answers inside the page with the owner's own
+   Claude account. That page cannot read this site, so the page data travels in the link: a short text summary,
+   deflate-compressed and base32-encoded into the link's #name (claude.ai passes on only letters, digits and hyphens
+   there). The same text is copied to the clipboard too: pasting it into the Hỏi page works if a link loses its #name.
+   The codec block is copied verbatim into artifacts/hoi-actions.html (a test keeps the two the same). */
 (function (root) {
   "use strict";
-  const LIMIT = 6000;   // characters of data text sent with each question
-  const KEEP = 6;       // earlier messages sent along: the last 3 questions and answers
-  const MODEL = "claude-opus-5-5";
-  const REFUSED = "Claude không trả lời câu này.";
-  const RULES = [
-    "Bạn trả lời câu hỏi của chủ dashboard Actions Expert Tracker: picks của expert Action Network (NFL, NCAAF, NBA), " +
-      "\"Cách của bạn\" (cách đặt riêng của chủ dashboard) và tỉ số các trận đang đá.",
-    "Chỉ dùng dữ liệu gửi kèm câu hỏi mới nhất (mới nhất là đúng nhất). Không có trong dữ liệu thì nói \"Không có trong dữ liệu\".",
-    "Tiếng Việt có dấu, thật ngắn: số và kèo trước, tối đa 6 dòng, gạch đầu dòng \"- \", không mở bài, không giải thích dài.",
-    "Giữ thuật ngữ cá cược tiếng Anh: spread, total, moneyline, favorite, underdog, fade, over, under. Viết \"banh\", không viết \"bóng\".",
-    "Kèo ghi \"Theo dõi — chưa đặt tiền\" là quy tắc đang thử nghiệm: không khuyên đặt tiền thật cho kèo đó.",
-    "Giờ là giờ ET. Viết số thập phân bằng dấu phẩy như dữ liệu.",
-  ].join("\n");
+  const PAGE = "https://claude.ai/artifact/3pMbgv9aTTrbptD5dDhwTE";
+  const LIMIT = 6000;  // characters of data text: about 2–3 KB once compressed, a link phones open without trouble
 
   // "Dữ liệu … (stamp):" then the non-empty sections, cut to LIMIT with a final "…"
   function dataText({ stamp, live = [], decisions = [], method = [] }) {
@@ -36,78 +27,54 @@
     return [...keep, "…"].join("\n");
   }
 
-  // the Messages request: the rules as the system prompt, the last few turns, then the fresh data with the question.
-  // Low effort keeps chat answers quick; "default" fallbacks let the API retry a declined answer on another model.
-  function params({ question, data, history = [] }) {
-    return {
-      model: MODEL,
-      max_tokens: 64000,
-      output_config: { effort: "low" },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: RULES,
-      messages: [...history.slice(-KEEP), { role: "user", content: `${data}\n\nCâu hỏi: ${String(question).trim()}` }],
-    };
+  /* codec:start (same block in artifacts/hoi-actions.html) */
+  const B32 = "abcdefghijklmnopqrstuvwxyz234567";
+  function toB32(bytes) {
+    let out = "", bits = 0, value = 0;
+    for (const byte of bytes) {
+      value = (value << 8) | byte;
+      bits += 8;
+      while (bits >= 5) { out += B32[(value >>> (bits - 5)) & 31]; bits -= 5; }
+      value &= (1 << bits) - 1;
+    }
+    return bits ? out + B32[(value << (5 - bits)) & 31] : out;
   }
-
-  // stream one answer: onText gets the whole answer so far; done resolves { text, history } (history unchanged on a refusal)
-  function ask({ client, question, data, history = [], onText }) {
-    const stream = client.beta.messages.stream(params({ question, data, history }));
-    const done = (async () => {
-      let text = "";
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta && event.delta.type === "text_delta") {
-          text += event.delta.text;
-          if (onText) onText(text);
-        }
-      }
-      const final = await stream.finalMessage();
-      if (final.stop_reason === "refusal") return { text: REFUSED, history: history.slice() };
-      if (!text) text = (final.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-      return { text, history: [...history, { role: "user", content: String(question).trim() }, { role: "assistant", content: text }] };
-    })();
-    return { abort: () => stream.abort(), done };
-  }
-
-  // answer text -> lines to draw: tag h (heading), li (bullet) or p, each with parts {text, bold?, tone?}
-  function blocks(text) {
+  function fromB32(text) {
     const out = [];
-    for (const raw of String(text).split("\n")) {
-      let line = raw.trim();
-      if (!line) continue;
-      let tag = "p";
-      const head = /^#{1,6}\s+/.exec(line), bullet = /^([-•*]|\d+\.)\s+/.exec(line);
-      if (head) { tag = "h"; line = line.slice(head[0].length); } else if (bullet) { tag = "li"; line = line.slice(bullet[0].length); }
-      const parts = [];
-      line.split(/\*\*(.+?)\*\*/g).forEach((piece, i) => {
-        if (!piece) return;
-        if (i % 2) { parts.push({ text: piece, bold: true }); return; }
-        piece.split(/(đang thắng|đang thua)/g).forEach((bit) => {
-          if (!bit) return;
-          if (bit === "đang thắng") parts.push({ text: bit, tone: "up" });
-          else if (bit === "đang thua") parts.push({ text: bit, tone: "down" });
-          else parts.push({ text: bit });
-        });
-      });
-      out.push({ tag, parts });
+    let bits = 0, value = 0;
+    for (const ch of text) {
+      const i = B32.indexOf(ch);
+      if (i < 0) throw new Error("not base32");
+      value = (value << 5) | i;
+      bits += 5;
+      if (bits >= 8) { out.push((value >>> (bits - 8)) & 255); bits -= 8; }
+      value &= (1 << bits) - 1;
     }
-    return out;
+    return new Uint8Array(out);
   }
-
-  // SDK error -> short text; badKey tells the page to ask for the key again
-  function errorText(err, A) {
-    const is = (name) => A && typeof A[name] === "function" && err instanceof A[name];
-    if (is("APIUserAbortError")) return { text: "Đã dừng." };
-    if (is("AuthenticationError")) return { text: "API key sai hoặc đã bị xoá.", badKey: true };
-    if (is("PermissionDeniedError")) return { text: "API key không được phép dùng.", badKey: true };
-    if (is("RateLimitError")) return { text: "Hỏi nhiều quá, đợi chút rồi hỏi lại." };
-    if (is("APIConnectionError")) return { text: "Mất mạng, hỏi lại nhé." };
-    if (is("APIError")) {
-      if (err.status === 400 && /credit/i.test(err.message || "")) return { text: "Hết tiền API: nạp thêm ở Claude Console." };
-      return { text: `Lỗi ${err.status || ""}, hỏi lại nhé.`.replace(" ,", ",") };
+  async function squeeze(bytes, stream) {
+    return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  }
+  // "d1" + base32 of deflate-raw(UTF-8), or "d0" + base32 of plain UTF-8 where the browser cannot compress
+  async function encode(text) {
+    const raw = new TextEncoder().encode(text);
+    if (typeof CompressionStream === "undefined") return "d0" + toB32(raw);
+    return "d1" + toB32(await squeeze(raw, new CompressionStream("deflate-raw")));
+  }
+  async function decode(code) {
+    try {
+      const m = /^d([01])([a-z2-7]+)$/.exec(String(code || "").replace(/^#/, ""));
+      if (!m) return null;
+      const bytes = fromB32(m[2]);
+      return new TextDecoder("utf-8", { fatal: true })
+        .decode(m[1] === "1" ? await squeeze(bytes, new DecompressionStream("deflate-raw")) : bytes);
+    } catch (e) {
+      return null;
     }
-    return { text: "Lỗi, hỏi lại nhé." };
   }
+  /* codec:end */
 
-  root.ActionsAsk = { dataText, params, ask, blocks, errorText, MODEL, LIMIT };
+  const link = (code) => PAGE + (code ? "#" + code : "");
+
+  root.ActionsAsk = { dataText, encode, decode, link, PAGE, LIMIT };
 })(typeof window !== "undefined" ? window : globalThis);
