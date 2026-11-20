@@ -17,6 +17,8 @@ vạch first down, số yard và play gần nhất; phần này tự ẩn khi ES
 Ngay dưới bảng điểm/sân live, mỗi trận giữ nguyên tín hiệu, tin tức, chuyên gia spread/winner,
 thời tiết và thông tin quyết định đã có trước giờ đá; phần này đóng sẵn, bấm “Thông tin trước trận” để mở.
 Tỉ số cuối trên trình duyệt chờ lượt chấm của hệ thống trước khi vào thống kê.
+Nút **?** ở đầu trang: gõ câu hỏi (hoặc chọn câu hỏi nhanh) để mở Claude với câu hỏi và tóm tắt dữ liệu trang điền sẵn
+(trận đang đá, kèo hôm nay/ngày mai, Cách của bạn); cùng nội dung được chép vào bộ nhớ tạm để dán nếu app mở chưa điền.
 Khi trang đang mở, trận đang có kèo nào có **touchdown, field goal (vào/trượt), interception hoặc fumble mất banh**
 thì hiện cảnh báo toàn màn hình có pháo hoa màu đội, tỉ số và kèo của bạn (xanh = có lợi, đỏ = bất lợi), kêu “ting”
 sau khi đã chạm trang một lần và rung trên Android (iPhone không cho trang web rung); chạm để tắt, tự tắt sau 4 giây.
