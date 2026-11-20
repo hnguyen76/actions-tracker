@@ -17,7 +17,6 @@
 <script src="scoreboard.js?v=__STATIC_V__"></script>
 <script src="live-scores.js?v=__STATIC_V__"></script>
 <script src="big-play.js?v=__STATIC_V__"></script>
-<script src="ask.js?v=__STATIC_V__"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -585,9 +584,6 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </div>
     <div class="status" id="league-status"></div>
     <div class="actions">
-      <a class="btn icon-control theme-toggle ask-toggle" id="ask-btn" href="https://claude.ai/artifact/3pMbgv9aTTrbptD5dDhwTE" target="_blank" rel="noopener" aria-label="Hỏi Claude" title="Hỏi Claude">
-        <svg class="ask-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.4a2.6 2.6 0 1 1 3.7 2.4c-.8.4-1.2 1-1.2 1.8v.5"/><path d="M12 17h.01"/></svg>
-      </a>
       <button class="btn icon-control theme-toggle" id="theme-toggle" type="button" aria-label="Chuyển sang giao diện sáng" title="Giao diện sáng">
         <svg class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <g class="theme-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g>
@@ -1608,52 +1604,6 @@ const DATA = /*__DATA__*/null;
     const d = new Date(ymd + "T12:00:00Z").toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
     return ymd === today ? `Hôm nay (${d})` : ymd === tomorrow ? `Ngày mai (${d})` : d;
   };
-
-  // "?": opens the Hỏi Actions page on claude.ai (Claude answers there). The page data goes along in the link as
-  // short lines (ask.js); the same text is copied to the clipboard in case the link loses it.
-  const askTime = (iso) => new Date(iso).toLocaleTimeString("vi-VN", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit" });
-  function askData() {
-    const today = etDate(Date.now()), tomorrow = etDate(Date.now() + 86400000);
-    const STATE = { win: "đang thắng", loss: "đang thua", push: "đang hòa" };
-    const live = [];
-    for (const card of liveCards(liveInPlayRows()).values()) {
-      if (card.state !== "live" && card.state !== "final") continue;
-      const b = window.ActionsScoreboard ? ActionsScoreboard.betStatus(card) : null;
-      live.push([`${leagueName(card.league)} ${card.away_abbr} ${num(card.away_score)}–${num(card.home_score)} ${card.home_abbr}`,
-        card.state === "final" ? "hết trận" : card.detail, b ? `${b.pick} ${STATE[b.state]}${b.state === "push" ? "" : " " + b.margin}` : null]
-        .filter(Boolean).join(" · "));
-    }
-    const decisions = T("Decisions").filter((r) => (r.et_date === today || r.et_date === tomorrow) && inRangeAhead(r.start_time)
-      && ["bet", "mine", "paper"].includes(r.action))
-      .map((r) => [`${r.et_date === today ? "Hôm nay" : "Ngày mai"} ${askTime(r.start_time)} ${leagueName(r.league)} ${r.match}`,
-        `${MARKET_LABEL[r.market] || r.market} ${r.pick}`, r.action === "mine" ? null : (ACTION[r.action] || {}).label,
-        String(r.reason || "").replace(/^Cách của bạn:\s*/, "")].filter(Boolean).join(" · "));
-    const record = (w, l, p) => `${num(w)}-${num(l)}-${num(p)}`;
-    const method = T("My_Method_Summary").filter((r) => r.day_group === "ALL").map((r) => [`${leagueName(r.league)}`,
-      r.hist_n ? `cả mùa ${record(r.hist_wins, r.hist_losses, r.hist_pushes)} (${pct(r.hist_win_pct)})` : null,
-      r.n + r.pushes ? `live ${record(r.wins, r.losses, r.pushes)} (${pct(r.win_pct)}) · ROI ${signed(r.roi)}` : null,
-      r.pending ? `${num(r.pending)} kèo đang chờ` : null].filter(Boolean).join(" · "));
-    const stamp = new Date().toLocaleString("vi-VN", { timeZone: "America/New_York", weekday: "short", day: "2-digit", month: "2-digit",
-      hour: "2-digit", minute: "2-digit" }) + " ET";
-    return { live, decisions, method, stamp };
-  }
-  function askSetup() {
-    const btn = document.getElementById("ask-btn");
-    if (!btn || !window.ActionsAsk) return;
-    let text = "";
-    // keep the link's #data current (encoding is async, so it is done ahead of the tap and again on touch)
-    const refresh = () => {
-      try { text = ActionsAsk.dataText(askData()); } catch (e) { return; }
-      ActionsAsk.encode(text).then((code) => { btn.href = ActionsAsk.link(code); }).catch(() => {});
-    };
-    btn.addEventListener("pointerdown", refresh);
-    btn.addEventListener("focus", refresh);
-    btn.addEventListener("click", () => {
-      try { if (navigator.clipboard && text) navigator.clipboard.writeText(text).catch(() => {}); } catch (e) { /* no clipboard */ }
-    });
-    refresh();
-    setInterval(() => { if (!document.hidden) refresh(); }, 15000);
-  }
 
   // game-day decision: what to bet, how much, and why — for one US/Eastern date at a time
   function decideCard() {
@@ -2926,7 +2876,7 @@ const DATA = /*__DATA__*/null;
   }
 
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
-  theme(); donate(); header(); filters(); tabs(); mobileNav(); askSetup();
+  theme(); donate(); header(); filters(); tabs(); mobileNav();
   // "EXPERT TRACKER" spans exactly the width of "Actions", whatever font the phone ends up using
   const fitTagline = () => {
     const word = document.querySelector(".brand-word"), tagline = document.querySelector(".brand-tag");
