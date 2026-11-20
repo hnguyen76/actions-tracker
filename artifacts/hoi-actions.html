@@ -1,0 +1,328 @@
+<title>Hỏi Actions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow column like the dashboard on a phone: header with the data time, quick questions, answers,
+   the question box pinned at the bottom. Colours are the dashboard's own tokens. */
+:root {
+  --page: #f7f9fc; --surface: #ffffff; --surface-2: #f0f4f9; --ink: #1f1f1f; --ink-2: #444746; --muted: #747775;
+  --border: rgba(31, 31, 31, .1); --accent: #0b57d0; --accent-ink: #ffffff; --accent-wash: rgba(11, 87, 208, .1);
+  --good: #137333; --bad: #b3261e; --warn: #8a4f00;
+  --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #101318; --surface: #181c23; --surface-2: #20252e; --ink: #f1f3f4; --ink-2: #bdc1c6; --muted: #8b949e;
+    --border: rgba(255, 255, 255, .1); --accent: #8ab4f8; --accent-ink: #0b1a33; --accent-wash: rgba(138, 180, 248, .14);
+    --good: #81c995; --bad: #f28b82; --warn: #fdd663; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #101318; --surface: #181c23; --surface-2: #20252e; --ink: #f1f3f4; --ink-2: #bdc1c6; --muted: #8b949e;
+  --border: rgba(255, 255, 255, .1); --accent: #8ab4f8; --accent-ink: #0b1a33; --accent-wash: rgba(138, 180, 248, .14);
+  --good: #81c995; --bad: #f28b82; --warn: #fdd663; color-scheme: dark;
+}
+body { background: var(--page); color: var(--ink); font: 15px/1.5 var(--font); letter-spacing: -.006em;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 0; }
+.wrap { max-width: 40rem; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;
+  min-height: calc(100vh - 18px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mark { width: 30px; height: 30px; flex: none; color: var(--accent); }
+.mark svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.pill { margin-left: auto; border-radius: 999px; padding: 4px 11px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums; border: 1px solid var(--border); background: var(--surface); }
+.pill.ok { color: var(--good); }
+.pill.old { color: var(--warn); }
+.pill.none { color: var(--muted); }
+.empty { margin: 0; color: var(--ink-2); font-size: 14px; }
+.empty a { color: var(--accent); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 7px 13px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip:disabled { opacity: .5; cursor: default; }
+.thread { display: flex; flex-direction: column; gap: 10px; }
+.msg { min-width: 0; overflow-wrap: anywhere; border-radius: 16px; padding: 10px 14px; }
+.msg.you { align-self: flex-end; max-width: 85%; background: var(--accent-wash); font-weight: 500; }
+.msg.bot { background: var(--surface); border: 1px solid var(--border); }
+.msg.bot p, .msg.bot h4 { margin: 0 0 6px; }
+.msg.bot h4 { font-size: 14px; color: var(--accent); }
+.msg.bot ul { margin: 0 0 6px; padding-left: 18px; }
+.msg.bot li { margin: 2px 0; }
+.msg.bot > :last-child { margin-bottom: 0; }
+.msg .up { color: var(--good); font-weight: 600; }
+.msg .down { color: var(--bad); font-weight: 600; }
+.msg.thinking { color: var(--muted); }
+.msg.err { color: var(--bad); }
+details.data { font-size: 13px; color: var(--muted); }
+details.data summary { cursor: pointer; width: max-content; }
+details.data pre { margin: 6px 0 0; white-space: pre-wrap; font: 12.5px/1.45 var(--font); color: var(--ink-2);
+  background: var(--surface-2); border-radius: 12px; padding: 10px 12px; max-height: 40vh; overflow: auto; }
+.composer { position: sticky; bottom: 0; margin-top: auto; background: var(--page);
+  padding-block: 10px calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: flex-end; }
+textarea { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 10px 12px; resize: none; height: 46px; max-height: 8rem; }
+.go, .stop { flex: none; font: inherit; font-weight: 600; border-radius: 14px; min-height: 44px; padding: 0 16px; cursor: pointer; }
+.go { background: var(--accent); color: var(--accent-ink); border: 0; }
+.stop { background: transparent; color: var(--ink-2); border: 1px solid var(--border); }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.off { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--ink-2); }
+@media (prefers-reduced-motion: no-preference) { .msg { animation: rise .16s ease-out; } @keyframes rise { from { transform: translateY(4px); } to { transform: none; } } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.4a2.6 2.6 0 1 1 3.7 2.4c-.8.4-1.2 1-1.2 1.8v.5"/><path d="M12 17h.01"/></svg></span>
+    <h1>Hỏi Actions</h1>
+    <span class="pill none" id="data-pill" title="Giờ của dữ liệu">Chưa có dữ liệu</span>
+  </header>
+
+  <p class="empty" id="empty">Bấm <b>?</b> trên <a href="https://hnguyen76.github.io/actions-tracker/" target="_blank" rel="noopener">dashboard</a> hoặc dán (Paste) vào đây.</p>
+  <div class="off" id="off" hidden>Mở trang này trong Claude (đã đăng nhập) để hỏi.</div>
+
+  <div class="chips" id="chips" aria-label="Câu hỏi nhanh"></div>
+  <div class="thread" id="thread" aria-live="polite"></div>
+  <details class="data" id="data" hidden><summary>Dữ liệu</summary><pre id="data-lines"></pre></details>
+
+  <form class="composer" id="form">
+    <label for="q" style="position:absolute;left:-9999px">Câu hỏi</label>
+    <textarea id="q" rows="1" placeholder="Hỏi gì?" enterkeyhint="send"></textarea>
+    <button class="go" id="go" type="submit">Hỏi</button>
+    <button class="stop" id="stop" type="button" hidden aria-label="Dừng">■</button>
+  </form>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* codec:start (same block in artifacts/hoi-actions.html) */
+  const B32 = "abcdefghijklmnopqrstuvwxyz234567";
+  function toB32(bytes) {
+    let out = "", bits = 0, value = 0;
+    for (const byte of bytes) {
+      value = (value << 8) | byte;
+      bits += 8;
+      while (bits >= 5) { out += B32[(value >>> (bits - 5)) & 31]; bits -= 5; }
+      value &= (1 << bits) - 1;
+    }
+    return bits ? out + B32[(value << (5 - bits)) & 31] : out;
+  }
+  function fromB32(text) {
+    const out = [];
+    let bits = 0, value = 0;
+    for (const ch of text) {
+      const i = B32.indexOf(ch);
+      if (i < 0) throw new Error("not base32");
+      value = (value << 5) | i;
+      bits += 5;
+      if (bits >= 8) { out.push((value >>> (bits - 8)) & 255); bits -= 8; }
+      value &= (1 << bits) - 1;
+    }
+    return new Uint8Array(out);
+  }
+  async function squeeze(bytes, stream) {
+    return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  }
+  // "d1" + base32 of deflate-raw(UTF-8), or "d0" + base32 of plain UTF-8 where the browser cannot compress
+  async function encode(text) {
+    const raw = new TextEncoder().encode(text);
+    if (typeof CompressionStream === "undefined") return "d0" + toB32(raw);
+    return "d1" + toB32(await squeeze(raw, new CompressionStream("deflate-raw")));
+  }
+  async function decode(code) {
+    try {
+      const m = /^d([01])([a-z2-7]+)$/.exec(String(code || "").replace(/^#/, ""));
+      if (!m) return null;
+      const bytes = fromB32(m[2]);
+      return new TextDecoder("utf-8", { fatal: true })
+        .decode(m[1] === "1" ? await squeeze(bytes, new DecompressionStream("deflate-raw")) : bytes);
+    } catch (e) {
+      return null;
+    }
+  }
+  /* codec:end */
+
+  const HEAD = "Dữ liệu Actions Expert Tracker";
+  const KEY = "hoi-actions-data";
+  const OLD_MS = 30 * 60 * 1000;  // the pill turns amber when the data is older than this
+  const QUICK = ["Hôm nay đặt gì?", "Đang thắng hay thua?", "Cách của bạn đang sao?"];
+  const RULES = [
+    "Bạn trả lời câu hỏi của chủ dashboard Actions Expert Tracker: picks của expert Action Network (NFL, NCAAF, NBA), " +
+      "\"Cách của bạn\" (cách đặt riêng của chủ dashboard) và tỉ số các trận đang đá.",
+    "Chỉ dùng dữ liệu bên dưới. Không có trong dữ liệu thì nói \"Không có trong dữ liệu\".",
+    "Tiếng Việt có dấu, thật ngắn: số và kèo trước, tối đa 6 dòng, gạch đầu dòng \"- \", không mở bài, không giải thích dài.",
+    "Giữ thuật ngữ cá cược tiếng Anh: spread, total, moneyline, favorite, underdog, fade, over, under. Viết \"banh\", không viết \"bóng\".",
+    "Kèo ghi \"Theo dõi — chưa đặt tiền\" là quy tắc đang thử nghiệm: không khuyên đặt tiền thật cho kèo đó.",
+    "Giờ là giờ ET. Viết số thập phân bằng dấu phẩy như dữ liệu.",
+  ].join("\n");
+  const SAY = {
+    cancelled: "Đã dừng.", not_granted: "Chưa cho phép hỏi Claude.", rate_limited: "Hỏi nhiều quá, đợi chút rồi hỏi lại.",
+    session_expired: "Đăng nhập lại Claude rồi hỏi lại.", sampling_disabled: "Claude chưa dùng được trên tài khoản này.",
+    prompt_too_large: "Dữ liệu dài quá.", refused: "Claude không trả lời câu này.",
+  };
+
+  const $ = (id) => document.getElementById(id);
+  let data = null;      // { text, code, at }
+  let history = [];     // the conversation sent to Claude; starts again when new data arrives
+  let ctl = null;       // AbortController of the question being answered
+  let sample = null;
+  let off = false;
+  const ready = (window.claude && window.claude.use ? window.claude.use("sample") : Promise.resolve(null)).catch(() => null);
+
+  const stampOf = (text) => { const m = /\((.*)\):/.exec(text.split("\n")[0]); return m ? m[1] : ""; };
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* no storage */ } }
+  function restore() {
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (d && typeof d.text === "string" && d.text.startsWith(HEAD)) data = d;
+    } catch (e) { /* no storage */ }
+  }
+  function setData(text, code) {
+    if (data && code && data.code === code) return;  // the same link opened again: keep its first time
+    data = { text, code: code || "", at: Date.now() };
+    history = [];
+    save();
+    showData();
+  }
+  function showData() {
+    const pill = $("data-pill");
+    $("empty").hidden = !!data;
+    $("data").hidden = !data;
+    if (!data) { pill.className = "pill none"; pill.textContent = "Chưa có dữ liệu"; return; }
+    const old = Date.now() - data.at > OLD_MS;
+    pill.className = "pill " + (old ? "old" : "ok");
+    pill.textContent = (old ? "⟳ " : "✓ ") + stampOf(data.text);
+    $("data-lines").textContent = data.text.split("\n").slice(1).join("\n");
+  }
+  async function fromHash() {
+    const code = location.hash.replace(/^#/, "");
+    const text = await decode(code);
+    if (text && text.startsWith(HEAD)) setData(text, code);
+  }
+
+  // **bold**, and "đang thắng" / "đang thua" in green / red
+  function inline(node, text) {
+    String(text).split(/\*\*(.+?)\*\*/g).forEach((part, i) => {
+      if (!part) return;
+      if (i % 2) { const b = document.createElement("b"); b.textContent = part; node.append(b); return; }
+      part.split(/(đang thắng|đang thua)/g).forEach((bit) => {
+        if (!bit) return;
+        if (bit === "đang thắng" || bit === "đang thua") {
+          const s = document.createElement("span");
+          s.className = bit === "đang thắng" ? "up" : "down";
+          s.textContent = bit;
+          node.append(s);
+        } else node.append(bit);
+      });
+    });
+  }
+  function render(node, text) {
+    node.classList.remove("thinking", "err");
+    node.replaceChildren();
+    let list = null;
+    for (const raw of String(text).split("\n")) {
+      const line = raw.trim();
+      if (!line) { list = null; continue; }
+      const bullet = /^([-•*]|\d+\.)\s+/.exec(line);
+      if (bullet) {
+        if (!list) { list = document.createElement("ul"); node.append(list); }
+        const li = document.createElement("li");
+        inline(li, line.slice(bullet[0].length));
+        list.append(li);
+      } else {
+        list = null;
+        const head = /^#{1,6}\s+/.exec(line);
+        const p = document.createElement(head ? "h4" : "p");
+        inline(p, head ? line.slice(head[0].length) : line);
+        node.append(p);
+      }
+    }
+  }
+  function bubble(kind, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + kind;
+    div.textContent = text;
+    $("thread").append(div);
+    div.scrollIntoView({ block: "nearest" });
+    return div;
+  }
+  function setBusy(on) {
+    $("go").hidden = on;
+    $("stop").hidden = !on;
+    for (const b of $("chips").querySelectorAll("button")) b.disabled = on || off;
+  }
+  function turnOff() {
+    off = true;
+    $("off").hidden = false;
+    $("go").disabled = $("q").disabled = true;
+    for (const b of $("chips").querySelectorAll("button")) b.disabled = true;
+  }
+
+  async function ask(question) {
+    const q = String(question || "").trim();
+    if (!q || ctl || off) return;
+    if (!sample) sample = await ready;
+    if (!sample) { turnOff(); return; }
+    if (!data) { $("empty").animate?.([{ opacity: .3 }, { opacity: 1 }], 500); return; }
+    $("q").value = "";
+    bubble("you", q);
+    const out = bubble("bot thinking", "…");
+    const turn = { role: "user", content: history.length ? q : `${RULES}\n\n${data.text}\n\nCâu hỏi: ${q}` };
+    const messages = [...history, turn];
+    ctl = new AbortController();
+    setBusy(true);
+    try {
+      const res = await sample(messages, { signal: ctl.signal, cache: false, onText: ({ text }) => { if (text) render(out, text); } });
+      render(out, res.text);
+      history = [...messages, { role: "assistant", content: res.text }];
+    } catch (err) {
+      const code = err && err.code;
+      if (err && err.text && code !== "refused") {
+        render(out, err.text + (code === "cancelled" ? " …" : ""));
+      } else {
+        out.classList.remove("thinking");
+        out.classList.add("err");
+        out.textContent = SAY[code] || "Lỗi, hỏi lại nhé.";
+      }
+      if (code === "not_granted" || code === "sampling_disabled") turnOff();
+    } finally {
+      ctl = null;
+      setBusy(false);
+    }
+  }
+
+  $("chips").replaceChildren(...QUICK.map((q) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = q;
+    b.addEventListener("click", () => ask(q));
+    return b;
+  }));
+  $("form").addEventListener("submit", (e) => { e.preventDefault(); ask($("q").value); });
+  $("q").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask($("q").value); }
+  });
+  $("stop").addEventListener("click", () => { if (ctl) ctl.abort(); });
+  // fallback when a link loses its #name: the dashboard also copies the data text, so a paste brings it here
+  document.addEventListener("paste", (e) => {
+    const text = (e.clipboardData && e.clipboardData.getData("text")) || "";
+    const at = text.indexOf(HEAD);
+    if (at < 0) return;
+    e.preventDefault();
+    setData(text.slice(at).split("\n\n")[0].trim(), "");
+  });
+  window.addEventListener("hashchange", fromHash);
+  setInterval(() => { if (data) showData(); }, 60000);
+
+  restore();
+  showData();
+  fromHash();
+  ready.then((s) => { sample = s; if (!s) turnOff(); });
+})();
+</script>
