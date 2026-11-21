@@ -96,6 +96,13 @@ def test_decision_days_are_icon_only_but_accessible(tmp_path):
     assert 'document.getElementById("decide-title").textContent' not in html
 
 
+def test_past_tab_promotes_weekend_analysis_only_on_et_weekends(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'id="past-weekday-card"' in html and 'id="past-weekend-card"' in html
+    assert 'weekday: "short", timeZone: "America/New_York"' in html
+    assert 'panel.prepend(isEtWeekend() ? weekendCard : weekdayCard)' in html
+
+
 def test_site_version_changes_with_the_template_or_a_static_file():
     from actions_tracker.build_site import site_version
     base = site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"2")])

@@ -689,12 +689,12 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   </section>
 
   <section class="panel" id="tab-past">
-    <div class="card">
+    <div class="card" id="past-weekday-card">
       <h2>Thứ 2 – Thứ 6</h2>
       <div class="table-scroll" id="past-chart-wk"></div>
       <div class="table-scroll" id="past-table-wk"></div>
     </div>
-    <div class="card">
+    <div class="card" id="past-weekend-card">
       <h2>Thứ 7 – Chủ nhật</h2>
       <div class="table-scroll" id="past-chart-we"></div>
       <div class="table-scroll" id="past-table-we"></div>
@@ -1599,6 +1599,9 @@ const DATA = /*__DATA__*/null;
     conflict: { label: "Bỏ qua — tín hiệu ngược nhau", cls: "dim" }, skip: { label: "Bỏ qua", cls: "dim" },
   };
   const etDate = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const isEtWeekend = (d = new Date()) => ["Sat", "Sun"].includes(new Intl.DateTimeFormat("en-US", {
+    weekday: "short", timeZone: "America/New_York",
+  }).format(d));
   const dayLabel = (ymd) => {
     const today = etDate(Date.now()), tomorrow = etDate(Date.now() + 86400000);
     const d = new Date(ymd + "T12:00:00Z").toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
@@ -2102,6 +2105,10 @@ const DATA = /*__DATA__*/null;
   }
 
   function pastTab() {
+    const panel = document.getElementById("tab-past");
+    const weekdayCard = document.getElementById("past-weekday-card");
+    const weekendCard = document.getElementById("past-weekend-card");
+    panel.prepend(isEtWeekend() ? weekendCard : weekdayCard);
     let rows = rawFilter(T("Past_Plays"));
     if (state.range) {
       const cutoff = Date.now() - state.range * 86400000;
