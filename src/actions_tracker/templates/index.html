@@ -1335,9 +1335,19 @@ const DATA = /*__DATA__*/null;
     if (m) return m[1] === m[2];
     return statusOf(r) === "majority";
   };
-  const HOT = { rowClass: (r) => (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
-  // Decision card: sample-size heat — 8–10 yellow, 11–14 green, 15+ purple, even when split.
+  const WHITE_PICK_RATIOS = new Set(["2/3", "3/4", "4/5", "6/7"]);
+  const todayWhitePickRatio = (r) => {
+    if (!r.start_time || etDate(r.start_time) !== etDate(Date.now())) return false;
+    const b = boardOf(r);
+    const total = Number(b ? b.total_votes : r.total_votes) || 0;
+    const votes = b ? Math.max(Number(b.a_votes) || 0, Number(b.b_votes) || 0) : Number(r.votes) || 0;
+    return WHITE_PICK_RATIOS.has(`${votes}/${total}`);
+  };
+  const HOT = { rowClass: (r) => todayWhitePickRatio(r) ? "heat-white"
+    : (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
+  // Decision card: today's requested ratios are white; other sample sizes keep their existing heat levels.
   const decisionHeatClass = (r) => {
+    if (todayWhitePickRatio(r)) return "heat-white";
     const n = picksOn(r);
     return n > 14 ? "heat-purple" : n > 10 ? "heat-green" : n >= HOT_PICKS ? "heat-yellow" : "";
   };

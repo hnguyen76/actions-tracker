@@ -285,17 +285,18 @@ section.panel { padding-top: 14px; }
 .crow .cmore { margin-top: 12px; padding-top: 11px; }
 .clist { gap: 10px; }
 
-/* Decision-card sample size: 8–10 yellow, 11–14 green, 15+ purple. */
+/* Today's selected ratios are white; decision sample size stays yellow, green, then purple. */
+.heat-white { --decision-heat: #f8fafc; }
 .heat-yellow { --decision-heat: var(--warning); }
 .heat-green { --decision-heat: var(--good); }
 .heat-purple { --decision-heat: var(--decision-purple); }
-tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td {
+tr.heat-white > td, tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td {
   animation: decision-heat-cell 2.8s ease-in-out infinite;
 }
-tr.heat-yellow > td:first-child, tr.heat-green > td:first-child, tr.heat-purple > td:first-child {
+tr.heat-white > td:first-child, tr.heat-yellow > td:first-child, tr.heat-green > td:first-child, tr.heat-purple > td:first-child {
   box-shadow: inset 4px 0 0 var(--decision-heat);
 }
-.crow.heat-yellow, .crow.heat-green, .crow.heat-purple {
+.crow.heat-white, .crow.heat-yellow, .crow.heat-green, .crow.heat-purple {
   animation: decision-heat-card 2.8s ease-in-out infinite;
 }
 @keyframes decision-heat-cell {
@@ -479,8 +480,8 @@ footer { padding-bottom: 52px; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, nav.tabs button, tbody tr { transition: none; }
-  tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td,
-  .crow.heat-yellow, .crow.heat-green, .crow.heat-purple { animation-duration: 5.6s; }
+  tr.heat-white > td, tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td,
+  .crow.heat-white, .crow.heat-yellow, .crow.heat-green, .crow.heat-purple { animation-duration: 5.6s; }
   .season-thanksgiving .brand-static { animation: none; opacity: 1; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-qb-arm, .season-thanksgiving .logo-pass-ball,
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
