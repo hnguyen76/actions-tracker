@@ -56,12 +56,15 @@ def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_pat
     assert ".season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }" in css
 
 
-def test_decision_pick_count_highlights_have_three_flashing_levels(tmp_path):
+def test_today_selected_pick_ratios_are_white_and_other_heat_levels_remain(tmp_path):
     out = build_site({}, [], tmp_path / "site", None, "t")
     html = out.read_text("utf-8")
     css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'new Set(["2/3", "3/4", "4/5", "6/7"])' in html
+    assert 'todayWhitePickRatio(r) ? "heat-white"' in html
+    assert 'if (todayWhitePickRatio(r)) return "heat-white"' in html
     assert 'n > 14 ? "heat-purple" : n > 10 ? "heat-green" : n >= HOT_PICKS ? "heat-yellow"' in html
-    for name in ("heat-yellow", "heat-green", "heat-purple"):
+    for name in ("heat-white", "heat-yellow", "heat-green", "heat-purple"):
         assert name in css
     assert "@keyframes decision-heat-cell" in css and "@keyframes decision-heat-card" in css
 
