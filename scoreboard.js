@@ -1,0 +1,614 @@
+(function () {
+  "use strict";
+
+  const text = (value) => typeof value === "string" && value.trim() ? value.trim() : null;
+  const integer = (value) => {
+    if (typeof value !== "number" && (typeof value !== "string" || !/^\d+(?:\.0+)?$/.test(value.trim()))) return null;
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n >= 0 ? n : null;
+  };
+  const teamId = (competitor) => {
+    const value = competitor && ((competitor.team || {}).id ?? competitor.id);
+    return value === null || value === undefined || typeof value === "boolean" || !/^\d+$/.test(String(value)) ? null : String(value);
+  };
+  const teamColor = (competitor) => {
+    const value = competitor && competitor.team && competitor.team.color;
+    return typeof value === "string" && /^[0-9a-f]{6}$/i.test(value) ? "#" + value.toLowerCase() : null;
+  };
+  // nickname ("Steelers", "Crimson Tide") and the ESPN scoreboard logo shown in place of the long team name
+  const teamNick = (competitor) => text(competitor && competitor.team && competitor.team.name);
+  const espnImage = (url) => (typeof url === "string" && /^https:\/\/[^/]*\.espncdn\.com\//i.test(url) ? url : null);
+  const teamLogo = (competitor) => espnImage(competitor && competitor.team && competitor.team.logo);
+  const periodScores = (competitor) => {
+    const scores = [];
+    for (const row of competitor && Array.isArray(competitor.linescores) ? competitor.linescores : []) {
+      if (!row || typeof row !== "object") continue;
+      const period = integer(row.period), value = integer(row.value);
+      if (period === null || period < 1 || period > 20 || value === null) continue;
+      while (scores.length < period) scores.push(null);
+      scores[period - 1] = value;
+    }
+    return scores.length ? scores : null;
+  };
+
+  function parseSituation(event) {
+    const comp = event && Array.isArray(event.competitions) ? event.competitions[0] || {} : {};
+    const competitors = Array.isArray(comp.competitors) ? comp.competitors.filter((c) => c && typeof c === "object") : [];
+    const away = competitors.find((c) => c.homeAway === "away"), home = competitors.find((c) => c.homeAway === "home");
+    const awayId = teamId(away), homeId = teamId(home);
+    const raw = comp.situation && typeof comp.situation === "object" ? comp.situation : {};
+    const possessionId = integer(raw.possession) === null ? null : String(raw.possession);
+    const status = comp.status && typeof comp.status === "object" ? comp.status : event && event.status || {};
+    const statusType = status.type && typeof status.type === "object" ? status.type : {};
+    const period = integer(status.period);
+    const result = {
+      is_halftime: statusType.name === "STATUS_HALFTIME" || /\bhalftime\b/i.test([statusType.detail, statusType.shortDetail, statusType.description].filter(Boolean).join(" ")),
+      possession: possessionId && awayId !== homeId ? (possessionId === awayId ? "away" : possessionId === homeId ? "home" : null) : null,
+      possession_text: text(raw.possessionText),
+      down_distance: text(raw.shortDownDistanceText) || text(raw.downDistanceText),
+      red_zone: typeof raw.isRedZone === "boolean" ? raw.isRedZone : null,
+      period: period !== null && period > 0 && period <= 20 ? period : null,
+      clock: text(status.displayClock),
+      away_period_scores: periodScores(away),
+      home_period_scores: periodScores(home),
+      away_espn_id: awayId,
+      home_espn_id: homeId,
+      away_color: teamColor(away),
+      home_color: teamColor(home),
+      away_nick: teamNick(away),
+      home_nick: teamNick(home),
+      away_logo: teamLogo(away),
+      home_logo: teamLogo(home),
+    };
+    return result.is_halftime || [result.possession, result.possession_text, result.down_distance, result.red_zone, result.period, result.clock, result.away_period_scores, result.home_period_scores]
+      .some((value) => value !== null) ? result : null;
+  }
+
+  const node = (tag, className, content) => {
+    const result = document.createElement(tag);
+    if (className) result.className = className;
+    if (content !== null && content !== undefined) result.textContent = String(content);
+    return result;
+  };
+  const league = (game) => String(game.league || "").toUpperCase();
+  const abbreviation = (game, side) => text(game[side + "_abbr"]) || text(game[side + "_name"]) || (side === "away" ? "Đội khách" : "Đội nhà");
+  // Betting lines use the American decimal point on the live card (46.5, never 46,5).
+  const usNumber = (value) => String(Math.round(Number(value) * 1000) / 1000);
+  const signed = (value) => (Number(value) > 0 ? "+" : "") + usNumber(value);
+  const americanOdds = (value) => Number.isFinite(Number(value)) ? signed(value) : null;
+  // one rhythm for every live pulse on the page (TV dot, game clock): the phase comes from the wall clock,
+  // so a clock re-drawn every poll stays in step with the TV dot
+  const PULSE_MS = 2400;
+  const pulseDelay = () => `-${Date.now() % PULSE_MS}ms`;
+  const periodName = (period) => period <= 4 ? String(period) : period === 5 ? "OT" : "OT" + (period - 4);
+  // next to the game clock: 1st 2nd 3rd 4th, then OT, OT2 ...
+  const periodLabel = (period) => period > 4 ? periodName(period) : ["1st", "2nd", "3rd", "4th"][period - 1];
+  const halftimeLabel = (end, now = Date.now()) => {
+    const remaining = Math.ceil((end - now) / 1000);
+    return remaining > 0 ? "Halftime · " + String(Math.floor(remaining / 60)).padStart(2, "0") + ":" + String(remaining % 60).padStart(2, "0")
+      : "Halftime · chờ 3rd";
+  };
+  let halftimeTicker = null;
+  function updateHalftimeClocks() {
+    if (typeof document === "undefined") return;
+    let active = false;
+    if (!document.hidden) for (const clock of document.querySelectorAll(".asb-halftime[data-halftime-ends-at]")) {
+      if (!clock.isConnected || !clock.getClientRects().length) continue;
+      const end = Date.parse(clock.dataset.halftimeEndsAt);
+      if (!Number.isFinite(end)) continue;
+      clock.textContent = halftimeLabel(end);
+      if (end > Date.now()) active = true;
+    }
+    if (active && halftimeTicker === null) halftimeTicker = setInterval(updateHalftimeClocks, 1000);
+    if (!active && halftimeTicker !== null) { clearInterval(halftimeTicker); halftimeTicker = null; }
+  }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", updateHalftimeClocks);
+
+  function quarterTable(game, situation) {
+    const away = Array.isArray(situation.away_period_scores) ? situation.away_period_scores : [];
+    const home = Array.isArray(situation.home_period_scores) ? situation.home_period_scores : [];
+    const available = Math.max(away.length, home.length);
+    if (!available) return null;
+    const periods = Math.min(20, Math.max(4, available));
+    const scroll = node("div", "asb-quarters");
+    const table = node("table", "asb-quarter-table");
+    table.setAttribute("aria-label", "Điểm từng hiệp " + abbreviation(game, "away") + " và " + abbreviation(game, "home"));
+    const head = node("tr");
+    head.append(node("th", "", ""));
+    for (let i = 1; i <= periods; i++) head.append(node("th", "", periodName(i)));
+    head.append(node("th", "asb-total", "T"));
+    const thead = node("thead"), tbody = node("tbody");
+    thead.append(head);
+    for (const [side, values] of [["away", away], ["home", home]]) {
+      const row = node("tr"), name = node("th", "", abbreviation(game, side));
+      name.scope = "row";
+      row.append(name);
+      for (let i = 0; i < periods; i++) row.append(node("td", "", integer(values[i]) === null ? "–" : values[i]));
+      row.append(node("td", "asb-total", integer(game[side + "_score"]) === null ? "–" : game[side + "_score"]));
+      tbody.append(row);
+    }
+    table.append(thead, tbody);
+    scroll.append(table);
+    return scroll;
+  }
+
+  // Perspective field drawn in a 1200 x 100 box: 120 yards including both end zones, the far (top) edge 92.5% as wide
+  // as the near (bottom) edge, so yard lines fan out from the 50. The ball and the drive bar sit at mid height.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const FIELD_W = 1200, FIELD_TOP = 4, FIELD_NEAR = 82, FIELD_BASE = 94, FAR_INSET = 45;
+  const fieldUnits = (yard) => Math.max(0, Math.min(120, yard + 10));
+  const nearX = (yard) => fieldUnits(yard) * 10;
+  const farX = (yard) => FAR_INSET + fieldUnits(yard) * (FIELD_W - 2 * FAR_INSET) / 120;
+  // the left side edge at height y (the right one mirrors it), for the rounded corners
+  const sideX = (y) => +(FAR_INSET * (FIELD_NEAR - y) / (FIELD_NEAR - FIELD_TOP)).toFixed(2);
+  const midX = (yard) => (nearX(yard) + farX(yard)) / 2;
+  const fieldPct = (x) => (x / FIELD_W * 100).toFixed(2) + "%";
+  const svgNode = (tag, cls, attrs) => {
+    const result = document.createElementNS(SVG_NS, tag);
+    if (cls) result.classList.add(...cls.split(" "));
+    for (const [k, v] of Object.entries(attrs || {})) result.setAttribute(k, String(v));
+    return result;
+  };
+  const validYard = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 100;
+  function fieldSvg(drive) {
+    const svg = svgNode("svg", "asb-turf-svg", { viewBox: `0 0 ${FIELD_W} 100`, preserveAspectRatio: "none", "aria-hidden": "true", focusable: "false" });
+    const T = FIELD_TOP, N = FIELD_NEAR, B = FIELD_BASE, W = FIELD_W, I = FAR_INSET, r = 12;
+    const a = sideX(T + 10), b = sideX(N - 10);  // where the rounded corners meet the slanted side edges
+    const left = `M${I + r} ${T}`, leftSide = `H${r}Q0 ${N} ${b} ${N - 10}L${a} ${T + 10}Q${I} ${T} ${I + r} ${T}Z`;
+    const rightSide = `H${W - I - r}Q${W - I} ${T} ${W - a} ${T + 10}L${W - b} ${N - 10}Q${W} ${N} ${W - r} ${N}`;
+    svg.append(
+      svgNode("path", "asb-turf-base", { d: `M0 ${N}H${W}V${B - 6}Q${W} ${B} ${W - r} ${B}H${r}Q0 ${B} 0 ${B - 6}Z` }),
+      svgNode("path", "asb-ez-base", { d: `M0 ${N}H${nearX(0)}V${B}H${r}Q0 ${B} 0 ${B - 6}Z` }),
+      svgNode("path", "asb-ez-base", { d: `M${nearX(100)} ${N}H${W}V${B - 6}Q${W} ${B} ${W - r} ${B}H${nearX(100)}Z` }),
+      svgNode("path", "asb-turf-surface", { d: `${left}${rightSide}${leftSide}` }),
+      svgNode("path", "asb-ez", { d: `${left}H${farX(0)}L${nearX(0)} ${N}${leftSide}` }),
+      svgNode("path", "asb-ez", { d: `M${farX(100)} ${T}${rightSide}H${nearX(100)}Z` }));
+    for (let yard = 10; yard <= 90; yard += 10) {
+      svg.append(svgNode("line", "asb-yardline" + (yard === 50 ? " asb-yardline-mid" : ""),
+        { x1: farX(yard), y1: T, x2: nearX(yard), y2: N }));
+    }
+    if (validYard(drive.first_down_x) && drive.distance > 0) {
+      const first = svgNode("line", "asb-first-down", { x1: +farX(drive.first_down_x).toFixed(2), y1: T,
+        x2: +nearX(drive.first_down_x).toFixed(2), y2: N });
+      const title = svgNode("title");
+      title.textContent = "Vạch first down";
+      first.append(title);
+      svg.append(first);
+    }
+    return svg;
+  }
+  function driveField(game) {
+    const drive = game.drive && typeof game.drive === "object" ? game.drive : null;
+    if (!drive || !["NFL", "NCAAF"].includes(league(game)) || !["away", "home"].includes(drive.team_side)
+      || typeof drive.ball_x !== "number" || !Number.isFinite(drive.ball_x) || drive.ball_x < 0 || drive.ball_x > 100) return null;
+    const section = node("section", "asb-drive");
+    section.setAttribute("aria-label", "Đợt tấn công hiện tại");
+    const head = node("div", "asb-drive-head");
+    // only the logo of the team with the ball (its abbreviation when there is no logo)
+    const identity = node("div", "asb-drive-team");
+    const offense = text(drive.team_abbr) || abbreviation(game, drive.team_side);
+    if (typeof drive.team_logo === "string" && /^https:\/\/[^/]*\.espncdn\.com\//i.test(drive.team_logo)) {
+      const logo = node("img", "asb-drive-logo");
+      logo.setAttribute("src", drive.team_logo);
+      logo.setAttribute("alt", offense + " cầm banh");
+      logo.setAttribute("title", offense + " cầm banh");
+      logo.setAttribute("loading", "lazy");
+      logo.onerror = () => logo.replaceWith(node("strong", "", offense));
+      identity.append(logo);
+    } else identity.append(node("strong", "", offense));
+    head.append(identity, node("span", "asb-drive-summary", text(drive.description) || ""));
+    section.append(head);
+
+    const facts = node("div", "asb-drive-facts");
+    const down = text(drive.down_distance), spot = text(drive.spot);
+    facts.append(node("strong", "", [down, spot].filter(Boolean).join(" · ") || "Đang cập nhật vị trí banh"));
+
+    const field = node("div", "asb-field");
+    const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
+    const awayColor = teamColor({ team: { color: String(situation.away_color || "").replace(/^#/, "") } }) || "#164b91";
+    const homeColor = teamColor({ team: { color: String(situation.home_color || "").replace(/^#/, "") } }) || "#8d2638";
+    const offenseColor = drive.team_side === "away" ? awayColor : homeColor;
+    field.setAttribute("style", `--asb-away-color:${awayColor};--asb-home-color:${homeColor};--asb-offense-color:${offenseColor}`);
+    field.setAttribute("role", "img");
+    field.setAttribute("aria-label", [drive.team_abbr && drive.team_abbr + " cầm banh", down, spot && "banh tại " + spot].filter(Boolean).join(", "));
+    const pitch = node("div", "asb-pitch");
+    const turf = node("div", "asb-turf");
+    turf.append(fieldSvg(drive));
+    const ball = midX(drive.ball_x);
+    if (validYard(drive.start_x)) {  // the drive so far: from where it began to the ball
+      const start = midX(drive.start_x);
+      const progress = node("span", "asb-drive-progress");
+      progress.setAttribute("style", `left:${fieldPct(Math.min(start, ball))};width:${fieldPct(Math.abs(start - ball))}`);
+      turf.append(progress);
+    }
+    const marker = node("span", "asb-ball-marker");
+    marker.setAttribute("style", "left:" + fieldPct(ball));
+    marker.setAttribute("title", `${text(drive.team_abbr) || abbreviation(game, drive.team_side)} · ${spot || "vị trí banh"}`);
+    marker.append(node("span", "asb-football-icon"));
+    turf.append(marker);
+    const numbers = node("div", "asb-yard-numbers");
+    for (let yard = 10; yard <= 90; yard += 10) {
+      const label = node("span", "asb-yard-number", String(yard <= 50 ? yard : 100 - yard));
+      label.setAttribute("style", "left:" + fieldPct(nearX(yard)));
+      numbers.append(label);
+    }
+    pitch.append(turf, numbers);
+    field.append(facts, pitch);
+    section.append(field);
+
+    const play = text(drive.last_play);
+    if (play) {
+      const last = node("div", "asb-last-play");
+      const label = [text(drive.play_clock), text(drive.play_type)].filter(Boolean).join(" · ");
+      if (label) last.append(node("strong", "", label));
+      last.append(node("span", "", play));
+      section.append(last);
+    }
+    return section;
+  }
+
+  function nbaCourtSvg(visual) {
+    const svg = svgNode("svg", "asb-court-svg", { viewBox: "0 0 1000 500", preserveAspectRatio: "none",
+      "aria-hidden": "true", focusable: "false" });
+    svg.append(
+      svgNode("rect", "asb-court-floor", { x: 15, y: 18, width: 970, height: 464, rx: 22 }),
+      svgNode("line", "asb-court-line", { x1: 500, y1: 18, x2: 500, y2: 482 }),
+      svgNode("circle", "asb-court-line asb-court-center", { cx: 500, cy: 250, r: 58 }),
+      svgNode("rect", "asb-court-line asb-court-paint", { x: 15, y: 153, width: 190, height: 194 }),
+      svgNode("rect", "asb-court-line asb-court-paint", { x: 795, y: 153, width: 190, height: 194 }),
+      svgNode("circle", "asb-court-line", { cx: 205, cy: 250, r: 58 }),
+      svgNode("circle", "asb-court-line", { cx: 795, cy: 250, r: 58 }),
+      svgNode("line", "asb-court-board", { x1: 55, y1: 212, x2: 55, y2: 288 }),
+      svgNode("line", "asb-court-board", { x1: 945, y1: 212, x2: 945, y2: 288 }),
+      svgNode("circle", "asb-court-hoop", { cx: 72, cy: 250, r: 12 }),
+      svgNode("circle", "asb-court-hoop", { cx: 928, cy: 250, r: 12 }),
+      svgNode("path", "asb-court-line", { d: "M15 72H70A205 205 0 0 1 70 428H15" }),
+      svgNode("path", "asb-court-line", { d: "M985 72H930A205 205 0 0 0 930 428H985" }));
+    const shotX = Math.max(0, Math.min(100, Number(visual.court_x))) * 10;
+    const shotY = Math.max(0, Math.min(100, Number(visual.court_y))) * 5;
+    const hoopX = visual.hoop_side === "left" ? 72 : 928, hoopY = 250;
+    const controlX = (shotX + hoopX) / 2, controlY = Math.max(28, Math.min(shotY, hoopY) - 125);
+    svg.append(svgNode("path", "asb-shot-arc " + (visual.made ? "made" : "missed"),
+      { d: `M${shotX.toFixed(1)} ${shotY.toFixed(1)}Q${controlX.toFixed(1)} ${controlY.toFixed(1)} ${hoopX} ${hoopY}` }));
+    const marker = svgNode("g", "asb-shot-marker " + (visual.made ? "made" : "missed"),
+      { transform: `translate(${shotX.toFixed(1)} ${shotY.toFixed(1)})` });
+    marker.append(svgNode("circle", "asb-shot-ring", { r: 24 }), svgNode("circle", "asb-shot-ball", { r: 11 }));
+    marker.append(svgNode("path", "asb-shot-seam", { d: "M-10 0H10M0-10C-5-5-5 5 0 10M0-10C5-5 5 5 0 10" }));
+    if (!visual.made) marker.append(svgNode("path", "asb-shot-x", { d: "M-18-18 18 18M18-18-18 18" }));
+    svg.append(marker);
+    return svg;
+  }
+
+  function nbaVisual(game) {
+    const visual = game.nba_visual;
+    if (league(game) !== "NBA" || game.state !== "live" || !visual || typeof visual !== "object"
+      || !Number.isFinite(Number(visual.court_x)) || !Number.isFinite(Number(visual.court_y))
+      || !["left", "right"].includes(visual.hoop_side)) return null;
+    const section = node("section", "asb-nba-visual " + (visual.made ? "asb-shot-made" : "asb-shot-missed"));
+    const side = visual.team_side === "home" ? "home" : "away";
+    const team = text(visual.team_abbr) || abbreviation(game, side);
+    const result = text(visual.label) || (visual.made ? "+ Points" : "Missed shot");
+    section.setAttribute("aria-label", [team, result, visual.clock && visual.clock + " hiệp " + visual.period,
+      text(visual.text)].filter(Boolean).join(", "));
+    const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
+    const tone = teamColor({ team: { color: String(situation[side + "_color"] || "").replace(/^#/, "") } }) || "#3978d4";
+    section.setAttribute("style", "--asb-nba-tone:" + tone);
+
+    const head = node("div", "asb-nba-head"), identity = node("div", "asb-nba-team");
+    const logoUrl = espnImage(visual.team_logo);
+    if (logoUrl) {
+      const logo = node("img", "asb-nba-logo");
+      logo.setAttribute("src", logoUrl); logo.setAttribute("alt", ""); logo.setAttribute("loading", "lazy");
+      logo.onerror = () => logo.remove(); identity.append(logo);
+    }
+    identity.append(node("strong", "", team), node("span", "asb-nba-result", result));
+    head.append(identity);
+    const probability = visual.win_probability;
+    if (probability && Number.isFinite(Number(probability.pct))) {
+      const wp = node("span", "asb-nba-wp", `WP ${text(probability.team_abbr) || ""} ${Number(probability.pct).toFixed(1)}%`);
+      wp.setAttribute("title", "ESPN win probability"); head.append(wp);
+    }
+    section.append(head);
+
+    const court = node("div", "asb-court");
+    court.setAttribute("role", "img");
+    court.setAttribute("aria-label", `${result} của ${team} tại vị trí cú ném do ESPN cung cấp`);
+    court.append(nbaCourtSvg(visual));
+    section.append(court);
+    const run = visual.run;
+    if (run && Number(run.points) >= 6) {
+      const elapsed = Math.max(0, Math.round(Number(run.seconds)));
+      const seconds = Number.isFinite(elapsed) && elapsed > 0
+        ? ` · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
+      const streak = node("div", "asb-nba-run");
+      const trend = node("span", "asb-nba-trend", "↑ ");
+      trend.setAttribute("aria-hidden", "true");
+      streak.append(trend, node("span", "", `${text(run.team_abbr) || "Đội"} ${Number(run.points)}–0${seconds}`));
+      section.append(streak);
+    }
+    const detail = node("div", "asb-nba-play");
+    const clock = [text(visual.clock), integer(visual.period) && periodLabel(Number(visual.period))].filter(Boolean).join(" · ");
+    if (clock) detail.append(node("strong", "", clock));
+    if (text(visual.text)) detail.append(node("span", "", visual.text));
+    section.append(detail);
+    return section;
+  }
+
+  // "Bạn đặt" strip: the bet against the live score - spread margin after the line, or total vs the line
+  function betStatus(game) {
+    const side = text(game.bet_side), market = text(game.market) || "spread";
+    if (game.line === null || game.line === undefined || game.line === "") return null;
+    const line = Number(game.line);
+    const away = integer(game.away_score), home = integer(game.home_score);
+    if (!side || !Number.isFinite(line) || away === null || home === null) return null;
+    const fmt = (x) => signed(x);
+    const pts = (x) => usNumber(Math.abs(x));
+    // margin: how far the bet is ahead or behind after the line, just the number beside the pick ("CIN -4.5  16.5")
+    if (market === "spread" && (side === "home" || side === "away")) {
+      const mine = side === "home" ? home : away, theirs = side === "home" ? away : home;
+      const margin = mine + line - theirs;
+      return {
+        state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
+        pick: abbreviation(game, side) + " " + fmt(line),
+        margin: pts(margin),
+      };
+    }
+    if (market === "total" && (side === "over" || side === "under")) {
+      const total = away + home, margin = (total - line) * (side === "over" ? 1 : -1);
+      return {
+        state: margin > 0 ? "win" : margin < 0 ? "loss" : "push",
+        pick: (side === "over" ? "Over " : "Under ") + usNumber(line),
+        margin: pts(total - line),
+      };
+    }
+    return null;
+  }
+
+  // "CIN -4.5  23.5": the pick in green (winning) or red (losing), the margin beside it pulsing on the page rhythm
+  // while the game is live; the words ("đang thắng") are kept for screen readers and the tooltip
+  function betStrip(game) {
+    const b = betStatus(game);
+    if (!b) return null;
+    const final = game.state === "final";
+    const word = (final ? { win: "thắng", loss: "thua", push: "hòa" } : { win: "đang thắng", loss: "đang thua", push: "đang hòa" })[b.state];
+    const strip = node("div", "asb-bet asb-bet-" + b.state);
+    const label = b.pick + " " + word + (b.state === "push" ? "" : " " + b.margin);
+    strip.setAttribute("aria-label", label);
+    strip.setAttribute("title", label);
+    const ticket = node("span", "asb-bet-label", "🎟");
+    ticket.setAttribute("aria-hidden", "true");
+    strip.append(ticket, node("span", "asb-bet-pick", b.pick));
+    if (b.state !== "push") {
+      const margin = node("span", "asb-bet-margin", b.margin);
+      if (game.state === "live") {
+        margin.classList.add("asb-bet-flash");
+        margin.setAttribute("style", "animation-delay:" + pulseDelay());
+      }
+      strip.append(margin);
+    }
+    return strip;
+  }
+
+  // The one full-game live market that matches the user's play; never show spread on a total play or vice versa.
+  function liveOddsLine(game) {
+    const live = game.live_odds, market = text(game.market), side = text(game.bet_side);
+    if (game.state !== "live" || !live || typeof live !== "object") return null;
+    let pick = null, price = null;
+    if (market === "spread" && (side === "away" || side === "home")) {
+      const selected = live.spread && live.spread[side], line = Number(selected && selected.line);
+      if (!Number.isFinite(line)) return null;
+      pick = abbreviation(game, side) + " " + signed(line);
+      price = americanOdds(selected.odds);
+    } else if (market === "total" && (side === "over" || side === "under")) {
+      const line = Number(live.total && live.total.line);
+      if (!Number.isFinite(line)) return null;
+      pick = (side === "over" ? "Over " : "Under ") + usNumber(line);
+      price = americanOdds(live.total[side + "_odds"]);
+    } else return null;
+    const row = node("div", "asb-live-odds");
+    const full = "Live odds " + pick + (price ? " " + price : "") + " qua ESPN";
+    row.setAttribute("aria-label", full);
+    row.setAttribute("title", full);
+    const icon = node("span", "asb-live-odds-label", "📡");
+    icon.setAttribute("aria-hidden", "true");
+    row.append(icon, node("span", "asb-live-odds-val", pick + (price ? " (" + price + ")" : "")));
+    return row;
+  }
+
+  // during halftime only: the live second-half line from ESPN (DraftKings), e.g. "PIT -1.5 · CIN +1.5 · Total 23.5"
+  function secondHalfLine(game) {
+    const h = game.second_half;
+    if (!h || typeof h !== "object") return null;
+    const parts = [];
+    if (Number.isFinite(h.away)) parts.push(abbreviation(game, "away") + " " + signed(h.away));
+    if (Number.isFinite(h.home)) parts.push(abbreviation(game, "home") + " " + signed(h.home));
+    if (Number.isFinite(h.total)) parts.push("Total " + usNumber(h.total));
+    if (!parts.length) return null;
+    const row = node("div", "asb-2h");
+    const implied = h.implied === true;
+    row.setAttribute("title", implied ? "Line hiệp 2 suy ra từ live odds toàn trận của ESPN" : "Line hiệp 2 trực tiếp của DraftKings qua ESPN");
+    row.setAttribute("aria-label", (implied ? "Line hiệp 2 suy ra " : "Line hiệp 2 trực tiếp ") + parts.join(", ") + " qua ESPN");
+    row.append(node("span", "asb-2h-label", implied ? "⏱ ≈2H" : "⏱ 2H"));
+    for (const part of parts) row.append(node("span", "", " · "), node("span", "asb-2h-val", part));
+    return row;
+  }
+
+  function scorecard(game) {
+    const situation = game.situation && typeof game.situation === "object" ? game.situation : {};
+    const final = game.state === "final", live = game.state === "live";
+    const period = integer(situation.period);
+    const halftime = live && (period === null || period < 3) && (situation.is_halftime === true || /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail || "")));
+    const card = node("article", "asb-card");
+    card.dataset.gameId = String(game.game_id);
+    card.setAttribute("aria-label", league(game) + " " + abbreviation(game, "away") + " tại " + abbreviation(game, "home"));
+    const meta = node("div", "asb-meta");
+    meta.append(node("span", "asb-league", league(game)));
+    let clock = text(game.detail) || (live ? "Đang đá" : "Chờ kết quả");
+    if (final) clock = game.graded ? "Hết trận" : "Hết trận · chờ chấm";
+    else if (live && text(situation.clock) && integer(situation.period) !== null && situation.period > 0
+      && (!text(game.detail) || String(game.detail).includes(situation.clock)
+        || situation.period >= 3 && /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail)))) {
+      clock = situation.clock + " · " + periodLabel(situation.period);
+    }
+    const clockNode = node("strong", "asb-clock", clock);
+    const halftimeEnd = text(situation.halftime_ends_at);
+    if (halftime && halftimeEnd && Number.isFinite(Date.parse(halftimeEnd))) {
+      clockNode.classList.add("asb-halftime");
+      clockNode.dataset.halftimeEndsAt = halftimeEnd;
+      clockNode.setAttribute("aria-live", "off");
+      clockNode.textContent = halftimeLabel(Date.parse(halftimeEnd));
+    }
+    if (live && !halftime) {
+      clockNode.classList.add("asb-live-clock");
+      clockNode.setAttribute("style", "animation-delay:" + pulseDelay());
+    }
+    meta.append(clockNode);
+    const stamp = new Date(game.updated_at);
+    const checked = game.updated_at && Number.isFinite(stamp.getTime())
+      ? "ESPN · " + stamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "ESPN";
+    meta.append(node("span", "asb-updated", checked));
+    card.append(meta);
+    const main = node("div", "asb-main");
+    for (const side of ["away", "home"]) {
+      const section = node("div", "asb-team asb-" + side);
+      const identity = node("div", "asb-identity");
+      // ESPN logo + nickname once the live data is there; the full name until then
+      const name = text(situation[side + "_nick"]) || text(game[side + "_name"]) || abbreviation(game, side);
+      const title = node("div", "asb-name", name);
+      const logoUrl = espnImage(situation[side + "_logo"]);
+      if (logoUrl) {
+        const logo = node("img", "asb-logo");
+        logo.setAttribute("src", logoUrl);
+        logo.setAttribute("alt", "");
+        logo.setAttribute("loading", "lazy");
+        logo.onerror = () => logo.remove();  // no broken-image box when the logo cannot load
+        title.textContent = "";
+        title.append(logo, node("span", "asb-nick", name));
+      }
+      const possesses = live && !halftime && situation.possession === side;
+      if (possesses) {
+        const dot = node("span", "asb-possession");
+        dot.setAttribute("role", "img");
+        dot.setAttribute("aria-label", name + " đang cầm banh");
+        dot.title = name + " đang cầm banh";
+        title.append(dot);
+      }
+      identity.append(title, node("span", "asb-abbr", abbreviation(game, side)));
+      const score = integer(game[side + "_score"]);
+      section.append(identity, node("strong", "asb-score", score === null ? "–" : score));
+      main.append(section);
+      if (side === "away") {
+        const quarters = quarterTable(game, situation);
+        if (quarters) main.append(quarters);
+        else main.append(node("div", "asb-quarters asb-quarters-empty"));
+      }
+    }
+    card.append(main);
+    const nba = nbaVisual(game);
+    if (nba) card.append(nba);
+    const bet = betStrip(game);
+    if (bet) card.append(bet);
+    const liveOdds = liveOddsLine(game);
+    if (liveOdds) card.append(liveOdds);
+    if (live && halftime) {
+      const second = secondHalfLine(game);
+      if (second) card.append(second);
+    }
+    if (live && !halftime) {
+      const items = [];
+      if (situation.possession === "away" || situation.possession === "home") items.push(abbreviation(game, situation.possession) + " đang cầm banh");
+      const down = text(situation.down_distance), spot = text(situation.possession_text);
+      if (down) items.push(down);
+      if (spot && (!down || !down.includes(spot))) items.push("Banh tại " + spot);
+      if (situation.red_zone === true) items.push("Red zone");
+      if (items.length) {
+        const status = node("div", "asb-situation" + (situation.red_zone === true ? " asb-red-zone" : ""), items.join(" · "));
+        card.append(status);
+      }
+      const drive = driveField(game);
+      if (drive) card.append(drive);
+    }
+    return card;
+  }
+
+  const hasClass = (element, name) => element && String(element.className || "").split(/\s+/).includes(name);
+  const directChild = (parent, name) => [...(parent && parent.children || [])].find((child) => hasClass(child, name)) || null;
+  const removeNode = (element) => {
+    if (!element) return;
+    if (typeof element.remove === "function") { element.remove(); return; }
+    const parent = element.parentNode, index = parent && parent.children ? parent.children.indexOf(element) : -1;
+    if (index >= 0) parent.children.splice(index, 1);
+    element.parentNode = null;
+  };
+  const insertNode = (parent, element, before) => {
+    if (typeof parent.insertBefore === "function") { parent.insertBefore(element, before || null); return; }
+    if (element.parentNode && element.parentNode.children) {
+      const old = element.parentNode.children.indexOf(element);
+      if (old >= 0) element.parentNode.children.splice(old, 1);
+    }
+    const index = before ? parent.children.indexOf(before) : -1;
+    parent.children.splice(index >= 0 ? index : parent.children.length, 0, element);
+    element.parentNode = parent;
+  };
+  const replaceNode = (current, replacement) => {
+    if (typeof current.replaceWith === "function") { current.replaceWith(replacement); return; }
+    const parent = current.parentNode, index = parent && parent.children ? parent.children.indexOf(current) : -1;
+    if (index < 0) return;
+    parent.children[index] = replacement;
+    replacement.parentNode = parent;
+    current.parentNode = null;
+  };
+  const sameNode = (a, b) => typeof a.isEqualNode === "function" ? a.isEqualNode(b)
+    : a.className === b.className && a.textContent === b.textContent
+      && JSON.stringify(a.attributes || {}) === JSON.stringify(b.attributes || {});
+  function patchBlock(parent, freshParent, name, order, preserveName = null) {
+    const current = directChild(parent, name), next = directChild(freshParent, name);
+    if (!next) { removeNode(current); return null; }
+    if (current) {
+      if (!sameNode(current, next)) { replaceNode(current, next); return next; }
+      return current;
+    }
+    const after = order.slice(order.indexOf(name) + 1).map((key) => directChild(parent, key)).find(Boolean);
+    insertNode(parent, next, after || (preserveName && directChild(parent, preserveName)) || null);
+    return next;
+  }
+  function patchScorecard(current, fresh) {
+    current.className = fresh.className;
+    current.dataset.gameId = fresh.dataset.gameId;
+    const label = typeof fresh.getAttribute === "function" ? fresh.getAttribute("aria-label") : fresh.attributes["aria-label"];
+    if (label) current.setAttribute("aria-label", label);
+    const order = ["asb-meta", "asb-main", "asb-nba-visual", "asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"];
+    patchBlock(current, fresh, "asb-meta", order, "live-card-pregame");
+    let main = directChild(current, "asb-main"), freshMain = directChild(fresh, "asb-main");
+    if (!main || !freshMain) main = patchBlock(current, fresh, "asb-main", order, "live-card-pregame");
+    else for (const name of ["asb-away", "asb-quarters", "asb-home"])
+      patchBlock(main, freshMain, name, ["asb-away", "asb-quarters", "asb-home"]);
+    for (const name of ["asb-nba-visual", "asb-bet", "asb-live-odds", "asb-2h", "asb-situation", "asb-drive"])
+      patchBlock(current, fresh, name, order, "live-card-pregame");
+    return current;
+  }
+
+  function render(host, games) {
+    if (!host || typeof host.replaceChildren !== "function") return;
+    const existing = new Map([...(host.children || [])].filter((card) => hasClass(card, "asb-card"))
+      .map((card) => [String(card.dataset.gameId), card]));
+    const seen = new Set(), cards = [];
+    for (const game of Array.isArray(games) ? games : []) {
+      const key = game && String(game.game_id);
+      if (!game || seen.has(key)) continue;
+      seen.add(key);
+      const fresh = scorecard(game), current = existing.get(key);
+      cards.push(current ? patchScorecard(current, fresh) : fresh);
+    }
+    for (const [key, card] of existing) if (!seen.has(key)) removeNode(card);
+    host.classList.add("asb-list");
+    const currentOrder = [...(host.children || [])].filter((card) => hasClass(card, "asb-card"));
+    if (currentOrder.length !== cards.length || currentOrder.some((card, i) => card !== cards[i])) {
+      for (const card of cards) insertNode(host, card, null);
+    }
+    host.hidden = !cards.length;
+    updateHalftimeClocks();
+  }
+
+  window.ActionsScoreboard = { parseSituation, render, betStatus, pulseDelay };
+})();
