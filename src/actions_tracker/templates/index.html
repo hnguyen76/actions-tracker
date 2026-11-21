@@ -172,6 +172,30 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
   .news-ticker-track { animation: none; }
   .news-ticker-group[aria-hidden="true"] { display: none; }
 }
+.live-summary { margin: 12px 0 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); box-shadow: var(--shadow); }
+.live-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.live-summary-title { display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-size: 12px;
+  font-weight: 800; letter-spacing: .07em; }
+.live-summary-title i { width: 8px; height: 8px; border-radius: 50%; background: var(--loss); animation: live-pulse 2.4s ease-in-out infinite; }
+.live-summary-record { color: var(--ink-2); font-size: 12.5px; text-align: right; }
+.live-summary-list { display: grid; gap: 7px; margin-top: 9px; }
+.live-summary-game { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; padding: 9px 10px;
+  border: 1px solid var(--border); border-left: 3px solid var(--push); border-radius: 11px; background: var(--surface-2); }
+.live-summary-game.win { border-left-color: var(--win); background: color-mix(in srgb, var(--win) 8%, var(--surface-2)); }
+.live-summary-game.loss { border-left-color: var(--loss); background: color-mix(in srgb, var(--loss) 8%, var(--surface-2)); }
+.live-summary-game.mixed { border-left-color: var(--warning); background: color-mix(in srgb, var(--warning) 7%, var(--surface-2)); }
+.live-summary-match { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 700; }
+.live-summary-score { white-space: nowrap; font-size: 13.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.live-summary-score small { color: var(--muted); font-size: 11.5px; font-weight: 500; }
+.live-summary-bets { display: flex; flex-wrap: wrap; gap: 5px; grid-column: 1 / -1; }
+.live-summary-bet { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+  color: var(--ink-2); background: var(--raised); font-size: 11.5px; font-weight: 650; }
+.live-summary-bet::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--push); }
+.live-summary-bet.win { color: var(--win); background: color-mix(in srgb, var(--win) 13%, transparent); }
+.live-summary-bet.win::before { background: var(--win); }
+.live-summary-bet.loss { color: var(--loss); background: color-mix(in srgb, var(--loss) 13%, transparent); }
+.live-summary-bet.loss::before { background: var(--loss); }
 nav.tabs { display: flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 nav.tabs button { font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; background: none; border: 0; color: var(--ink-2);
@@ -418,6 +442,10 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   .toolbar.open .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .toolbar.open #range-wrap { grid-column: 1 / -1; }
   .filters select { width: 100%; }
+  .live-summary { padding: 10px; }
+  .live-summary-game { gap: 4px 9px; padding: 8px 9px; }
+  .live-summary-match, .live-summary-score { font-size: 13px; }
+  .live-summary-bet { font-size: 11px; }
   .bottombar { display: flex; align-items: center; gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
     overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; scroll-snap-type: x proximity;
     padding: 5px 7px calc(5px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -629,6 +657,14 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </select></label>
   </div>
   </div>
+
+  <section class="live-summary" id="live-summary" aria-label="Tóm tắt các kèo đang live" hidden>
+    <div class="live-summary-head">
+      <span class="live-summary-title"><i aria-hidden="true"></i>LIVE SUMMARY</span>
+      <span class="live-summary-record" id="live-summary-record"></span>
+    </div>
+    <div class="live-summary-list" id="live-summary-list" role="list"></div>
+  </section>
 
   <section class="panel active" id="tab-upcoming">
     <div class="card decide">
@@ -1726,6 +1762,52 @@ const DATA = /*__DATA__*/null;
     renderInPlayTable(rows);
   }
 
+  const liveSummaryTone = (plays) => {
+    const states = plays.map((r) => r.now).filter((x) => ["win", "loss", "push"].includes(x));
+    if (states.length && states.every((x) => x === "win")) return "win";
+    if (states.length && states.every((x) => x === "loss")) return "loss";
+    return states.some((x) => x === "win" || x === "loss") ? "mixed" : "push";
+  };
+  function renderLiveSummary(rows = liveInPlayRows()) {
+    const live = rows.filter((r) => r.state === "live");
+    const box = document.getElementById("live-summary"), host = document.getElementById("live-summary-list");
+    const oldHeight = box.offsetHeight, oldY = window.scrollY;
+    const preserveViewport = oldY > box.offsetTop + oldHeight + 20;
+    box.hidden = !live.length;
+    host.replaceChildren();
+    if (!live.length) {
+      document.getElementById("live-summary-record").textContent = "";
+      if (preserveViewport && oldHeight) window.scrollTo({ top: Math.max(0, oldY - oldHeight), behavior: "instant" });
+      return;
+    }
+    const games = new Map();
+    for (const r of live) {
+      const key = Number(r.game_id);
+      if (!games.has(key)) games.set(key, []);
+      games.get(key).push(r);
+    }
+    const wins = live.filter((r) => r.now === "win").length, losses = live.filter((r) => r.now === "loss").length;
+    const pushes = live.filter((r) => r.now === "push").length;
+    document.getElementById("live-summary-record").textContent = `${games.size} trận · ${wins} thắng · ${losses} thua${pushes ? ` · ${pushes} hòa` : ""}`;
+    const status = { win: "Đang thắng", loss: "Đang thua", push: "Đang hòa" };
+    const fmtLine = (r) => r.line === null || r.line === undefined || r.market === "ml" ? ""
+      : ` ${r.market === "spread" && Number(r.line) > 0 ? "+" : ""}${String(r.line).replace(".", ",")}`;
+    for (const plays of games.values()) {
+      const r = plays[0], score = scoreOf(r), tone = liveSummaryTone(plays);
+      const scoreText = score ? `${num(score.away_score)}–${num(score.home_score)}` : "–";
+      const clock = score && score.detail ? ` · ${score.detail}` : "";
+      host.append(el("div", { class: `live-summary-game ${tone}`, role: "listitem", "data-game-id": String(r.game_id) },
+        el("span", { class: "live-summary-match", text: `${leagueName(r.league)} · ${vs(r.match)}` }),
+        el("span", { class: "live-summary-score" }, scoreText, el("small", { text: clock })),
+        el("span", { class: "live-summary-bets" }, ...plays.map((p) => el("span", {
+          class: `live-summary-bet ${p.now || "push"}`,
+          text: `${MARKET_LABEL[p.market] || p.market} · ${p.pick}${fmtLine(p)} · ${status[p.now] || "Chưa tính"}`,
+        })))));
+    }
+    const heightDelta = box.offsetHeight - oldHeight;
+    if (preserveViewport && Math.abs(heightDelta) > 0.5) window.scrollTo({ top: oldY + heightDelta, behavior: "instant" });
+  }
+
   const todayResultOpen = new Set();
   function todayResultsCard() {
     const today = etDate(Date.now());
@@ -2770,8 +2852,10 @@ const DATA = /*__DATA__*/null;
     return true;
   }
   function updateLiveCard() {
+    const allRows = liveInPlayRows();
+    renderLiveSummary(allRows);
     if (currentTab() !== "upcoming") return;
-    const rows = rawFilter(liveInPlayRows());
+    const rows = rawFilter(allRows);
     document.getElementById("inplay-card").hidden = !rows.length;
     if (isPhone()) {
       const current = [...document.querySelectorAll("#inplay-table .clist > .crow")].map((node) => String(node.dataset.gameId));
@@ -2864,6 +2948,7 @@ const DATA = /*__DATA__*/null;
 
   function render() {
     kpis();
+    renderLiveSummary(liveInPlayRows());
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
     const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, "season-chart": seasonChartTab, consensus: consensusTab,
       experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
