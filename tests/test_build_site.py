@@ -103,6 +103,17 @@ def test_past_tab_promotes_weekend_analysis_only_on_et_weekends(tmp_path):
     assert 'panel.prepend(isEtWeekend() ? weekendCard : weekdayCard)' in html
 
 
+def test_global_live_summary_shows_every_live_game_and_each_bet_status(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'id="live-summary" aria-label="Tóm tắt các kèo đang live"' in html
+    assert 'const live = rows.filter((r) => r.state === "live")' in html
+    assert 'class: `live-summary-game ${tone}`' in html
+    assert 'class: `live-summary-bet ${p.now || "push"}`' in html
+    assert 'renderLiveSummary(allRows)' in html
+    assert 'renderLiveSummary(liveInPlayRows())' in html
+    assert 'if (preserveViewport && Math.abs(heightDelta) > 0.5)' in html
+
+
 def test_site_version_changes_with_the_template_or_a_static_file():
     from actions_tracker.build_site import site_version
     base = site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"2")])
