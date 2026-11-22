@@ -411,3 +411,68 @@ def notify_rising(conn: sqlite3.Connection, board: pd.DataFrame, now: str, teleg
 def db_meta(conn: sqlite3.Connection, key: str):
     row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     return row[0] if row else None
+
+
+# --- 2H: the user's halftime method (tracked, not a bet), sent once when a game is seen at halftime -----------
+_H2_SCHEMA = ("CREATE TABLE IF NOT EXISTS second_half_alerts(game_id INTEGER, market TEXT, sent_at TEXT, "
+              "PRIMARY KEY(game_id, market))")
+
+
+def _h2_num(v) -> str:
+    return f"{float(v):g}".replace(".", ",")
+
+
+def _h2_signed(v) -> str:
+    return ("+" if float(v) > 0 else "") + _h2_num(v)
+
+
+def due_second_half(conn: sqlite3.Connection, now: str) -> list[dict]:
+    """2H plays decided at the halftime seen in this run (snapshot saved now) that were not sent yet.
+    Snapshots from earlier runs are left alone, so old games are never announced late."""
+    from actions_tracker.analysis.second_half import second_half_plays
+    conn.execute(_H2_SCHEMA)
+    plays = second_half_plays(conn)
+    if plays.empty:
+        return []
+    sent = {(int(g), m) for g, m in conn.execute("SELECT game_id, market FROM second_half_alerts")}
+    fresh = plays[(plays["captured_at"].astype(str) == now) & (plays["result"] == "pending")]
+    return [r for r in fresh.to_dict("records") if (int(r["game_id"]), r["market"]) not in sent]
+
+
+def second_half_message(rows: list[dict]) -> str:
+    """One game: 1H score, then the 2H spread / total picks with the first-half result behind each."""
+    first = rows[0]
+    away_1h, home_1h = (int(x) for x in str(first["score_1h"]).split("-"))
+    head = (f"⏸ <b>2H · {_LEAGUE.get(first['league'], str(first['league']).upper())} · "
+            f"{html.escape(str(first['match']))}</b>\n1H {away_1h}–{home_1h} · theo dõi")
+    lines = []
+    for r in sorted(rows, key=lambda x: 0 if x["market"] == "spread" else 1):
+        pick = html.escape(str(r["pick"]))
+        if r["market"] == "spread":
+            lines.append(f"↩ <b>{pick} {_h2_signed(r['line'])}</b> · 1H {pick} {_h2_signed(r['first_line'])} thua ATS")
+        else:
+            over = r["pick_side"] == "over"
+            lines.append(f"{'↑' if over else '↓'} <b>{pick} {_h2_num(r['line'])}</b> · 1H {away_1h + home_1h} "
+                         f"{'&lt;' if over else '&gt;'} {_h2_num(r['first_line'])}")
+    return "\n".join([head, *lines, DASHBOARD])
+
+
+def notify_second_half(conn: sqlite3.Connection, now: str, telegram: tuple[str | None, str | None] | None,
+                       post=requests.post) -> int:
+    """Send each game's new 2H plays (one message per game); returns how many plays were sent. A failed send
+    raises TelegramError and leaves the plays unmarked, so the next run during the same halftime retries."""
+    token, chat = telegram or (None, None)
+    if not token or not chat:
+        return 0
+    rows = due_second_half(conn, now)
+    games: dict[int, list[dict]] = {}
+    for r in sorted(rows, key=lambda x: (str(x["start_time"]), int(x["game_id"]))):
+        games.setdefault(int(r["game_id"]), []).append(r)
+    sent = 0
+    for game_id, plays in games.items():
+        send_telegram(token, chat, second_half_message(plays), post=post)
+        conn.executemany("INSERT OR IGNORE INTO second_half_alerts(game_id, market, sent_at) VALUES (?, ?, ?)",
+                         [(game_id, r["market"], now) for r in plays])
+        conn.commit()
+        sent += len(plays)
+    return sent
