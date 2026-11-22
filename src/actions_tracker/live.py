@@ -47,6 +47,10 @@ SECOND_HALF_SCHEMA = (
     "second_total REAL)"
 )
 
+# every distinct 2H line seen at halftime (spread: the away team's line), so a move can be announced with its history
+LINE_HISTORY_SCHEMA = ("CREATE TABLE IF NOT EXISTS second_half_line_history(game_id INTEGER, market TEXT, "
+                       "line REAL, seen_at TEXT, PRIMARY KEY(game_id, market, seen_at))")
+
 
 class LiveError(Exception):
     pass
@@ -245,9 +249,23 @@ def _halftime_odds(get, league: str, event: dict) -> tuple[dict, dict]:
     return first, second
 
 
+def _record_line_history(conn: sqlite3.Connection, game_id: int, now: str, second: dict) -> None:
+    """Store a halftime 2H line only when it differs from the last one stored for that game and market."""
+    away = second["away"] if second["away"] is not None else (-second["home"] if second["home"] is not None else None)
+    for market, value in (("spread", away), ("total", second["total"])):
+        if value is None:
+            continue
+        last = conn.execute("SELECT line FROM second_half_line_history WHERE game_id = ? AND market = ? "
+                            "ORDER BY seen_at DESC LIMIT 1", (game_id, market)).fetchone()
+        if last is None or float(last[0]) != float(value):
+            conn.execute("INSERT OR IGNORE INTO second_half_line_history(game_id, market, line, seen_at) "
+                         "VALUES (?, ?, ?, ?)", (game_id, market, float(value), now))
+
+
 def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dict, verified_ids: set[int],
                               now: str, get) -> int:
     conn.execute(SECOND_HALF_SCHEMA)
+    conn.execute(LINE_HISTORY_SCHEMA)
     saved = 0
     for game_id, event in scored.items():
         if game_id not in verified_ids or event.get("state") != "in" or event.get("is_halftime") is not True:
@@ -256,6 +274,7 @@ def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dic
         if away_score is None or home_score is None:
             continue
         first, second = _halftime_odds(get, league, event)
+        _record_line_history(conn, game_id, now, second)
         values = (game_id, league, event["event_id"], now, away_score, home_score,
                   first["away"], first["home"], first["total"],
                   second["away"], second["home"], second["total"])

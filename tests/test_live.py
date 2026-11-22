@@ -409,6 +409,40 @@ def test_halftime_lines_are_locked_at_the_first_sighting_the_telegram_alert_uses
     assert saved["captured_at"] == later                                                # still at halftime now
 
 
+def test_halftime_2h_line_history_keeps_each_change_once(tmp_path):
+    c = _db(tmp_path)
+    spread = lambda team, v: {"type": {"name": "2nd Half Spread"}, "current": {"target": {"value": v}},  # noqa: E731
+                              "team": {"$ref": f"https://sports.core.api.espn.com/v2/teams/{team}"}}
+    total = lambda v: {"type": {"name": "2nd Half Total"}, "current": {"target": {"value": v}}}  # noqa: E731
+    items = []
+    odds = {"items": [{"provider": {"name": "DraftKings - Live Odds"},
+                       "propBets": {"$ref": "https://sports.core.api.espn.com/live-props"}}]}
+
+    class R:
+        status_code = 200
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+    def get(url, **kwargs):
+        if "scoreboard" in url:
+            return R(_halftime_board())
+        return R(odds) if "/odds?" in url else R({"items": items})
+
+    for now, lines in (("2026-11-14T23:50:00.000Z", [spread(17, 4.5), spread(8, -4.5), total(24.5)]),
+                       ("2026-11-14T23:55:00.000Z", [spread(17, 4.5), spread(8, -4.5), total(24.5)]),   # no move
+                       ("2026-11-15T00:00:00.000Z", [spread(17, 5.5), spread(8, -5.5), total(24.5)])):
+        items[:] = lines
+        live.collect_espn(c, "ncaaf", now, get=get, lines=False)
+    history = [tuple(r) for r in c.execute(
+        "SELECT market, line, seen_at FROM second_half_line_history WHERE game_id = 1 ORDER BY market, seen_at")]
+    assert history == [("spread", 4.5, "2026-11-14T23:50:00.000Z"), ("spread", 5.5, "2026-11-15T00:00:00.000Z"),
+                       ("total", 24.5, "2026-11-14T23:50:00.000Z")]      # away 2H spread; a repeat is not stored
+
+
 def test_half_odds_support_all_three_leagues():
     expected = {"nfl": "football/leagues/nfl", "ncaaf": "football/leagues/college-football",
                 "nba": "basketball/leagues/nba"}

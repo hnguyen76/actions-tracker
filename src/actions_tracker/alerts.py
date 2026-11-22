@@ -476,3 +476,73 @@ def notify_second_half(conn: sqlite3.Connection, now: str, telegram: tuple[str |
         conn.commit()
         sent += len(plays)
     return sent
+
+
+# --- a move of an announced 2H line during halftime: sent at once, with every line seen so far ------------------
+_MOVE_SCHEMA = ("CREATE TABLE IF NOT EXISTS second_half_line_alerts(game_id INTEGER, market TEXT, seen_at TEXT, "
+                "sent_at TEXT, PRIMARY KEY(game_id, market, seen_at))")
+
+
+def due_line_changes(conn: sqlite3.Connection, now: str) -> list[tuple]:
+    """(game_id, market, seen_at) of 2H line moves not sent yet, on markets whose play was announced, while the
+    game is still at halftime (its snapshot was saved in this run). The first line seen is not a move."""
+    from actions_tracker import live
+    for schema in (live.SECOND_HALF_SCHEMA, live.LINE_HISTORY_SCHEMA, _H2_SCHEMA, _MOVE_SCHEMA):
+        conn.execute(schema)
+    return [tuple(r) for r in conn.execute(
+        "SELECT h.game_id, h.market, h.seen_at FROM second_half_line_history h "
+        "JOIN second_half_alerts a ON a.game_id = h.game_id AND a.market = h.market "
+        "JOIN second_half_snapshots s ON s.game_id = h.game_id AND s.captured_at = ? "
+        "WHERE h.seen_at > (SELECT min(f.seen_at) FROM second_half_line_history f "
+        "                   WHERE f.game_id = h.game_id AND f.market = h.market) "
+        "AND NOT EXISTS (SELECT 1 FROM second_half_line_alerts x WHERE x.game_id = h.game_id "
+        "                AND x.market = h.market AND x.seen_at = h.seen_at) "
+        "ORDER BY h.game_id, h.market, h.seen_at", (now,))]
+
+
+def line_change_message(plays: list[dict], history: dict[str, list[tuple]]) -> str:
+    """One game: per moved market, the announced line -> the line now, then every line seen with its ET time."""
+    first = plays[0]
+    head = (f"🔄 <b>Line 2H · {_LEAGUE.get(first['league'], str(first['league']).upper())} · "
+            f"{html.escape(str(first['match']))}</b>")
+    lines = []
+    for p in sorted(plays, key=lambda x: 0 if x["market"] == "spread" else 1):
+        spread = p["market"] == "spread"
+        sign = -1 if spread and p["pick_side"] == "home" else 1      # the stored spread is the away team's line
+        seen = [(sign * float(line), at) for line, at in history[p["market"]]]
+        fmt = _h2_signed if spread else _h2_num
+        icon = "↩" if spread else "↑" if p["pick_side"] == "over" else "↓"
+        lines.append(f"{icon} {html.escape(str(p['pick']))} {fmt(seen[0][0])} → <b>{fmt(seen[-1][0])}</b>")
+        lines.append(" · ".join(f"{_local(at):%H:%M} {fmt(v)}" for v, at in seen))
+    return "\n".join([head, *lines, DASHBOARD])
+
+
+def notify_line_changes(conn: sqlite3.Connection, now: str, telegram: tuple[str | None, str | None] | None,
+                        post=requests.post) -> int:
+    """Send each game's new 2H line moves (one message per game); returns how many moved markets were sent.
+    A failed send raises TelegramError and leaves them unmarked for the next run during the same halftime."""
+    token, chat = telegram or (None, None)
+    if not token or not chat:
+        return 0
+    due = due_line_changes(conn, now)
+    if not due:
+        return 0
+    from actions_tracker.analysis.second_half import second_half_plays
+    plays = second_half_plays(conn).to_dict("records")
+    games: dict[int, dict[str, list[str]]] = {}
+    for game_id, market, seen_at in due:
+        games.setdefault(int(game_id), {}).setdefault(market, []).append(seen_at)
+    sent = 0
+    for game_id, markets in games.items():
+        rows = [p for p in plays if int(p["game_id"]) == game_id and p["market"] in markets]
+        if not rows:
+            continue
+        history = {m: [tuple(r) for r in conn.execute(
+            "SELECT line, seen_at FROM second_half_line_history WHERE game_id = ? AND market = ? ORDER BY seen_at",
+            (game_id, m))] for m in markets}
+        send_telegram(token, chat, line_change_message(rows, history), post=post)
+        conn.executemany("INSERT OR IGNORE INTO second_half_line_alerts(game_id, market, seen_at, sent_at) "
+                         "VALUES (?, ?, ?, ?)", [(game_id, m, at, now) for m, seen in markets.items() for at in seen])
+        conn.commit()
+        sent += len(markets)
+    return sent
