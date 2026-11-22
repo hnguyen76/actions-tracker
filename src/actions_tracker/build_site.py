@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 PLACEHOLDER = "/*__DATA__*/null"
+STALE_SUFFIXES = {".js", ".css", ".png", ".svg", ".webmanifest", ".txt", ".json", ".map"}  # static asset kinds
 
 
 def _plain(v):
@@ -61,6 +62,11 @@ def build_site(tables: dict[str, pd.DataFrame], status: list[dict], out_dir: Pat
         for f in static.iterdir():
             if f.is_file():
                 (out_dir / f.name).write_bytes(f.read_bytes())
+    # the same site/ folder is rebuilt and published again and again: drop asset files removed from the code
+    current = {name for name, _ in files}
+    for old in out_dir.iterdir():
+        if old.is_file() and old.suffix.lower() in STALE_SUFFIXES and old.name not in current:
+            old.unlink()
     if xlsx is not None and Path(xlsx).exists():
         shutil.copyfile(xlsx, out_dir / "actions_report.xlsx")
     return out

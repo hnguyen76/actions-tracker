@@ -55,3 +55,24 @@ test('missing ESPN half lines never invents a pick', () => {
   assert.equal(result.first_result, 'missing');
   assert.equal(result.first_spread_result, 'missing');
 });
+
+test('an implied 2H line (no real ESPN 2H market) shows the 1H result but no pick', () => {
+  const result = api.decide(halftime({ second_half: {
+    away: 3.5, home: -3.5, total: 109.5, first_away: 5.5, first_home: -5.5, first_total: 101.5, implied: true } }));
+  assert.equal(result.spread, null);
+  assert.equal(result.total, null);
+  assert.equal(result.first_result, 'under');
+  assert.equal(result.first_spread_result, 'away_loss');
+  assert.equal(result.implied, true);
+});
+
+test('1H score: the saved snapshot, the halftime score, or Q1+Q2 only once the second half has begun', () => {
+  const live = (period, away, home) => ({ state: 'live', detail: `3:55 - ${period}`, away_score: 50, home_score: 48,
+    situation: { period, away_period_scores: away, home_period_scores: home } });
+  const plain = (v) => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(plain(api.firstHalfScore(live(2, [26, 22], [29, 19]), { away_score_1h: 40, home_score_1h: 41 })), [40, 41]);
+  assert.deepEqual(plain(api.firstHalfScore(halftime(), null)), [42, 51]);
+  assert.equal(api.firstHalfScore(live(2, [26, 24], [29, 19]), null), null);       // Q2 still running: no 1H yet
+  assert.deepEqual(plain(api.firstHalfScore(live(3, [26, 24, 5], [29, 19, 2]), null)), [50, 48]);
+  assert.equal(api.firstHalfScore(live(3, [26], [29]), null), null);                // quarters missing
+});

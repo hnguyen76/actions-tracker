@@ -33,6 +33,7 @@ ESPN_CORE = {
     "nba": "basketball/leagues/nba",
 }
 GAME_HOURS = 72   # picked games that kicked off within this many hours and are not graded get a score
+BACKFILL_DAYS = 30  # a picked game still ungraded after GAME_HOURS (a missed final) is looked up this long
 LINE_LEAD_H = 36  # picked games starting within this many hours get their lines refreshed
 SCHEMA = ("CREATE TABLE IF NOT EXISTS live_scores(game_id INTEGER PRIMARY KEY, away_score INTEGER, home_score INTEGER, "
           "state TEXT, detail TEXT, updated_at TEXT)")
@@ -293,7 +294,8 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     conn.execute(DETAIL_SCHEMA)
     conn.execute(SECOND_HALF_SCHEMA)
     t = pd.Timestamp(now)
-    started = _picked(conn, league, _iso(t - pd.Timedelta(hours=GAME_HOURS)), now, ungraded=True)
+    # ungraded only: a final ESPN once missed (or that came before ESPN grading) is still picked up later
+    started = _picked(conn, league, _iso(t - pd.Timedelta(days=BACKFILL_DAYS)), now, ungraded=True)
     upcoming = _picked(conn, league, now, _iso(t + pd.Timedelta(hours=LINE_LEAD_H)), ungraded=False) if lines else []
     counts = {"lines": 0, "priced_of": len(upcoming), "live": 0, "final": 0, "scored_of": len(started),
               "halftime_saved": 0}
