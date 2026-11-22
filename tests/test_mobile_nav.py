@@ -46,7 +46,7 @@ def test_mobile_nav_exposes_every_tab_as_an_icon():
     parser.feed(TEMPLATE.read_text(encoding="utf-8"))
 
     targets = [button["data-go"] for button in parser.bottom]
-    assert targets[:5] == ["upcoming", "inplay", "past", "second-half", "rules"]
+    assert targets[:5] == ["upcoming", "second-half", "inplay", "past", "rules"]
     assert "more" not in targets
     assert set(targets) - {"inplay"} == {tab["data-tab"] for tab in parser.tabs}
     assert all(button.get("aria-label") == button.get("title") for button in parser.bottom)
