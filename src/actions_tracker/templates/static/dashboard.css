@@ -303,6 +303,16 @@ section.panel { padding-top: 14px; }
 .second-half-pick strong { color: var(--good); }
 .second-half-pick small { color: var(--muted); }
 .second-half-pick.off strong { color: var(--muted); }
+/* 2H in play: pick, 2H score and clock on the left, estimated win chance on the right */
+.second-half-pick.live { align-items: center; border-left: 3px solid var(--push); }
+.second-half-pick.live > span { display: grid; gap: 2px; }
+.second-half-pick.live strong { color: var(--ink); }
+.second-half-pick.live small { font-variant-numeric: tabular-nums; }
+.second-half-chance { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.second-half-pick.live.win { border-left-color: var(--win); }
+.second-half-pick.live.win .second-half-chance { color: var(--win); }
+.second-half-pick.live.loss { border-left-color: var(--loss); }
+.second-half-pick.live.loss .second-half-chance { color: var(--loss); }
 .second-half-report { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .second-half-report h3 { margin: 16px 0 9px; font-size: 17px; }
 .second-half-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 9px; }

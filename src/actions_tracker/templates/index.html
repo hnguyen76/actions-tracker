@@ -2257,6 +2257,11 @@ const DATA = /*__DATA__*/null;
     const host = document.getElementById("second-half-list"), note = document.getElementById("second-half-note");
     const games = T("Live_Games").filter((g) => state.league === "ALL" || g.league === state.league);
     const snapshots = new Map(T("Second_Half").map((r) => [Number(r.game_id), r]));
+    const pending2h = new Map();   // the tracker's 2H plays still being played, by game
+    for (const p of T("Second_Half_Plays").filter((r) => r.result === "pending")) {
+      const id = Number(p.game_id);
+      pending2h.set(id, [...(pending2h.get(id) || []), p]);
+    }
     const rows = games.flatMap((g) => {
       const score = scoreOf(g), game = score ? { ...g, ...score } : null;
       if (!game || game.state !== "live") return [];
@@ -2269,6 +2274,20 @@ const DATA = /*__DATA__*/null;
     if (!rows.length) host.append(el("div", { class: "empty", text: "Chưa có trận live" }));
     const line = (value) => `${value > 0 ? "+" : ""}${num(value, Number.isInteger(Number(value)) ? 0 : 1)}`;
     const firstHalfScore = (game, snapshot) => window.ActionsSecondHalf ? ActionsSecondHalf.firstHalfScore(game, snapshot) : null;
+    const clock = (minutes) => { const s = Math.round(minutes * 60); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+    // during the 2H: each recorded play with its estimated chance to win from the 2H score and the time left
+    const livePicks = (game) => (pending2h.get(Number(game.game_id)) || []).map((p) => {
+      const w = window.ActionsSecondHalf
+        ? ActionsSecondHalf.winChance(p, String(p.score_1h || "").split("-").map(Number), game) : null;
+      if (!w) return null;
+      const pct = Math.max(1, Math.min(99, Math.round(w.p * 100))), tone = w.p >= 0.5 ? "win" : "loss";
+      const icon = p.market === "spread" ? "↩ " : p.pick_side === "over" ? "↑ " : "↓ ";
+      const label = p.market === "spread" ? `${p.pick} ${line(p.line)}` : `${p.pick} ${num(p.line, 1)}`;
+      return el("div", { class: `second-half-pick live ${tone}` },
+        el("span", {}, el("strong", { text: icon + label }),
+          el("small", { text: `2H ${num(w.away_2h)}–${num(w.home_2h)} · ⏱ ${clock(w.minutes)}` })),
+        el("b", { class: "second-half-chance", text: `${pct}%`, title: "Khả năng thắng ước tính", "aria-label": `${pct}% thắng` }));
+    }).filter(Boolean);
     for (const { game, decision, snapshot } of rows) {
       const away = game.away_abbr || game.away_name || "AWAY", home = game.home_abbr || game.home_name || "HOME";
       const half = firstHalfScore(game, snapshot), odds = game.live_odds || {};
@@ -2297,7 +2316,8 @@ const DATA = /*__DATA__*/null;
         el("div", { class: "second-half-live-meta" },
           el("span", { text: half ? `1H ${num(half[0])}–${num(half[1])}` : "1H –" }),
           el("span", { text: `ESPN · ${liveSpread}` }), el("span", { text: liveTotal })),
-        decision ? el("div", { class: "second-half-picks" }, spread, total) : null));
+        decision ? el("div", { class: "second-half-picks" }, spread, total)
+          : (() => { const live = livePicks(game); return live.length ? el("div", { class: "second-half-picks" }, ...live) : null; })()));
     }
     secondHalfReport();
     if (!browserLive.busy) refreshLiveScores();

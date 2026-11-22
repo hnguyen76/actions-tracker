@@ -53,6 +53,7 @@ def test_second_half_tab_sits_after_upcoming_and_uses_espn_odds(tmp_path):
     assert 'T("Second_Half")' in html and 'game.live_odds' in html
     assert 'ActionsSecondHalf.firstHalfScore(game, snapshot)' in html and '1H ${num(half[0])}' in html
     assert 'ActionsSecondHalf.decide(game)' in html
+    assert 'ActionsSecondHalf.winChance(p,' in html and 'T("Second_Half_Plays").filter' in html
     assert 'const allTracked = currentTab() === "second-half"' in html
 
 
