@@ -37,9 +37,18 @@ def test_empty_tables_render(tmp_path):
 def test_live_score_assets_are_published_with_dashboard(tmp_path):
     out = build_site({}, [], tmp_path / "site", None, "t")
     html = out.read_text("utf-8")
-    for asset in ("live-scores.js", "scoreboard.js", "scoreboard.css", "dashboard.css"):
+    for asset in ("live-scores.js", "second-half.js", "scoreboard.js", "scoreboard.css", "dashboard.css"):
         assert asset in html
         assert (out.parent / asset).is_file()
+
+
+def test_second_half_tab_sits_after_past_and_uses_espn_odds(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert html.index('data-tab="past"') < html.index('data-tab="second-half"') < html.index('data-tab="season-chart"')
+    assert html.index('data-go="past"') < html.index('data-go="second-half"') < html.index('data-go="rules"')
+    assert 'id="second-half-list"' in html
+    assert 'ActionsSecondHalf.decide(game)' in html
+    assert 'const allTracked = currentTab() === "second-half"' in html
 
 
 def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_path):
