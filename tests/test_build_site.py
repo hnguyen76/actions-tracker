@@ -47,6 +47,11 @@ def test_second_half_tab_sits_after_upcoming_and_uses_espn_odds(tmp_path):
     assert html.index('data-tab="upcoming"') < html.index('data-tab="second-half"') < html.index('data-tab="rules"')
     assert html.index('data-go="upcoming"') < html.index('data-go="second-half"') < html.index('data-go="inplay"')
     assert 'id="second-half-list"' in html
+    assert 'id="second-half-day-summary"' in html and 'id="second-half-all-summary"' in html
+    assert 'id="second-half-chart"' in html and 'Win% cộng dồn' in html
+    assert 'T("Second_Half_Plays")' in html and 'T("Second_Half_Summary")' in html
+    assert 'T("Second_Half")' in html and 'game.live_odds' in html
+    assert 'away_period_scores' in html and '1H ${num(half[0])}' in html
     assert 'ActionsSecondHalf.decide(game)' in html
     assert 'const allTracked = currentTab() === "second-half"' in html
 
