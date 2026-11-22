@@ -10,6 +10,7 @@ One request per league and US/Eastern date that has a picked game to price or to
 
 import json
 import math
+import re
 import sqlite3
 
 import pandas as pd
@@ -26,12 +27,24 @@ ESPN = {
     "ncaaf": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?dates={d}&groups=80&limit=300",
     "nba": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={d}",
 }
+ESPN_CORE = {
+    "nfl": "football/leagues/nfl",
+    "ncaaf": "football/leagues/college-football",
+    "nba": "basketball/leagues/nba",
+}
 GAME_HOURS = 72   # picked games that kicked off within this many hours and are not graded get a score
 LINE_LEAD_H = 36  # picked games starting within this many hours get their lines refreshed
 SCHEMA = ("CREATE TABLE IF NOT EXISTS live_scores(game_id INTEGER PRIMARY KEY, away_score INTEGER, home_score INTEGER, "
           "state TEXT, detail TEXT, updated_at TEXT)")
 ID_SCHEMA = ("CREATE TABLE IF NOT EXISTS live_game_ids(game_id INTEGER PRIMARY KEY, espn_event_id TEXT NOT NULL)")
 DETAIL_SCHEMA = ("CREATE TABLE IF NOT EXISTS live_details(game_id INTEGER PRIMARY KEY, details_json TEXT)")
+SECOND_HALF_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS second_half_snapshots("
+    "game_id INTEGER PRIMARY KEY, league TEXT NOT NULL, espn_event_id TEXT NOT NULL, captured_at TEXT NOT NULL, "
+    "away_score_1h INTEGER NOT NULL, home_score_1h INTEGER NOT NULL, first_spread_away REAL, "
+    "first_spread_home REAL, first_total REAL, second_spread_away REAL, second_spread_home REAL, "
+    "second_total REAL)"
+)
 
 
 class LiveError(Exception):
@@ -155,11 +168,110 @@ def parse_scoreboard(data: dict) -> list[dict]:
                     "away_name": side["away"]["team"].get("displayName"),
                     "home_score": score(side["home"]), "away_score": score(side["away"]),
                     "state": status.get("state"), "detail": status.get("shortDetail"),
+                    "is_halftime": status.get("name") == "STATUS_HALFTIME"
+                    or bool(re.fullmatch(r"halftime", str(status.get("shortDetail") or status.get("description") or ""), re.I)),
                     "situation": parse_situation(e, comp),
                     "venue": parse_venue(e, comp),
                     "open": parse_open(comp.get("odds")),
                     "lines": parse_odds(comp.get("odds"))})
     return out
+
+
+def _fetch_json(get, url: str):
+    try:
+        response = get(url, timeout=30, headers={"User-Agent": "actions-tracker/1.0"})
+    except Exception:  # noqa: BLE001 - halftime odds must never stop live-score collection
+        return None
+    if getattr(response, "status_code", None) != 200:
+        return None
+    try:
+        body = response.json()
+    except (TypeError, ValueError):
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _prop_ref(market: dict | None) -> str | None:
+    ref = str(((market or {}).get("propBets") or {}).get("$ref") or "")
+    if not re.match(r"^https?://sports\.core\.api\.espn\.com/", ref):
+        return None
+    ref = re.sub(r"^http:", "https:", ref)
+    return f"{ref}{'&' if '?' in ref else '?'}limit=1000"
+
+
+def _half_props(body: dict | None, half: str, away_id: str | None, home_id: str | None) -> dict:
+    out = {"away": None, "home": None, "total": None}
+    for item in (body or {}).get("items", []):
+        if not isinstance(item, dict):
+            continue
+        name = str(((item.get("type") or {}).get("name")) or "")
+        value = _num((((item.get("current") or {}).get("target") or {}).get("value")))
+        if value is None:
+            continue
+        if re.fullmatch(fr"{half} half spread", name, re.I):
+            team_ref = str(((item.get("team") or {}).get("$ref")) or "")
+            match = re.search(r"/teams/(\d+)", team_ref)
+            team_id = match.group(1) if match else None
+            if team_id and team_id == away_id:
+                out["away"] = value
+            elif team_id and team_id == home_id:
+                out["home"] = value
+        elif re.fullmatch(fr"{half} half total", name, re.I) and out["total"] is None:
+            out["total"] = value
+    if out["away"] is None and out["home"] is not None:
+        out["away"] = -out["home"]
+    if out["home"] is None and out["away"] is not None:
+        out["home"] = -out["away"]
+    return out
+
+
+def _halftime_odds(get, league: str, event: dict) -> tuple[dict, dict]:
+    empty = {"away": None, "home": None, "total": None}
+    event_id = str(event.get("event_id") or "")
+    if league not in ESPN_CORE or not event_id.isdigit():
+        return empty.copy(), empty.copy()
+    url = (f"https://sports.core.api.espn.com/v2/sports/{ESPN_CORE[league]}/events/{event_id}/"
+           f"competitions/{event_id}/odds?lang=en&region=us&limit=100")
+    odds = _fetch_json(get, url)
+    items = odds.get("items", []) if odds else []
+    pregame = next((x for x in items if re.fullmatch(r"draftkings", str(((x or {}).get("provider") or {}).get("name") or ""), re.I)), None)
+    live_market = next((x for x in items if re.search(r"live", str(((x or {}).get("provider") or {}).get("name") or ""), re.I)), None)
+    situation = event.get("situation") or {}
+    away_id, home_id = situation.get("away_espn_id"), situation.get("home_espn_id")
+    pregame_ref, live_ref = _prop_ref(pregame), _prop_ref(live_market)
+    first = _half_props(_fetch_json(get, pregame_ref) if pregame_ref else None, "1st", away_id, home_id)
+    second = _half_props(_fetch_json(get, live_ref) if live_ref else None, "2nd", away_id, home_id)
+    return first, second
+
+
+def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dict, verified_ids: set[int],
+                              now: str, get) -> int:
+    conn.execute(SECOND_HALF_SCHEMA)
+    saved = 0
+    for game_id, event in scored.items():
+        if game_id not in verified_ids or event.get("state") != "in" or event.get("is_halftime") is not True:
+            continue
+        away_score, home_score = event.get("away_score"), event.get("home_score")
+        if away_score is None or home_score is None:
+            continue
+        first, second = _halftime_odds(get, league, event)
+        values = (game_id, league, event["event_id"], now, away_score, home_score,
+                  first["away"], first["home"], first["total"],
+                  second["away"], second["home"], second["total"])
+        conn.execute(
+            "INSERT INTO second_half_snapshots(game_id, league, espn_event_id, captured_at, away_score_1h, "
+            "home_score_1h, first_spread_away, first_spread_home, first_total, second_spread_away, "
+            "second_spread_home, second_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(game_id) DO UPDATE SET captured_at=excluded.captured_at, "
+            "away_score_1h=excluded.away_score_1h, home_score_1h=excluded.home_score_1h, "
+            "first_spread_away=COALESCE(excluded.first_spread_away, second_half_snapshots.first_spread_away), "
+            "first_spread_home=COALESCE(excluded.first_spread_home, second_half_snapshots.first_spread_home), "
+            "first_total=COALESCE(excluded.first_total, second_half_snapshots.first_total), "
+            "second_spread_away=COALESCE(excluded.second_spread_away, second_half_snapshots.second_spread_away), "
+            "second_spread_home=COALESCE(excluded.second_spread_home, second_half_snapshots.second_spread_home), "
+            "second_total=COALESCE(excluded.second_total, second_half_snapshots.second_total)", values)
+        saved += 1
+    return saved
 
 
 def _iso(ts) -> str:
@@ -179,10 +291,12 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     conn.execute(SCHEMA)
     conn.execute(ID_SCHEMA)
     conn.execute(DETAIL_SCHEMA)
+    conn.execute(SECOND_HALF_SCHEMA)
     t = pd.Timestamp(now)
     started = _picked(conn, league, _iso(t - pd.Timedelta(hours=GAME_HOURS)), now, ungraded=True)
     upcoming = _picked(conn, league, now, _iso(t + pd.Timedelta(hours=LINE_LEAD_H)), ungraded=False) if lines else []
-    counts = {"lines": 0, "priced_of": len(upcoming), "live": 0, "final": 0, "scored_of": len(started)}
+    counts = {"lines": 0, "priced_of": len(upcoming), "live": 0, "final": 0, "scored_of": len(started),
+              "halftime_saved": 0}
     if league not in ESPN or not (started or upcoming):
         return counts
     dates = sorted({pd.Timestamp(g["start_time"]).tz_convert(TZ).strftime("%Y%m%d") for g in started + upcoming})
@@ -226,6 +340,7 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
             ids.append((gid, str(event_id)))
     conn.executemany("INSERT INTO live_game_ids(game_id, espn_event_id) VALUES (?, ?) "
                      "ON CONFLICT(game_id) DO UPDATE SET espn_event_id=excluded.espn_event_id", ids)
+    counts["halftime_saved"] = _store_halftime_snapshots(conn, league, scored, {gid for gid, _ in ids}, now, get)
     rows = [(gid, e["away_score"], e["home_score"], e["state"], e["detail"], now) for gid, e in scored.items()
             if e["state"] in ("in", "post")]
     conn.executemany(
@@ -273,6 +388,22 @@ def live_games_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
 
 
 SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded", "updated_at", "situation"]
+
+SECOND_HALF_COLS = ["game_id", "league", "espn_event_id", "captured_at", "away_score_1h", "home_score_1h",
+                    "first_spread_away", "first_spread_home", "first_total", "second_spread_away",
+                    "second_spread_home", "second_total"]
+
+
+def second_half_table(conn: sqlite3.Connection) -> pd.DataFrame:
+    """Persisted halftime score and ESPN half markets for NFL, NCAAF and NBA."""
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='second_half_snapshots'").fetchone()
+    if not exists:
+        return pd.DataFrame(columns=SECOND_HALF_COLS)
+    rows = [dict(row) for row in conn.execute(
+        "SELECT game_id, league, espn_event_id, captured_at, away_score_1h, home_score_1h, first_spread_away, "
+        "first_spread_home, first_total, second_spread_away, second_spread_home, second_total "
+        "FROM second_half_snapshots ORDER BY captured_at DESC, game_id DESC")]
+    return pd.DataFrame(rows, columns=SECOND_HALF_COLS)
 
 
 def scores_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:

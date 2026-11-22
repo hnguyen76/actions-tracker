@@ -44,7 +44,7 @@ def test_parse_scoreboard():
     assert ev[0].pop("open") == []
     assert ev[0] == {"event_id": "1", "commence_time": "2026-11-14T23:15Z", "home_name": "Kentucky Wildcats",
                      "away_name": "Florida Gators", "home_score": 14, "away_score": 10, "state": "in",
-                     "detail": "6:09 - 2nd", "situation": None}
+                     "detail": "6:09 - 2nd", "is_halftime": False, "situation": None}
 
 
 def test_collect_live_only_games_in_progress_and_scores_table(tmp_path):
@@ -274,3 +274,87 @@ def test_situation_persists_exports_and_clears_when_next_snapshot_omits_it(tmp_p
     assert c.execute("SELECT details_json FROM live_details WHERE game_id=1").fetchone()[0] == "null"
     c.execute("UPDATE live_details SET details_json='broken json' WHERE game_id=1")
     assert pd.isna(live.scores_table(c, NOW).set_index("game_id").loc[1, "situation"])
+
+
+def _halftime_board():
+    from copy import deepcopy
+    board = deepcopy(BOARD)
+    event = board["events"][0]
+    event["status"] = {"period": 2, "displayClock": "0:00",
+                       "type": {"state": "in", "name": "STATUS_HALFTIME", "shortDetail": "Halftime"}}
+    comp = event["competitions"][0]
+    comp["competitors"][0]["team"]["id"] = "8"
+    comp["competitors"][1]["team"]["id"] = "17"
+    return board
+
+
+def test_halftime_score_and_exact_espn_half_lines_are_persisted(tmp_path):
+    c = _db(tmp_path)
+    props = {
+        "pregame-props": {"items": [
+            {"type": {"name": "1st Half Spread"}, "team": {"$ref": "https://sports.core.api.espn.com/v2/teams/17"},
+             "current": {"target": {"value": 2.5}}},
+            {"type": {"name": "1st Half Spread"}, "team": {"$ref": "https://sports.core.api.espn.com/v2/teams/8"},
+             "current": {"target": {"value": -2.5}}},
+            {"type": {"name": "1st Half Total"}, "current": {"target": {"value": 27.5}}},
+        ]},
+        "live-props": {"items": [
+            {"type": {"name": "2nd Half Spread"}, "team": {"$ref": "https://sports.core.api.espn.com/v2/teams/17"},
+             "current": {"target": {"value": 4.5}}},
+            {"type": {"name": "2nd Half Spread"}, "team": {"$ref": "https://sports.core.api.espn.com/v2/teams/8"},
+             "current": {"target": {"value": -4.5}}},
+            {"type": {"name": "2nd Half Total"}, "current": {"target": {"value": 24.5}}},
+        ]},
+    }
+    odds = {"items": [
+        {"provider": {"name": "DraftKings"},
+         "propBets": {"$ref": "http://sports.core.api.espn.com/pregame-props"}},
+        {"provider": {"name": "DraftKings - Live Odds"},
+         "propBets": {"$ref": "https://sports.core.api.espn.com/live-props"}},
+    ]}
+
+    class R:
+        status_code = 200
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+    urls = []
+
+    def get(url, **kwargs):
+        urls.append(url)
+        if "scoreboard" in url:
+            return R(_halftime_board())
+        if "/odds?" in url:
+            return R(odds)
+        return R(props["pregame-props" if "pregame-props" in url else "live-props"])
+
+    counts = live.collect_espn(c, "ncaaf", NOW, get=get, lines=False)
+    assert counts["halftime_saved"] == 1
+    saved = dict(c.execute("SELECT * FROM second_half_snapshots WHERE game_id=1").fetchone())
+    assert (saved["away_score_1h"], saved["home_score_1h"]) == (10, 14)
+    assert (saved["first_spread_away"], saved["first_spread_home"], saved["first_total"]) == (2.5, -2.5, 27.5)
+    assert (saved["second_spread_away"], saved["second_spread_home"], saved["second_total"]) == (4.5, -4.5, 24.5)
+    assert any("football/leagues/college-football/events/1/competitions/1/odds" in url for url in urls)
+    exported = live.second_half_table(c).set_index("game_id")
+    assert exported.loc[1, "league"] == "ncaaf" and exported.loc[1, "away_score_1h"] == 10
+
+
+def test_half_odds_support_all_three_leagues():
+    expected = {"nfl": "football/leagues/nfl", "ncaaf": "football/leagues/college-football",
+                "nba": "basketball/leagues/nba"}
+    event = {"event_id": "123", "situation": {"away_espn_id": "1", "home_espn_id": "2"}}
+
+    class R:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}
+
+    for league, path in expected.items():
+        urls = []
+        live._halftime_odds(lambda url, **kwargs: urls.append(url) or R(), league, event)
+        assert len(urls) == 1 and f"/sports/{path}/events/123/" in urls[0]

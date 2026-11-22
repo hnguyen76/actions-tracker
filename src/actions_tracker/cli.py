@@ -398,7 +398,8 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
             print(f"[{league}] diem live: loi {e}")
             continue
         if c["scored_of"]:
-            print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong")
+            half = f", luu 1H: {c['halftime_saved']}" if c["halftime_saved"] else ""
+            print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong{half}")
         changed += c["live"] + c["final"]
     if changed:
         tables = build_tables(conn, now, Path(db_path).parent / "history")
