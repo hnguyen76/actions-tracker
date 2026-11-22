@@ -429,6 +429,14 @@
     if (out.home === null && out.away !== null) out.home = -out.away;
     return out.away === null && out.total === null ? null : out;
   }
+  function parseFirstHalfTotal(body) {
+    for (const item of Array.isArray(body && body.items) ? body.items : []) {
+      const name = String(item && item.type && item.type.name || "");
+      const value = finite(item && item.current && item.current.target && item.current.target.value);
+      if (/^1st half total$/i.test(name) && value !== null) return value;
+    }
+    return null;
+  }
   // Some ESPN games expose a live full-game market at halftime but no propBets collection (404 for the
   // 2H endpoint). Remove the first-half score from that live market to get the equivalent second-half line.
   // Mark it as implied so the scoreboard never presents it as a direct DraftKings 2H market.
@@ -457,13 +465,26 @@
       try {
         const opts = { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal };
         const list = await fetchOddsList(game, event, fetcher);
-        const live = (Array.isArray(list) ? list : [])
+        const markets = Array.isArray(list) ? list : [];
+        const live = markets
           .find((x) => /live/i.test(String(x && x.provider && x.provider.name || "")));
-        const ref = String(live && live.propBets && live.propBets.$ref || "");
-        if (!/^https?:\/\/sports\.core\.api\.espn\.com\//.test(ref)) return cached.value;
-        const props = await fetcher(ref.replace(/^http:/, "https:") + (ref.includes("?") ? "&" : "?") + "limit=1000", opts);
+        const pregame = markets.find((x) => /^draftkings$/i.test(String(x && x.provider && x.provider.name || "")));
+        const propsRef = (market) => {
+          const ref = String(market && market.propBets && market.propBets.$ref || "");
+          return /^https?:\/\/sports\.core\.api\.espn\.com\//.test(ref)
+            ? ref.replace(/^http:/, "https:") + (ref.includes("?") ? "&" : "?") + "limit=1000" : null;
+        };
+        const fetchProps = async (ref) => {
+          if (!ref) return null;
+          try { const response = await fetcher(ref, opts); return response.ok ? await response.json() : null; }
+          catch (error) { return null; }
+        };
+        const [liveProps, pregameProps] = await Promise.all([fetchProps(propsRef(live)), fetchProps(propsRef(pregame))]);
         const situation = event.situation || {};
-        if (props.ok) cached.value = parseSecondHalf(await props.json(), situation.away_espn_id, situation.home_espn_id);
+        const second = parseSecondHalf(liveProps, situation.away_espn_id, situation.home_espn_id);
+        const firstTotal = parseFirstHalfTotal(pregameProps);
+        if (second || firstTotal !== null) cached.value = { ...(cached.value || {}), ...(second || {}),
+          ...(firstTotal !== null ? { first_total: firstTotal } : {}) };
       } catch (error) { /* keep the last line through a transient ESPN failure */ }
       finally { clearTimeout(timeout); }
       return cached.value;
@@ -509,8 +530,10 @@
           // the second-half line is only shown during halftime; it is dropped as soon as the 2nd half starts
           let secondHalf = null;
           if (e.state === "live" && e.is_halftime) {
-            secondHalf = await fetchSecondHalf(game, e, fetcher);
-            if (!secondHalf) secondHalf = impliedSecondHalf(liveOdds, e);
+            const direct = await fetchSecondHalf(game, e, fetcher);
+            const hasDirectLine = direct && (finite(direct.away) !== null || finite(direct.home) !== null || finite(direct.total) !== null);
+            const implied = hasDirectLine ? null : impliedSecondHalf(liveOdds, e);
+            secondHalf = direct || implied ? { ...(implied || {}), ...(direct || {}) } : null;
           }
           else secondHalfCache.delete(game.league + "/" + e.event_id);
           result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
@@ -525,5 +548,5 @@
     return result;
   }
   root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, parseNbaVisual, parseLiveOdds,
-    parseSecondHalf, impliedSecondHalf, halftimeEnd, fetchGames };
+    parseSecondHalf, parseFirstHalfTotal, impliedSecondHalf, halftimeEnd, fetchGames };
 })(globalThis);

@@ -285,6 +285,23 @@ section.panel { padding-top: 14px; }
 .crow .cmore { margin-top: 12px; padding-top: 11px; }
 .clist { gap: 10px; }
 
+.second-half-card { max-width: 880px; margin-inline: auto; }
+.second-half-head { display: flex; align-items: center; gap: 10px; }
+.second-half-head h2 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
+.second-half-rules { display: flex; flex-wrap: wrap; gap: 9px; margin: 14px 0 4px; }
+.second-half-rules > span { padding: 9px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+.second-half-rules b { color: var(--ink); }
+.second-half-list { display: grid; gap: 11px; margin-top: 16px; }
+.second-half-game { padding: 15px; border: 1px solid var(--border); border-radius: 17px; background: var(--surface-2); }
+.second-half-game-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.second-half-match { font-size: 17px; font-weight: 750; }
+.second-half-score { font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 750; }
+.second-half-picks { display: grid; gap: 8px; margin-top: 12px; }
+.second-half-pick { display: flex; justify-content: space-between; gap: 12px; padding: 11px 12px; border-radius: 12px; background: var(--surface); }
+.second-half-pick strong { color: var(--good); }
+.second-half-pick small { color: var(--muted); }
+.second-half-pick.off strong { color: var(--muted); }
+
 /* Today's selected ratios are white; decision sample size stays yellow, green, then purple. */
 .heat-white { --decision-heat: #f8fafc; }
 .heat-yellow { --decision-heat: var(--warning); }

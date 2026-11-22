@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="scoreboard.css?v=__STATIC_V__">
 <script src="scoreboard.js?v=__STATIC_V__"></script>
 <script src="live-scores.js?v=__STATIC_V__"></script>
+<script src="second-half.js?v=__STATIC_V__"></script>
 <script src="big-play.js?v=__STATIC_V__"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -639,6 +640,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
     <button role="tab" data-tab="rules" aria-selected="false">Quy tắc</button>
     <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
+    <button role="tab" data-tab="second-half" aria-selected="false">2H</button>
     <button role="tab" data-tab="season-chart" aria-selected="false">Biểu đồ cả mùa</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
@@ -734,6 +736,20 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <h2>Thứ 7 – Chủ nhật</h2>
       <div class="table-scroll" id="past-chart-we"></div>
       <div class="table-scroll" id="past-table-we"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-second-half">
+    <div class="card second-half-card">
+      <div class="second-half-head">
+        <h2>2H</h2><span class="pill dim">THEO DÕI</span>
+      </div>
+      <div class="second-half-rules" aria-label="Quy tắc hiệp hai">
+        <span title="Spread: chọn đội đang thua điểm sau hiệp một">↩ <b>Đội đang thua</b></span>
+        <span title="Total: nếu điểm hiệp một dưới ESPN 1H total thì chọn hiệp hai Over">1H Under <b>→ 2H Over</b></span>
+      </div>
+      <p class="note" id="second-half-note">Chỉ hiện lúc halftime · ESPN odds</p>
+      <div class="second-half-list" id="second-half-list"></div>
     </div>
   </section>
 
@@ -872,6 +888,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button type="button" data-go="upcoming" aria-label="Kèo" title="Kèo" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
     <button type="button" data-go="inplay" aria-label="Đang đá" title="Đang đá"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" class="dot"/></svg></button>
     <button type="button" data-go="past" aria-label="Kèo đã qua" title="Kèo đã qua"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+    <button type="button" data-go="second-half" aria-label="Kèo hiệp hai" title="Kèo hiệp hai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM12 5v14"/><path d="M7.5 9.5h2v2h-2zM14.5 12.5h2v2h-2z"/></svg></button>
     <button type="button" data-go="rules" aria-label="Cách của bạn" title="Cách của bạn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
     <button type="button" data-go="forecast" aria-label="Dự báo" title="Dự báo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V6M4 18h16M7 15l4-4 3 2 5-6"/></svg></button>
     <button type="button" data-go="nba" aria-label="NBA" title="NBA"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3c-2.5 2.4-4 5.4-4 9s1.5 6.6 4 9M12 3c2.5 2.4 4 5.4 4 9s-1.5 6.6-4 9"/></svg></button>
@@ -2225,6 +2242,42 @@ const DATA = /*__DATA__*/null;
     }
   }
 
+  function secondHalfTab() {
+    const host = document.getElementById("second-half-list"), note = document.getElementById("second-half-note");
+    const games = T("Live_Games").filter((g) => state.league === "ALL" || g.league === state.league);
+    const rows = games.flatMap((g) => {
+      const score = scoreOf(g), game = score ? { ...g, ...score } : null;
+      const decision = window.ActionsSecondHalf && game ? ActionsSecondHalf.decide(game) : null;
+      return decision ? [{ game, decision }] : [];
+    }).sort((a, b) => Date.parse(a.game.start_time) - Date.parse(b.game.start_time));
+    note.textContent = rows.length ? `${rows.length} trận halftime · ESPN odds` : "Chỉ hiện lúc halftime · ESPN odds";
+    host.replaceChildren();
+    if (!rows.length) host.append(el("div", { class: "empty", text: "Chưa có trận halftime" }));
+    const line = (value) => `${value > 0 ? "+" : ""}${num(value, Number.isInteger(Number(value)) ? 0 : 1)}`;
+    for (const { game, decision } of rows) {
+      const away = game.away_abbr || game.away_name || "AWAY", home = game.home_abbr || game.home_name || "HOME";
+      const spread = decision.spread
+        ? el("div", { class: "second-half-pick" }, el("span", {}, "↩ ", el("strong", { text:
+          `${decision.spread.side === "away" ? away : home} ${line(decision.spread.line)}` })),
+          el("small", { text: "2H spread" }))
+        : el("div", { class: "second-half-pick off" }, el("span", {}, "↩ ", el("strong", { text: "–" })),
+          el("small", { text: game.away_score === game.home_score ? "hòa 1H" : "chờ line" }));
+      let totalMeta = "chờ ESPN 1H odds";
+      if (decision.first_total !== null) totalMeta = `1H ${num(decision.first_points)} / ${num(decision.first_total, 1)}`;
+      const total = decision.total
+        ? el("div", { class: "second-half-pick" }, el("span", {}, "↑ ", el("strong", { text: `Over ${num(decision.total.line, 1)}` })),
+          el("small", { text: totalMeta }))
+        : el("div", { class: "second-half-pick off" }, el("span", {}, "∅ ", el("strong", { text: "Total" })),
+          el("small", { text: totalMeta }));
+      host.append(el("article", { class: "second-half-game", "data-game-id": String(game.game_id) },
+        el("div", { class: "second-half-game-head" },
+          el("span", { class: "second-half-match", text: `${leagueName(game.league)} · ${away} @ ${home}` }),
+          el("span", { class: "second-half-score", text: `${num(game.away_score)}–${num(game.home_score)}` })),
+        el("div", { class: "second-half-picks" }, spread, total)));
+    }
+    if (!browserLive.busy) refreshLiveScores();
+  }
+
   const seasonChartState = { key: null, page: {}, openWeeks: {}, openDetails: {}, week: "ALL" };
   function seasonChartTab() {
     const groups = document.getElementById("season-chart-groups");
@@ -2799,11 +2852,12 @@ const DATA = /*__DATA__*/null;
     }).sort((a, b) => (a.state === "live" ? 0 : 1) - (b.state === "live" ? 0 : 1) || Date.parse(a.start_time) - Date.parse(b.start_time));
   }
   function liveCandidateGames() {
+    const allTracked = currentTab() === "second-half";
     const ids = new Set(T("Decision_Method").filter((r) => r.status !== "graded").map((r) => Number(r.game_id)));
     for (const r of T("In_Play")) if (r.source === "Cách của bạn") ids.add(Number(r.game_id));
     return T("Live_Games").filter((g) => {
       const age = Date.now() - Date.parse(g.start_time), s = scoreOf(g);
-      return ids.has(Number(g.game_id)) && age >= 0 && age < 72 * 3600000 && !(s && (s.graded || s.state === "final"));
+      return (allTracked || ids.has(Number(g.game_id))) && age >= 0 && age < 72 * 3600000 && !(s && (s.graded || s.state === "final"));
     });
   }
   function scheduleLiveScores(delay = LIVE_POLL_MS) {
@@ -2864,6 +2918,7 @@ const DATA = /*__DATA__*/null;
   function updateLiveCard() {
     const allRows = liveInPlayRows();
     renderLiveSummary(allRows);
+    if (currentTab() === "second-half") { preserveLiveViewport(secondHalfTab); return; }
     if (currentTab() !== "upcoming") return;
     const rows = rawFilter(allRows);
     document.getElementById("inplay-card").hidden = !rows.length;
@@ -2960,7 +3015,8 @@ const DATA = /*__DATA__*/null;
     kpis();
     renderLiveSummary(liveInPlayRows());
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
-    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, "season-chart": seasonChartTab, consensus: consensusTab,
+    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, "second-half": secondHalfTab,
+      "season-chart": seasonChartTab, consensus: consensusTab,
       experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
       forecast: forecastTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();

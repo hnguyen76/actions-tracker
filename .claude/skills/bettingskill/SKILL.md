@@ -163,6 +163,10 @@ quy tắc đó; khi đó nói rõ kết quả forward test cũ không còn so s�
 
 ### Nhật ký cách bet
 
+- 22/11/2026: thêm trang 2H ở cạnh "Kèo đã qua". Lúc halftime: spread chọn đội đang thua điểm với ESPN 2H line;
+  nếu tổng điểm 1H thấp hơn ESPN 1H total thì chọn ESPN 2H Over. Back-test đúng line lưu được chỉ có NBA:
+  spread 30–19 (61,2%, n=49, ROI giả định −110 +18,6%); total 8–16 (33,3%, n=24, ROI −40,0%).
+  NFL/NCAAF chưa lưu đủ line 2H lịch sử. Cả hai để trạng thái theo dõi, không coi là rule đã đạt.
 - 17/11/2026: riêng bảng Quyết định T2–6 ET, theo bên đa số có ≥ 2 expert cho spread/total/moneyline của NFL,
   NCAAF và NBA; T7–CN giữ spread NFL/NCAAF, ≥ 5 tổng picks và fade. Nhìn lại NFL/NCAAF T2–6: 107–94–3
   (53,2%, ROI +1,4%, n=201; `pick_count`). Live có NBA: 28–20–1 (58,3%, ROI +9,9%, n=48;
