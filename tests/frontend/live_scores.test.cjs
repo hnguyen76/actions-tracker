@@ -267,9 +267,11 @@ const propBets=()=>({count:4,items:[
   {type:{id:'312',name:'2nd Half Spread'},team:teamRef('17'),current:{target:{value:-1.5,displayValue:'-1.5'}}},
   {type:{id:'313',name:'2nd Half Total'},team:null,current:{target:{value:23.5,displayValue:'23.5'}}},
   {type:{id:'83',name:'3rd Quarter Spread'},team:teamRef('8'),current:{target:{value:0.5}}}]});
-const firstHalfProps=()=>({count:3,items:[
+const firstHalfProps=()=>({count:5,items:[
   {type:{id:'310',name:'1st Half Total'},team:null,current:{target:{value:24.5,displayValue:'24.5'}}},
   {type:{id:'310',name:'1st Half Total'},team:null,current:{target:{value:24.5,displayValue:'24.5'}}},
+  {type:{id:'311',name:'1st Half Spread'},team:teamRef('17'),current:{target:{value:3.5,displayValue:'3.5'}}},
+  {type:{id:'311',name:'1st Half Spread'},team:teamRef('8'),current:{target:{value:-3.5,displayValue:'-3.5'}}},
   {type:{id:'83',name:'Team 1st Half Total Points'},team:teamRef('8'),current:{target:{value:14.5}}}]});
 const liveMarket=(eventId='401873066')=>({
   provider:{id:'200',name:'DraftKings - Live Odds'},
@@ -293,6 +295,8 @@ test('second-half lines are read per team from the live prop bets', () => {
 });
 test('the exact pregame ESPN first-half total is read without deriving it from the full-game total', () => {
   assert.equal(api.parseFirstHalfTotal(firstHalfProps()),24.5);
+  assert.deepEqual(JSON.parse(JSON.stringify(api.parseFirstHalf(firstHalfProps(),'17','8'))),
+    {away:3.5,home:-3.5,total:24.5});
   assert.equal(api.parseFirstHalfTotal({items:[]}),null);
   assert.equal(api.parseFirstHalfTotal({items:[{type:{name:'Team 1st Half Total Points'},current:{target:{value:14.5}}}]}),null);
 });
@@ -305,7 +309,7 @@ test('halftime combines pregame 1H total with live 2H lines from ESPN', async ()
     url.includes('/odds/100/propBets')?firstHalfProps():url.includes('/odds/200/propBets')?propBets()
       :url.includes('/odds?')?{items:[pre,live]}:{events:[raw]}}));
   assert.deepEqual(JSON.parse(JSON.stringify(result.scores[0].second_half)),
-    {away:-1.5,home:1.5,total:23.5,first_total:24.5});
+    {away:-1.5,home:1.5,total:23.5,first_away:3.5,first_home:-3.5,first_total:24.5});
 });
 test('NBA halftime reads the direct ESPN second-half spread and total', async () => {
   const raw=event();raw.id='401910012';raw.date=new Date(Date.now()-90*60000).toISOString();

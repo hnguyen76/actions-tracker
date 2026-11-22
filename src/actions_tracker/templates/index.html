@@ -745,8 +745,8 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
         <h2>2H</h2><span class="pill dim">THEO DÕI</span>
       </div>
       <div class="second-half-rules" aria-label="Quy tắc hiệp hai">
-        <span title="Spread: chọn đội đang thua điểm sau hiệp một">↩ <b>Đội đang thua</b></span>
-        <span title="Total: nếu điểm hiệp một dưới ESPN 1H total thì chọn hiệp hai Over">1H Under <b>→ 2H Over</b></span>
+        <span title="Spread: đội thua ESPN 1H spread ATS, chọn ngược bằng ESPN 2H spread">1H ATS thua <b>→ ngược 2H</b></span>
+        <span title="Total: kết quả ESPN 1H total Under hoặc Over, chọn phía ngược bằng ESPN 2H total">1H U/O <b>→ ngược 2H</b></span>
       </div>
       <p class="note" id="second-half-note">Chỉ hiện lúc halftime · ESPN odds</p>
       <div class="second-half-list" id="second-half-list"></div>
@@ -2259,13 +2259,14 @@ const DATA = /*__DATA__*/null;
       const spread = decision.spread
         ? el("div", { class: "second-half-pick" }, el("span", {}, "↩ ", el("strong", { text:
           `${decision.spread.side === "away" ? away : home} ${line(decision.spread.line)}` })),
-          el("small", { text: "2H spread" }))
+          el("small", { text: `1H ${decision.spread.side === "away" ? away : home} ${line(decision.spread.first_line)} thua ATS` }))
         : el("div", { class: "second-half-pick off" }, el("span", {}, "↩ ", el("strong", { text: "–" })),
-          el("small", { text: game.away_score === game.home_score ? "hòa 1H" : "chờ line" }));
+          el("small", { text: decision.first_spread_result === "push" ? "1H spread push" : "chờ ESPN 1H/2H spread" }));
       let totalMeta = "chờ ESPN 1H odds";
-      if (decision.first_total !== null) totalMeta = `1H ${num(decision.first_points)} / ${num(decision.first_total, 1)}`;
+      if (decision.first_total !== null) totalMeta = `1H ${num(decision.first_points)} ${decision.first_result === "under" ? "<" : decision.first_result === "over" ? ">" : "="} ${num(decision.first_total, 1)}`;
       const total = decision.total
-        ? el("div", { class: "second-half-pick" }, el("span", {}, "↑ ", el("strong", { text: `Over ${num(decision.total.line, 1)}` })),
+        ? el("div", { class: "second-half-pick" }, el("span", {}, decision.total.side === "over" ? "↑ " : "↓ ",
+          el("strong", { text: `${decision.total.side === "over" ? "Over" : "Under"} ${num(decision.total.line, 1)}` })),
           el("small", { text: totalMeta }))
         : el("div", { class: "second-half-pick off" }, el("span", {}, "∅ ", el("strong", { text: "Total" })),
           el("small", { text: totalMeta }));

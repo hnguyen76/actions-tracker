@@ -13,8 +13,8 @@
       && (situation.is_halftime === true || /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail || "")));
   }
 
-  // User rule: take the team trailing at halftime with its ESPN 2H spread. When the actual first-half
-  // points are below ESPN's pregame 1H total, take Over at ESPN's current 2H total.
+  // User rule: grade the first half against ESPN's actual 1H spread/total, then take the opposite result
+  // with ESPN's 2H line. A raw scoreboard deficit alone never decides the spread play.
   function decide(game) {
     if (!isHalftime(game)) return null;
     const awayScore = finite(game.away_score), homeScore = finite(game.home_score);
@@ -22,17 +22,22 @@
     if (awayScore === null || homeScore === null) return null;
     const firstPoints = awayScore + homeScore;
     const firstTotal = finite(odds.first_total), secondTotal = finite(odds.total);
-    let spread = null;
-    if (awayScore !== homeScore) {
-      const side = awayScore < homeScore ? "away" : "home";
-      const line = finite(odds[side]);
-      if (line !== null) spread = { side, line };
+    const firstAway = finite(odds.first_away), firstHome = finite(odds.first_home);
+    let spread = null, firstSpreadResult = "missing";
+    if (firstAway !== null && firstHome !== null) {
+      const awayMargin = awayScore - homeScore + firstAway;
+      firstSpreadResult = awayMargin === 0 ? "push" : awayMargin < 0 ? "away_loss" : "home_loss";
+      if (awayMargin !== 0) {
+        const side = awayMargin < 0 ? "away" : "home", line = finite(odds[side]);
+        if (line !== null) spread = { side, line, first_line: side === "away" ? firstAway : firstHome };
+      }
     }
     const firstResult = firstTotal === null ? "missing" : firstPoints < firstTotal ? "under"
       : firstPoints > firstTotal ? "over" : "push";
-    const total = firstResult === "under" && secondTotal !== null ? { side: "over", line: secondTotal } : null;
+    const total = ["under", "over"].includes(firstResult) && secondTotal !== null
+      ? { side: firstResult === "under" ? "over" : "under", line: secondTotal } : null;
     return { spread, total, first_points: firstPoints, first_total: firstTotal, first_result: firstResult,
-      implied: odds.implied === true };
+      first_spread_result: firstSpreadResult, implied: odds.implied === true };
   }
 
   root.ActionsSecondHalf = { isHalftime, decide };

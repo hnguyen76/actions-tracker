@@ -437,6 +437,20 @@
     }
     return null;
   }
+  function parseFirstHalf(body, awayId, homeId) {
+    const out = { away: null, home: null, total: parseFirstHalfTotal(body) };
+    for (const item of Array.isArray(body && body.items) ? body.items : []) {
+      const name = String(item && item.type && item.type.name || "");
+      const value = finite(item && item.current && item.current.target && item.current.target.value);
+      if (!/^1st half spread$/i.test(name) || value === null) continue;
+      const id = (String(item.team && item.team.$ref || "").match(/\/teams\/(\d+)/) || [])[1];
+      if (id && id === String(awayId)) out.away = value;
+      else if (id && id === String(homeId)) out.home = value;
+    }
+    if (out.away === null && out.home !== null) out.away = -out.home;
+    if (out.home === null && out.away !== null) out.home = -out.away;
+    return out.away === null && out.total === null ? null : out;
+  }
   // Some ESPN games expose a live full-game market at halftime but no propBets collection (404 for the
   // 2H endpoint). Remove the first-half score from that live market to get the equivalent second-half line.
   // Mark it as implied so the scoreboard never presents it as a direct DraftKings 2H market.
@@ -482,9 +496,9 @@
         const [liveProps, pregameProps] = await Promise.all([fetchProps(propsRef(live)), fetchProps(propsRef(pregame))]);
         const situation = event.situation || {};
         const second = parseSecondHalf(liveProps, situation.away_espn_id, situation.home_espn_id);
-        const firstTotal = parseFirstHalfTotal(pregameProps);
-        if (second || firstTotal !== null) cached.value = { ...(cached.value || {}), ...(second || {}),
-          ...(firstTotal !== null ? { first_total: firstTotal } : {}) };
+        const first = parseFirstHalf(pregameProps, situation.away_espn_id, situation.home_espn_id);
+        if (second || first) cached.value = { ...(cached.value || {}), ...(second || {}),
+          ...(first ? { first_away: first.away, first_home: first.home, first_total: first.total } : {}) };
       } catch (error) { /* keep the last line through a transient ESPN failure */ }
       finally { clearTimeout(timeout); }
       return cached.value;
@@ -548,5 +562,5 @@
     return result;
   }
   root.ActionsLiveScores = { dateKey, parseEvent, matchEvent, parseDrive, parseBigPlays, parseNbaVisual, parseLiveOdds,
-    parseSecondHalf, parseFirstHalfTotal, impliedSecondHalf, halftimeEnd, fetchGames };
+    parseSecondHalf, parseFirstHalf, parseFirstHalfTotal, impliedSecondHalf, halftimeEnd, fetchGames };
 })(globalThis);
