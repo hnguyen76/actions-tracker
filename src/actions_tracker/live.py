@@ -263,14 +263,16 @@ def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dic
             "INSERT INTO second_half_snapshots(game_id, league, espn_event_id, captured_at, away_score_1h, "
             "home_score_1h, first_spread_away, first_spread_home, first_total, second_spread_away, "
             "second_spread_home, second_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            # lines are locked at their first sighting (the run that sends the Telegram alert); later halftime
+            # polls only fill a line that was still missing, so grading uses the line that was announced
             "ON CONFLICT(game_id) DO UPDATE SET captured_at=excluded.captured_at, "
             "away_score_1h=excluded.away_score_1h, home_score_1h=excluded.home_score_1h, "
-            "first_spread_away=COALESCE(excluded.first_spread_away, second_half_snapshots.first_spread_away), "
-            "first_spread_home=COALESCE(excluded.first_spread_home, second_half_snapshots.first_spread_home), "
-            "first_total=COALESCE(excluded.first_total, second_half_snapshots.first_total), "
-            "second_spread_away=COALESCE(excluded.second_spread_away, second_half_snapshots.second_spread_away), "
-            "second_spread_home=COALESCE(excluded.second_spread_home, second_half_snapshots.second_spread_home), "
-            "second_total=COALESCE(excluded.second_total, second_half_snapshots.second_total)", values)
+            "first_spread_away=COALESCE(second_half_snapshots.first_spread_away, excluded.first_spread_away), "
+            "first_spread_home=COALESCE(second_half_snapshots.first_spread_home, excluded.first_spread_home), "
+            "first_total=COALESCE(second_half_snapshots.first_total, excluded.first_total), "
+            "second_spread_away=COALESCE(second_half_snapshots.second_spread_away, excluded.second_spread_away), "
+            "second_spread_home=COALESCE(second_half_snapshots.second_spread_home, excluded.second_spread_home), "
+            "second_total=COALESCE(second_half_snapshots.second_total, excluded.second_total)", values)
         saved += 1
     return saved
 

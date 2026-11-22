@@ -375,6 +375,40 @@ def test_halftime_score_and_exact_espn_half_lines_are_persisted(tmp_path):
     assert exported.loc[1, "league"] == "ncaaf" and exported.loc[1, "away_score_1h"] == 10
 
 
+def test_halftime_lines_are_locked_at_the_first_sighting_the_telegram_alert_uses(tmp_path):
+    # the 2H alert goes out in the run that first sees the line; grading must use that same line
+    c = _db(tmp_path)
+    spread = lambda team, v: {"type": {"name": "2nd Half Spread"}, "current": {"target": {"value": v}},  # noqa: E731
+                              "team": {"$ref": f"https://sports.core.api.espn.com/v2/teams/{team}"}}
+    total = lambda v: {"type": {"name": "2nd Half Total"}, "current": {"target": {"value": v}}}  # noqa: E731
+    live_items = [spread(17, 4.5), spread(8, -4.5)]                     # first poll: no 2H total yet
+    odds = {"items": [{"provider": {"name": "DraftKings - Live Odds"},
+                       "propBets": {"$ref": "https://sports.core.api.espn.com/live-props"}}]}
+
+    class R:
+        status_code = 200
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+    def get(url, **kwargs):
+        if "scoreboard" in url:
+            return R(_halftime_board())
+        return R(odds) if "/odds?" in url else R({"items": live_items})
+
+    live.collect_espn(c, "ncaaf", NOW, get=get, lines=False)
+    later = "2026-11-14T23:55:00.000Z"
+    live_items[:] = [spread(17, 5.5), spread(8, -5.5), total(24.5)]      # the line moved; the total showed up
+    live.collect_espn(c, "ncaaf", later, get=get, lines=False)
+    saved = dict(c.execute("SELECT * FROM second_half_snapshots WHERE game_id=1").fetchone())
+    assert (saved["second_spread_away"], saved["second_spread_home"]) == (4.5, -4.5)   # kept: the alerted line
+    assert saved["second_total"] == 24.5                                                # filled at its first sighting
+    assert saved["captured_at"] == later                                                # still at halftime now
+
+
 def test_half_odds_support_all_three_leagues():
     expected = {"nfl": "football/leagues/nfl", "ncaaf": "football/leagues/college-football",
                 "nba": "basketball/leagues/nba"}
