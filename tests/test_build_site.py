@@ -51,7 +51,7 @@ def test_second_half_tab_sits_after_upcoming_and_uses_espn_odds(tmp_path):
     assert 'id="second-half-chart"' in html and 'Win% cộng dồn' in html
     assert 'T("Second_Half_Plays")' in html and 'T("Second_Half_Summary")' in html
     assert 'T("Second_Half")' in html and 'game.live_odds' in html
-    assert 'away_period_scores' in html and '1H ${num(half[0])}' in html
+    assert 'ActionsSecondHalf.firstHalfScore(game, snapshot)' in html and '1H ${num(half[0])}' in html
     assert 'ActionsSecondHalf.decide(game)' in html
     assert 'const allTracked = currentTab() === "second-half"' in html
 
@@ -138,3 +138,17 @@ def test_site_version_changes_with_the_template_or_a_static_file():
     assert len(base) == 10
     assert site_version("<html>B</html>", [("a.js", b"1"), ("b.css", b"2")]) != base   # a design change in the page itself
     assert site_version("<html>A</html>", [("a.js", b"1"), ("b.css", b"3")]) != base   # a change in a static file
+
+
+def test_rebuild_removes_static_files_that_were_deleted_from_the_code(tmp_path):
+    # the phone keeps one site/ folder and publishes everything in it: a removed asset (ask.js) must not linger
+    site = tmp_path / "site"
+    site.mkdir()
+    for name in ("ask.js", "anthropic-sdk.js", "anthropic-sdk.LICENSE.txt", "old.css"):
+        (site / name).write_text("stale", "utf-8")
+    (site / "actions_report.xlsx").write_bytes(b"xlsx from an earlier full run")
+    (site / "CNAME").write_text("example.org", "utf-8")
+    build_site({}, [], site, None, "t")
+    names = {p.name for p in site.iterdir()}
+    assert not names & {"ask.js", "anthropic-sdk.js", "anthropic-sdk.LICENSE.txt", "old.css"}
+    assert {"index.html", "scoreboard.js", "second-half.js", "dashboard.css", "actions_report.xlsx", "CNAME"} <= names

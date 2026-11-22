@@ -2268,14 +2268,7 @@ const DATA = /*__DATA__*/null;
     host.replaceChildren();
     if (!rows.length) host.append(el("div", { class: "empty", text: "Chưa có trận live" }));
     const line = (value) => `${value > 0 ? "+" : ""}${num(value, Number.isInteger(Number(value)) ? 0 : 1)}`;
-    const firstHalfScore = (game, snapshot) => {
-      if (snapshot) return [Number(snapshot.away_score_1h), Number(snapshot.home_score_1h)];
-      if (window.ActionsSecondHalf && ActionsSecondHalf.isHalftime(game)) return [Number(game.away_score), Number(game.home_score)];
-      const situation = game.situation || {}, away = situation.away_period_scores, home = situation.home_period_scores;
-      const complete = (scores) => Array.isArray(scores) && scores.length >= 2 && scores.slice(0, 2).every((v) => v !== null && Number.isFinite(Number(v)));
-      return complete(away) && complete(home)
-        ? [Number(away[0]) + Number(away[1]), Number(home[0]) + Number(home[1])] : null;
-    };
+    const firstHalfScore = (game, snapshot) => window.ActionsSecondHalf ? ActionsSecondHalf.firstHalfScore(game, snapshot) : null;
     for (const { game, decision, snapshot } of rows) {
       const away = game.away_abbr || game.away_name || "AWAY", home = game.home_abbr || game.home_name || "HOME";
       const half = firstHalfScore(game, snapshot), odds = game.live_odds || {};

@@ -80,6 +80,38 @@ def test_espn_final_grades_the_game(tmp_path):
     assert g == {"status": "complete", "away_score": 10, "home_score": 14}
 
 
+def test_old_picked_game_left_ungraded_is_graded_late(tmp_path):
+    # JAC@BAL 05/11 was never graded: the 72-hour score window had passed before ESPN grading existed
+    c = _db(tmp_path)
+    db.upsert_games(c, [dict(id=4, league="ncaaf", start_time="2026-10-28T23:15:00.000Z", home_abbr="BAL",
+                             away_abbr="JAC", home_name="Baltimore Ravens", away_name="Jacksonville Jaguars"),
+                        dict(id=5, league="ncaaf", start_time="2026-10-01T23:15:00.000Z", home_abbr="OLD",
+                             away_abbr="GONE", home_name="Old Team", away_name="Gone Team")], "t")
+    db.upsert_picks(c, [dict(id=10 + g, expert_id=1, game_id=g, league="ncaaf", market="spread", pick_side="away",
+                             created_at="2026-10-01T10:00:00.000Z") for g in (4, 5)], "t")
+    old = {"events": [{"id": "9", "date": "2026-10-28T23:15Z", "status": {"type": {"state": "post", "shortDetail": "Final"}},
+                       "competitions": [{"competitors": [
+                           {"homeAway": "home", "team": {"displayName": "Baltimore Ravens"}, "score": "10"},
+                           {"homeAway": "away", "team": {"displayName": "Jacksonville Jaguars"}, "score": "33"}]}]}]}
+    urls = []
+
+    class R:
+        status_code = 200
+
+        def __init__(self, url):
+            self.url = url
+
+        def json(self):
+            return old if "dates=20261028" in self.url else BOARD
+    live.collect_live(c, "ncaaf", NOW, get=lambda url, **k: urls.append(url) or R(url))
+    g = dict(c.execute("SELECT status, away_score, home_score FROM games WHERE id = 4").fetchone())
+    assert g == {"status": "complete", "away_score": 33, "home_score": 10}
+    assert not any("dates=20261001" in u for u in urls)      # beyond the 30-day look-back: not requested
+    urls.clear()
+    live.collect_live(c, "ncaaf", NOW, get=lambda url, **k: urls.append(url) or R(url))
+    assert not any("dates=20261028" in u for u in urls)      # graded now: its date is not fetched again
+
+
 
 ODDS = [{"provider": {"name": "DraftKings"}, "spread": -3.0, "overUnder": 49.5,
          "pointSpread": {"home": {"close": {"line": "-3", "odds": "-102"}}, "away": {"close": {"line": "+3", "odds": "-118"}}},

@@ -13,22 +13,37 @@
       && (situation.is_halftime === true || /\bhalftime\b|STATUS_HALFTIME/i.test(String(game.detail || "")));
   }
 
+  // First-half score: the saved halftime snapshot, the score at halftime, or Q1+Q2 once the second half has
+  // begun. Before halftime the second quarter is still running, so there is no first-half score yet.
+  function firstHalfScore(game, snapshot) {
+    if (snapshot) return [Number(snapshot.away_score_1h), Number(snapshot.home_score_1h)];
+    if (isHalftime(game)) return [finite(game.away_score), finite(game.home_score)];
+    const situation = game && game.situation || {}, period = finite(situation.period);
+    if (!(period !== null && period >= 3) && !(game && game.state === "final")) return null;
+    const away = situation.away_period_scores, home = situation.home_period_scores;
+    const complete = (scores) => Array.isArray(scores) && scores.length >= 2 && scores.slice(0, 2).every((v) => finite(v) !== null);
+    return complete(away) && complete(home)
+      ? [finite(away[0]) + finite(away[1]), finite(home[0]) + finite(home[1])] : null;
+  }
+
   // User rule: grade the first half against ESPN's actual 1H spread/total, then take the opposite result
-  // with ESPN's 2H line. A raw scoreboard deficit alone never decides the spread play.
+  // with ESPN's 2H line. A raw scoreboard deficit alone never decides the spread play. A 2H line implied from
+  // the live full-game market is not a real 2H market (and is not recorded by the tracker), so it gives no pick.
   function decide(game) {
     if (!isHalftime(game)) return null;
     const awayScore = finite(game.away_score), homeScore = finite(game.home_score);
     const odds = game.second_half && typeof game.second_half === "object" ? game.second_half : {};
     if (awayScore === null || homeScore === null) return null;
     const firstPoints = awayScore + homeScore;
-    const firstTotal = finite(odds.first_total), secondTotal = finite(odds.total);
+    const implied = odds.implied === true;
+    const firstTotal = finite(odds.first_total), secondTotal = implied ? null : finite(odds.total);
     const firstAway = finite(odds.first_away), firstHome = finite(odds.first_home);
     let spread = null, firstSpreadResult = "missing";
     if (firstAway !== null && firstHome !== null) {
       const awayMargin = awayScore - homeScore + firstAway;
       firstSpreadResult = awayMargin === 0 ? "push" : awayMargin < 0 ? "away_loss" : "home_loss";
       if (awayMargin !== 0) {
-        const side = awayMargin < 0 ? "away" : "home", line = finite(odds[side]);
+        const side = awayMargin < 0 ? "away" : "home", line = implied ? null : finite(odds[side]);
         if (line !== null) spread = { side, line, first_line: side === "away" ? firstAway : firstHome };
       }
     }
@@ -37,8 +52,8 @@
     const total = ["under", "over"].includes(firstResult) && secondTotal !== null
       ? { side: firstResult === "under" ? "over" : "under", line: secondTotal } : null;
     return { spread, total, first_points: firstPoints, first_total: firstTotal, first_result: firstResult,
-      first_spread_result: firstSpreadResult, implied: odds.implied === true };
+      first_spread_result: firstSpreadResult, implied };
   }
 
-  root.ActionsSecondHalf = { isHalftime, decide };
+  root.ActionsSecondHalf = { isHalftime, firstHalfScore, decide };
 })(globalThis);
