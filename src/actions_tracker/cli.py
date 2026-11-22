@@ -387,14 +387,19 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
 
 
 def _notify_second_half(conn, now: str, telegram, post=None) -> None:
-    """Telegram for 2H plays decided at the halftime this run just saw; never fails the run."""
+    """Telegram for 2H plays decided at the halftime this run just saw, then for moves of a 2H line already
+    announced (with its history); never fails the run."""
     if not telegram:
         return
     from actions_tracker import alerts
+    kw = {"post": post} if post else {}
     try:
-        n = alerts.notify_second_half(conn, now, telegram, **({"post": post} if post else {}))
+        n = alerts.notify_second_half(conn, now, telegram, **kw)
         if n:
             print(f"Da bao Telegram: {n} keo 2H.")
+        moved = alerts.notify_line_changes(conn, now, telegram, **kw)
+        if moved:
+            print(f"Da bao Telegram: line 2H doi o {moved} keo.")
     except alerts.TelegramError as e:
         print(f"LOI Telegram 2H: {e}")
 
