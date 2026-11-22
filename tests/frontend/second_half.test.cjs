@@ -114,3 +114,15 @@ test('2H win chance reads NBA sub-minute clocks and overtime, and needs the seco
   assert.equal(api.winChance(pick, [null, 51], inTwoH('nba', 3, '9:00', 60, 58)), null);
   assert.equal(api.winChance(pick, [52, 51], { ...inTwoH('nba', 4, '0:00', 101, 99), state: 'final' }).p, 1);  // 2H 49-48
 });
+
+test('at halftime the lines the phone locked (and sent on Telegram) win over the browser\'s newer line', () => {
+  const game = halftime({ second_half: { away: 4.5, home: -4.5, total: 111.5, first_away: 5.5, first_home: -5.5,
+    first_total: 101.5, implied: true } });
+  const snapshot = { second_spread_away: 3.5, second_spread_home: -3.5, second_total: null,
+    first_spread_away: 5.5, first_spread_home: -5.5, first_total: 101.5 };
+  const locked = api.withLockedLines(game, snapshot);
+  assert.deepEqual(JSON.parse(JSON.stringify(locked.second_half)), { away: 3.5, home: -3.5, total: 111.5,
+    first_away: 5.5, first_home: -5.5, first_total: 101.5, implied: false });
+  assert.equal(api.decide(locked).spread.line, 3.5);
+  assert.equal(api.withLockedLines(game, null), game);                        // nothing locked yet: unchanged
+});

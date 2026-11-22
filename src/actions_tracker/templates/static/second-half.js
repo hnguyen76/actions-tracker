@@ -55,6 +55,20 @@
       first_spread_result: firstSpreadResult, implied };
   }
 
+  // The phone locks the half lines at its first halftime sighting, the same run that sends the Telegram alert.
+  // Once that snapshot is published, show those lines instead of the browser's newer ones, so the tab, the
+  // Telegram message and the graded record agree. A locked 2H line is a real ESPN market, never implied.
+  function withLockedLines(game, snapshot) {
+    if (!snapshot) return game;
+    const pairs = { away: "second_spread_away", home: "second_spread_home", total: "second_total",
+      first_away: "first_spread_away", first_home: "first_spread_home", first_total: "first_total" };
+    const locked = {};
+    for (const [key, column] of Object.entries(pairs)) if (finite(snapshot[column]) !== null) locked[key] = finite(snapshot[column]);
+    if (!Object.keys(locked).length) return game;
+    if ("away" in locked || "home" in locked || "total" in locked) locked.implied = false;
+    return { ...game, second_half: { ...(game.second_half || {}), ...locked } };
+  }
+
   // Live 2H win chance. The rest of the 2H is a normal variable: its mean comes from the 2H line itself (the
   // line already prices the half: expected own margin = -line, expected points = line), its spread shrinks
   // with the square root of the time left. Full-game spread of finals around the closing line, from this
@@ -113,5 +127,5 @@
     return { p, now, minutes: left, away_2h: away2, home_2h: home2 };
   }
 
-  root.ActionsSecondHalf = { isHalftime, firstHalfScore, decide, minutesLeft, winChance };
+  root.ActionsSecondHalf = { isHalftime, firstHalfScore, decide, withLockedLines, minutesLeft, winChance };
 })(globalThis);

@@ -2265,8 +2265,9 @@ const DATA = /*__DATA__*/null;
     const rows = games.flatMap((g) => {
       const score = scoreOf(g), game = score ? { ...g, ...score } : null;
       if (!game || game.state !== "live") return [];
-      const decision = window.ActionsSecondHalf && game ? ActionsSecondHalf.decide(game) : null;
-      return [{ game, decision, snapshot: snapshots.get(Number(g.game_id)) || null }];
+      const snapshot = snapshots.get(Number(g.game_id)) || null;
+      const decision = window.ActionsSecondHalf ? ActionsSecondHalf.decide(ActionsSecondHalf.withLockedLines(game, snapshot)) : null;
+      return [{ game, decision, snapshot }];
     }).sort((a, b) => Date.parse(a.game.start_time) - Date.parse(b.game.start_time));
     const halftime = rows.filter((r) => r.decision).length;
     note.textContent = rows.length ? `${rows.length} live · ${halftime} halftime · ESPN` : "Điểm 1H · live odds ESPN · quyết định lúc halftime";
