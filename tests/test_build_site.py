@@ -153,3 +153,14 @@ def test_rebuild_removes_static_files_that_were_deleted_from_the_code(tmp_path):
     names = {p.name for p in site.iterdir()}
     assert not names & {"ask.js", "anthropic-sdk.js", "anthropic-sdk.LICENSE.txt", "old.css"}
     assert {"index.html", "scoreboard.js", "second-half.js", "dashboard.css", "actions_report.xlsx", "CNAME"} <= names
+
+
+def test_every_colour_the_charts_read_is_defined(tmp_path):
+    # css("--bad") was undefined, so Chart.js drew the 2H "Thua" bars black
+    import re
+    from importlib import resources
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    styles = html + resources.files("actions_tracker").joinpath("templates/static/dashboard.css").read_text("utf-8")
+    used = set(re.findall(r'css\("(--[\w-]+)"\)', html))
+    defined = set(re.findall(r"(--[\w-]+)\s*:", styles))
+    assert used and not used - defined, sorted(used - defined)
