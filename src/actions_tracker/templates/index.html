@@ -2360,16 +2360,18 @@ const DATA = /*__DATA__*/null;
       });
       const opts = baseOptions();
       opts.interaction = { mode: "index", intersect: false };
-      opts.plugins.legend = { display: true, labels: { color: css("--ink-2"), usePointStyle: true, boxWidth: 12 } };
+      opts.plugins.legend = { display: true, labels: { color: css("--ink-2"), usePointStyle: true, boxWidth: 12,
+        sort: (a, b) => a.datasetIndex - b.datasetIndex } };
       opts.scales.y = { beginAtZero: true, ticks: { color: css("--muted"), precision: 0 }, grid: { color: css("--grid") } };
       opts.scales.pct = { position: "right", min: 0, max: 100, ticks: { color: css("--muted"), callback: (v) => `${v}%` },
         grid: { drawOnChartArea: false } };
       charts.secondHalf = new Chart(canvas, { type: "bar", data: { labels: daily.map((r) => String(r.et_date).slice(5)), datasets: [
-        { label: "Thắng", data: daily.map((r) => r.wins), backgroundColor: css("--good") },
-        { label: "Thua", data: daily.map((r) => r.losses), backgroundColor: css("--bad") },
-        { label: "Push", data: daily.map((r) => r.pushes), backgroundColor: css("--muted") },
+        { label: "Thắng", data: daily.map((r) => r.wins), backgroundColor: css("--win"), order: 1 },
+        { label: "Thua", data: daily.map((r) => r.losses), backgroundColor: css("--loss"), order: 1 },
+        { label: "Push", data: daily.map((r) => r.pushes), backgroundColor: css("--push"), order: 1 },
         { type: "line", label: "Win% cộng dồn", data: cumulative, yAxisID: "pct", borderColor: css("--s2"),
-          backgroundColor: css("--s2"), tension: .25, pointRadius: 3 },
+          backgroundColor: css("--s2"), tension: .25, pointRadius: 5, pointBorderWidth: 2,
+          pointBorderColor: css("--surface"), order: 0 },   // drawn over the bars, ringed so it shows on any bar
       ] }, options: opts });
     }
     renderTable("second-half-history", plays, [
