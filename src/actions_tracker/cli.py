@@ -328,6 +328,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
                 print(f"Da bao Telegram: {n} keo vua len >= {alerts.RISE_PICKS} picks.")
         except alerts.TelegramError as e:
             print(f"LOI Telegram: {e}")
+        _notify_second_half(conn, now, telegram)
     total = conn.execute("SELECT count(*) FROM picks").fetchone()[0]
     print(f"Tong picks trong DB: {total}. Excel: {report_path}. Dashboard: {site_dir / 'index.html'}")
     conn.close()
@@ -385,7 +386,21 @@ def alert(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], 
     return 0
 
 
-def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get=None) -> int:
+def _notify_second_half(conn, now: str, telegram, post=None) -> None:
+    """Telegram for 2H plays decided at the halftime this run just saw; never fails the run."""
+    if not telegram:
+        return
+    from actions_tracker import alerts
+    try:
+        n = alerts.notify_second_half(conn, now, telegram, **({"post": post} if post else {}))
+        if n:
+            print(f"Da bao Telegram: {n} keo 2H.")
+    except alerts.TelegramError as e:
+        print(f"LOI Telegram 2H: {e}")
+
+
+def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get=None,
+                telegram: tuple | None = None, post=None) -> int:
     """Light run for games in progress: ESPN scores only (no Action Network, no lines), then rebuild the site.
     Does nothing (and makes no request) when no picked game is being played."""
     from actions_tracker import live
@@ -401,6 +416,7 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
             half = f", luu 1H: {c['halftime_saved']}" if c["halftime_saved"] else ""
             print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong{half}")
         changed += c["live"] + c["final"]
+    _notify_second_half(conn, now, telegram, post)
     if changed:
         tables = build_tables(conn, now, Path(db_path).parent / "history")
         from actions_tracker.pregame_archive import refresh_snapshots
@@ -500,8 +516,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "build":
         return rebuild_site(Path(args.db), Path(args.site), utc_now())
     if args.cmd == "live":
+        from actions_tracker.alerts import load_telegram
         return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
-                           utc_now())
+                           utc_now(), telegram=load_telegram(Path.cwd()))
     if args.cmd == "news":
         from actions_tracker.sports_news import load_sports_news, refresh_sports_news
         from actions_tracker.match_news import board_games, load_news, refresh_news
