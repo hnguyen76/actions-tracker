@@ -748,8 +748,19 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
         <span title="Spread: đội thua ESPN 1H spread ATS, chọn ngược bằng ESPN 2H spread">1H ATS thua <b>→ ngược 2H</b></span>
         <span title="Total: kết quả ESPN 1H total Under hoặc Over, chọn phía ngược bằng ESPN 2H total">1H U/O <b>→ ngược 2H</b></span>
       </div>
-      <p class="note" id="second-half-note">Chỉ hiện lúc halftime · ESPN odds</p>
+      <p class="note" id="second-half-note">Điểm 1H · live odds ESPN · quyết định lúc halftime</p>
       <div class="second-half-list" id="second-half-list"></div>
+      <section class="second-half-report" aria-label="Kết quả phương pháp hiệp hai">
+        <h3>📊 Cuối ngày</h3>
+        <p class="note" id="second-half-day-label"></p>
+        <div class="second-half-summary" id="second-half-day-summary"></div>
+        <h3>∑ Cộng dồn</h3>
+        <div class="second-half-summary" id="second-half-all-summary"></div>
+        <h3>⌁ Theo ngày</h3>
+        <div class="second-half-chart"><canvas id="second-half-chart"></canvas></div>
+        <h3>≡ Chi tiết</h3>
+        <div class="table-scroll" id="second-half-history"></div>
+      </section>
     </div>
   </section>
 
@@ -2245,38 +2256,118 @@ const DATA = /*__DATA__*/null;
   function secondHalfTab() {
     const host = document.getElementById("second-half-list"), note = document.getElementById("second-half-note");
     const games = T("Live_Games").filter((g) => state.league === "ALL" || g.league === state.league);
+    const snapshots = new Map(T("Second_Half").map((r) => [Number(r.game_id), r]));
     const rows = games.flatMap((g) => {
       const score = scoreOf(g), game = score ? { ...g, ...score } : null;
+      if (!game || game.state !== "live") return [];
       const decision = window.ActionsSecondHalf && game ? ActionsSecondHalf.decide(game) : null;
-      return decision ? [{ game, decision }] : [];
+      return [{ game, decision, snapshot: snapshots.get(Number(g.game_id)) || null }];
     }).sort((a, b) => Date.parse(a.game.start_time) - Date.parse(b.game.start_time));
-    note.textContent = rows.length ? `${rows.length} trận halftime · ESPN odds` : "Chỉ hiện lúc halftime · ESPN odds";
+    const halftime = rows.filter((r) => r.decision).length;
+    note.textContent = rows.length ? `${rows.length} live · ${halftime} halftime · ESPN` : "Điểm 1H · live odds ESPN · quyết định lúc halftime";
     host.replaceChildren();
-    if (!rows.length) host.append(el("div", { class: "empty", text: "Chưa có trận halftime" }));
+    if (!rows.length) host.append(el("div", { class: "empty", text: "Chưa có trận live" }));
     const line = (value) => `${value > 0 ? "+" : ""}${num(value, Number.isInteger(Number(value)) ? 0 : 1)}`;
-    for (const { game, decision } of rows) {
+    const firstHalfScore = (game, snapshot) => {
+      if (snapshot) return [Number(snapshot.away_score_1h), Number(snapshot.home_score_1h)];
+      if (window.ActionsSecondHalf && ActionsSecondHalf.isHalftime(game)) return [Number(game.away_score), Number(game.home_score)];
+      const situation = game.situation || {}, away = situation.away_period_scores, home = situation.home_period_scores;
+      const complete = (scores) => Array.isArray(scores) && scores.length >= 2 && scores.slice(0, 2).every((v) => v !== null && Number.isFinite(Number(v)));
+      return complete(away) && complete(home)
+        ? [Number(away[0]) + Number(away[1]), Number(home[0]) + Number(home[1])] : null;
+    };
+    for (const { game, decision, snapshot } of rows) {
       const away = game.away_abbr || game.away_name || "AWAY", home = game.home_abbr || game.home_name || "HOME";
-      const spread = decision.spread
+      const half = firstHalfScore(game, snapshot), odds = game.live_odds || {};
+      const liveSpread = odds.spread && (odds.spread.away || odds.spread.home)
+        ? `${away} ${line(odds.spread.away && odds.spread.away.line)} · ${home} ${line(odds.spread.home && odds.spread.home.line)}` : "Spread –";
+      const liveTotal = odds.total && odds.total.line !== null && odds.total.line !== undefined
+        ? `O/U ${num(odds.total.line, 1)}` : "O/U –";
+      const spread = decision && decision.spread
         ? el("div", { class: "second-half-pick" }, el("span", {}, "↩ ", el("strong", { text:
           `${decision.spread.side === "away" ? away : home} ${line(decision.spread.line)}` })),
           el("small", { text: `1H ${decision.spread.side === "away" ? away : home} ${line(decision.spread.first_line)} thua ATS` }))
-        : el("div", { class: "second-half-pick off" }, el("span", {}, "↩ ", el("strong", { text: "–" })),
-          el("small", { text: decision.first_spread_result === "push" ? "1H spread push" : "chờ ESPN 1H/2H spread" }));
+        : decision ? el("div", { class: "second-half-pick off" }, el("span", {}, "↩ ", el("strong", { text: "–" })),
+          el("small", { text: decision.first_spread_result === "push" ? "1H spread push" : "chờ ESPN 1H/2H spread" })) : null;
       let totalMeta = "chờ ESPN 1H odds";
-      if (decision.first_total !== null) totalMeta = `1H ${num(decision.first_points)} ${decision.first_result === "under" ? "<" : decision.first_result === "over" ? ">" : "="} ${num(decision.first_total, 1)}`;
-      const total = decision.total
+      if (decision && decision.first_total !== null) totalMeta = `1H ${num(decision.first_points)} ${decision.first_result === "under" ? "<" : decision.first_result === "over" ? ">" : "="} ${num(decision.first_total, 1)}`;
+      const total = decision && decision.total
         ? el("div", { class: "second-half-pick" }, el("span", {}, decision.total.side === "over" ? "↑ " : "↓ ",
           el("strong", { text: `${decision.total.side === "over" ? "Over" : "Under"} ${num(decision.total.line, 1)}` })),
           el("small", { text: totalMeta }))
-        : el("div", { class: "second-half-pick off" }, el("span", {}, "∅ ", el("strong", { text: "Total" })),
-          el("small", { text: totalMeta }));
+        : decision ? el("div", { class: "second-half-pick off" }, el("span", {}, "∅ ", el("strong", { text: "Total" })),
+          el("small", { text: totalMeta })) : null;
       host.append(el("article", { class: "second-half-game", "data-game-id": String(game.game_id) },
         el("div", { class: "second-half-game-head" },
           el("span", { class: "second-half-match", text: `${leagueName(game.league)} · ${away} @ ${home}` }),
-          el("span", { class: "second-half-score", text: `${num(game.away_score)}–${num(game.home_score)}` })),
-        el("div", { class: "second-half-picks" }, spread, total)));
+          el("span", { class: "second-half-score", text: `${num(game.away_score)}–${num(game.home_score)} · ${game.detail || "Live"}` })),
+        el("div", { class: "second-half-live-meta" },
+          el("span", { text: half ? `1H ${num(half[0])}–${num(half[1])}` : "1H –" }),
+          el("span", { text: `ESPN · ${liveSpread}` }), el("span", { text: liveTotal })),
+        decision ? el("div", { class: "second-half-picks" }, spread, total) : null));
     }
+    secondHalfReport();
     if (!browserLive.busy) refreshLiveScores();
+  }
+
+  function secondHalfReport() {
+    const summaries = T("Second_Half_Summary"), plays = T("Second_Half_Plays");
+    const dates = summaries.filter((r) => r.scope === "day").map((r) => String(r.et_date)).sort();
+    const today = etDate(Date.now()), selected = dates.includes(today) ? today : dates.at(-1);
+    const dayRows = summaries.filter((r) => r.scope === "day" && r.et_date === selected);
+    const allRows = summaries.filter((r) => r.scope === "all");
+    document.getElementById("second-half-day-label").textContent = selected ? dayLabel(selected) : "Chưa có trận đã lưu";
+    const summaryTiles = (hostId, rows) => {
+      const host = document.getElementById(hostId);
+      const visible = rows.filter((r) => (r.league === "ALL" && r.market === "ALL")
+        || (r.league !== "ALL" && r.market !== "ALL"));
+      host.replaceChildren(...visible.map((r) => {
+        const record = `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}`;
+        const label = r.league === "ALL" ? "Tất cả" : `${leagueName(r.league)} · ${MARKET_LABEL[r.market] || r.market}`;
+        const pending = Number(r.pending) ? ` · ⏳ ${num(r.pending)}` : "";
+        return el("div", { class: "second-half-stat" },
+          el("span", { text: label }), el("strong", { text: record }),
+          el("small", { text: `${pct(r.win_pct)} · ROI ${signed(r.roi)} · ${Number(r.units) >= 0 ? "+" : ""}${num(r.units, 2)}u${pending}` }));
+      }));
+      if (!visible.length) host.append(el("div", { class: "empty", text: "Chưa đủ dữ liệu" }));
+    };
+    summaryTiles("second-half-day-summary", dayRows);
+    summaryTiles("second-half-all-summary", allRows);
+    const daily = summaries.filter((r) => r.scope === "day" && r.league === "ALL" && r.market === "ALL")
+      .sort((a, b) => String(a.et_date).localeCompare(String(b.et_date)));
+    const canvas = document.getElementById("second-half-chart");
+    if (charts.secondHalf) charts.secondHalf.destroy();
+    canvas.parentElement.hidden = !daily.length;
+    if (daily.length) {
+      let wins = 0, losses = 0;
+      const cumulative = daily.map((r) => {
+        wins += Number(r.wins); losses += Number(r.losses);
+        return wins + losses ? wins / (wins + losses) * 100 : null;
+      });
+      const opts = baseOptions();
+      opts.interaction = { mode: "index", intersect: false };
+      opts.plugins.legend = { display: true, labels: { color: css("--ink-2"), usePointStyle: true, boxWidth: 12 } };
+      opts.scales.y = { beginAtZero: true, ticks: { color: css("--muted"), precision: 0 }, grid: { color: css("--grid") } };
+      opts.scales.pct = { position: "right", min: 0, max: 100, ticks: { color: css("--muted"), callback: (v) => `${v}%` },
+        grid: { drawOnChartArea: false } };
+      charts.secondHalf = new Chart(canvas, { type: "bar", data: { labels: daily.map((r) => String(r.et_date).slice(5)), datasets: [
+        { label: "Thắng", data: daily.map((r) => r.wins), backgroundColor: css("--good") },
+        { label: "Thua", data: daily.map((r) => r.losses), backgroundColor: css("--bad") },
+        { label: "Push", data: daily.map((r) => r.pushes), backgroundColor: css("--muted") },
+        { type: "line", label: "Win% cộng dồn", data: cumulative, yAxisID: "pct", borderColor: css("--s2"),
+          backgroundColor: css("--s2"), tension: .25, pointRadius: 3 },
+      ] }, options: opts });
+    }
+    renderTable("second-half-history", plays, [
+      { label: "Ngày", value: (r) => r.et_date },
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Trận", value: (r) => r.match },
+      { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
+      { label: "2H", value: (r) => `${r.pick} ${Number(r.line) > 0 && r.market === "spread" ? "+" : ""}${num(r.line, 1)}` },
+      { label: "1H", value: (r) => `${r.score_1h} · ${r.first_result}` },
+      { label: "2H điểm", value: (r) => r.score_2h || "–" },
+      { label: "KQ", value: (r) => r.result === "pending" ? "⏳" : resultPill(r.result), sort: (r) => r.result },
+    ]);
   }
 
   const seasonChartState = { key: null, page: {}, openWeeks: {}, openDetails: {}, week: "ALL" };

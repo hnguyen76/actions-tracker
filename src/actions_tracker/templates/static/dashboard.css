@@ -296,11 +296,22 @@ section.panel { padding-top: 14px; }
 .second-half-game-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .second-half-match { font-size: 17px; font-weight: 750; }
 .second-half-score { font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 750; }
+.second-half-live-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.second-half-live-meta > span { padding: 6px 9px; border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .second-half-picks { display: grid; gap: 8px; margin-top: 12px; }
 .second-half-pick { display: flex; justify-content: space-between; gap: 12px; padding: 11px 12px; border-radius: 12px; background: var(--surface); }
 .second-half-pick strong { color: var(--good); }
 .second-half-pick small { color: var(--muted); }
 .second-half-pick.off strong { color: var(--muted); }
+.second-half-report { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.second-half-report h3 { margin: 16px 0 9px; font-size: 17px; }
+.second-half-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 9px; }
+.second-half-stat { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.second-half-stat > span { color: var(--muted); font-size: 13px; font-weight: 700; }
+.second-half-stat > strong { font-size: 21px; font-variant-numeric: tabular-nums; }
+.second-half-stat > small { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+#second-half-history { margin-top: 8px; }
+.second-half-chart { position: relative; min-height: 250px; padding: 10px 4px 0; }
 
 /* Today's selected ratios are white; decision sample size stays yellow, green, then purple. */
 .heat-white { --decision-heat: #f8fafc; }

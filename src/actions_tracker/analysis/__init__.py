@@ -12,6 +12,7 @@ from actions_tracker.analysis.decisions import decisions
 from actions_tracker.live import live_games_table, scores_table, second_half_table
 from actions_tracker.weather import weather_table
 from actions_tracker.analysis.in_play import in_play
+from actions_tracker.analysis.second_half import second_half_plays, second_half_summary
 from actions_tracker.analysis import forecast as fc
 from actions_tracker.analysis.my_method import (WEEKDAY_DECISION_VOTES, decision_method_plays, my_method_plays,
                                                 my_method_summary, season_plays, season_sensitivity, season_summary)
@@ -55,6 +56,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     mm = my_method_plays(cg, picks)
     dm = decision_method_plays(consensus_games(picks, min_experts=WEEKDAY_DECISION_VOTES), picks)
     scores = scores_table(conn, now)
+    half_plays = second_half_plays(conn)
     game_info = {int(r["id"]): dict(r) for r in conn.execute("SELECT id, week, away_score, home_score FROM games")}
     sp = season_plays(sides, mm, game_info)
     hs = history_summary(hp)
@@ -97,6 +99,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Weather": weather_table(conn, now),
         "Live_Games": live_games_table(conn, now),
         "Second_Half": second_half_table(conn),
+        "Second_Half_Plays": half_plays,
+        "Second_Half_Summary": second_half_summary(half_plays),
         "In_Play": in_play(scores, dm, rp),
         "History_Plays": hp,
         "History_Summary": hs,
