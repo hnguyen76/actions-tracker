@@ -322,6 +322,15 @@ section.panel { padding-top: 14px; }
 .second-half-stat > small { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 #second-half-history { margin-top: 8px; }
 .second-half-chart { position: relative; min-height: 250px; padding: 10px 4px 0; }
+.spread-flip-card { border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); }
+.spread-flip-card h2 { margin-bottom: 4px; color: var(--warning); letter-spacing: .04em; }
+.spread-flip-row > td { background: color-mix(in srgb, var(--warning) 10%, transparent); }
+.line-move-detail { display: grid; gap: 12px; padding: 4px 0; }
+.line-move-side { display: grid; gap: 7px; }
+.line-move-track { display: flex; flex-wrap: wrap; gap: 7px; }
+.line-move-track > span { padding: 6px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.line-move-track > span.up { color: var(--good); }
+.line-move-track > span.down { color: var(--bad); }
 
 /* Today's selected ratios are white; decision sample size stays yellow, green, then purple. */
 .heat-white { --decision-heat: #f8fafc; }
