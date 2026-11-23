@@ -7,7 +7,9 @@ import pandas as pd
 from openpyxl.utils import get_column_letter
 
 SHEETS = ["Upcoming", "Rule_Summary", "Rule_Plays", "Past_Plays", "Consensus", "Experts", "Expert_Habits", "Expert_CLV", "Expert_Form", "Trend_Weekly", "History_Summary", "History_Weekly", "History_Plays", "Picks"]
-PERCENT_COLS = {"win_pct", "roi", "ci_low", "ci_high", "share", "fade_win_pct", "fade_roi", "hist_win_pct"}
+PERCENT_COLS = {"win_pct", "roi", "ci_low", "ci_high", "share", "fade_win_pct", "fade_roi", "hist_win_pct",
+                "current_win_pct", "current_roi", "current_ci_low", "current_ci_high", "prior_win_pct", "prior_roi",
+                "prior_ci_low", "prior_ci_high", "delta_win_pct", "delta_roi"}
 MAX_WIDTH = 40
 
 
