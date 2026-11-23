@@ -61,6 +61,10 @@ def test_upcoming_has_espn_line_history_and_plus_to_minus_table(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert 'id="spread-flip-card"' in html and 'id="spread-flip-table"' in html
     assert 'T("Line_Movement")' in html and 'T("Spread_Flips")' in html
+    assert 'T("Trend_Radar")' in html and 'T("Pick_Ratio_Matrix")' in html
+    assert 'T("Method_Equity")' in html and 'T("Spread_Flip_Results")' in html
+    assert 'id="trend-radar"' in html and 'id="ratio-matrix"' in html
+    assert 'id="equity-chart"' in html and 'id="spread-flip-results"' in html
     assert 'Lịch sử line ESPN' in html and 'lineMovementDetail' in html
     assert 'line|${r.game_id}|${r.market}' in html
 

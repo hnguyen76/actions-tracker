@@ -80,6 +80,11 @@ Giờ đá lấy từ scoreboard cache (`start_time`); CSV lịch sử chưa có
 | `line_source` | `odds_api_close` (thiếu → `median_expert_line`) | `action_network_scoreboard` (ngoại lệ lịch sử) |
 Khi viết playbook, ghi rõ con số lấy từ loại nào. Quy tắc học từ lịch sử phải kiểm chứng lại trên dữ liệu live trước khi tin. "Top 10 expert" ở tab Xu hướng được xếp hạng lại mỗi tuần chỉ bằng picks trước tuần đó (không look-ahead).
 
+Từ 23/11/2026, tab **Xu hướng** còn có bốn báo cáo live, không làm thay đổi rule: Trend Radar so 7 ngày đã
+chấm gần nhất với 7 ngày trước; ma trận đúng tỷ lệ picks (2/3, 3/4…); units tích lũy + max drawdown của
+`Decision_Method`; và kết quả spread đổi dấu + → −. Spread đổi dấu được chấm tại **line âm đầu tiên S21 thấy**
+(chính là line kích hoạt alert), còn line cuối trước giờ đá chỉ dùng tính CLV.
+
 Doc còn có mục "NCAAF thứ Bảy 07/11" (49 trận, 44 kèo consensus): consensus 16–28, spread ≥75% 5–13, consensus spread vào đội nhà 3–15 / đội khách 7–4, under 0–4 — cùng kiểu với NFL 08/11. Thị trường: đội khách cover 34–15, theo public spread 28–18, total theo public 21–27 (scoreboard Action Network, ngoại lệ một lần).
 
 Doc cũng tách **Thứ 2–6 / Thứ 7–CN** cho cả hai giải (người dùng muốn phân tích riêng hai nhóm ngày này): cuối tuần expert thua nặng (NFL 69–108, NCAAF 128–206), chủ yếu pick đội nhà (NFL 17–58, NCAAF 34–137); trong tuần mẫu nhỏ và khác chiều (NCAAF đội nhà 22–9). Khi báo cáo, luôn chia theo hai nhóm ngày này (giờ ET; `day_of_week` 0–4 = Thứ 2–6).

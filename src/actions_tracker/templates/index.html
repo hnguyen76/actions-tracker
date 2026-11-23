@@ -817,6 +817,27 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 
   <section class="panel" id="tab-trend">
     <div class="card">
+      <h2>⌁ Trend Radar — 7 ngày gần nhất</h2>
+      <p class="note" id="trend-radar-note"></p>
+      <div class="table-scroll" id="trend-radar"></div>
+    </div>
+    <div class="card">
+      <h2>◫ Tỷ lệ picks</h2>
+      <p class="note">Kết quả “Cách của bạn” theo đúng tỷ lệ expert, tách Thứ 2–6 và Thứ 7–CN.</p>
+      <div class="table-scroll" id="ratio-matrix"></div>
+    </div>
+    <div class="card">
+      <h2>∿ Units &amp; drawdown</h2>
+      <div class="kpi-mini" id="equity-kpi"></div>
+      <div class="chart-box"><canvas id="equity-chart" aria-label="Biểu đồ units tích lũy và drawdown"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>⇄ Spread + → −</h2>
+      <p class="note">Chấm tại line âm đầu tiên S21 thấy; closing line chỉ dùng đo CLV.</p>
+      <div class="kpi-mini" id="spread-flip-kpi"></div>
+      <div class="table-scroll" id="spread-flip-results"></div>
+    </div>
+    <div class="card">
       <h2>Win% theo tuần (tất cả giải)</h2>
       <div class="chart-box"><canvas id="trend-chart" aria-label="Biểu đồ xu hướng theo tuần"></canvas></div>
     </div>
@@ -2184,6 +2205,96 @@ const DATA = /*__DATA__*/null;
   }
 
   function trendTab() {
+    const radar = T("Trend_Radar").filter((r) => r.league === state.league && r.market === state.market);
+    const radarNote = document.getElementById("trend-radar-note");
+    const period = radar[0];
+    radarNote.textContent = period ? `${period.current_start} – ${period.as_of} so với ${period.prior_start} – ${period.prior_end} · chỉ dữ liệu đã chấm` : "Chưa có hai giai đoạn để so sánh.";
+    const trendMark = (r) => ({ up: "↗ Tăng", down: "↘ Giảm", flat: "→ Ngang", new: "● Mới", gone: "○ Hết" })[r.trend] || r.trend;
+    renderTable("trend-radar", radar.slice().sort((a, b) => (b.current_n || 0) - (a.current_n || 0)), [
+      { label: "Nhóm", value: (r) => r.day_group === "ALL" ? "Tất cả ngày" : r.day_group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN" },
+      { label: "7 ngày", num: true, value: (r) => `${num(r.current_wins)}-${num(r.current_losses)}-${num(r.current_pushes)}`, sort: (r) => r.current_n },
+      { label: "Win%", num: true, value: (r) => pct(r.current_win_pct), cls: (r) => roiCls(r.current_win_pct - BREAKEVEN), sort: (r) => r.current_win_pct },
+      { label: "ROI", num: true, value: (r) => signed(r.current_roi), cls: (r) => roiCls(r.current_roi), sort: (r) => r.current_roi },
+      { label: "7 ngày trước", num: true, value: (r) => r.prior_n ? `${num(r.prior_wins)}-${num(r.prior_losses)}-${num(r.prior_pushes)} · ${signed(r.prior_roi)}` : "–", sort: (r) => r.prior_roi },
+      { label: "Trend", value: trendMark, cls: (r) => roiCls(r.delta_roi), sort: (r) => r.delta_roi },
+    ]);
+
+    const ratios = T("Pick_Ratio_Matrix").filter((r) => r.league === state.league && r.market === state.market);
+    renderTable("ratio-matrix", ratios, [
+      { label: "Tỷ lệ", value: (r) => r.ratio, sort: (r) => r.votes / r.total_votes },
+      { label: "Ngày", value: (r) => r.day_group === "T2-6" ? "T2–6" : "T7–CN" },
+      { label: "Cách", value: (r) => r.method === "follow" ? "Theo" : "Ngược" },
+      { label: "n", num: true, value: sampleCell, sort: (r) => r.n },
+      { label: "W-L-P", num: true, value: (r) => `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}` },
+      { label: "Win%", num: true, value: (r) => pct(r.win_pct), cls: (r) => roiCls(r.win_pct - BREAKEVEN), sort: (r) => r.win_pct },
+      { label: "ROI", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi), sort: (r) => r.roi },
+    ], null, { pageSize: 25 });
+
+    let cumulative = 0, peak = 0;
+    const equity = T("Method_Equity").filter((r) => (state.league === "ALL" || r.league === state.league)
+      && (state.market === "ALL" || r.market === state.market)).map((r) => {
+        cumulative += Number(r.play_units || 0); peak = Math.max(peak, cumulative);
+        return { ...r, cumulative_units: cumulative, drawdown: cumulative - peak };
+      });
+    const results = equity.map((r) => r.result), wins = results.filter((r) => r === "win").length;
+    const losses = results.filter((r) => r === "loss").length, pushes = results.filter((r) => r === "push").length;
+    let run = 0, previous = 0, bestRun = 0, worstRun = 0;
+    for (const result of results) {
+      if (result === "push") continue;
+      const sign = result === "win" ? 1 : -1;
+      run = previous === sign ? run + sign : sign; previous = sign;
+      bestRun = Math.max(bestRun, run); worstRun = Math.min(worstRun, run);
+    }
+    const equitySummary = equity.length ? { wins, losses, pushes, n: wins + losses,
+      win_pct: wins + losses ? wins / (wins + losses) : null, units: cumulative,
+      roi: wins + losses ? cumulative / (wins + losses) : null,
+      max_drawdown: Math.min(...equity.map((r) => r.drawdown)), current_streak: run,
+      best_streak: bestRun, worst_streak: worstRun } : null;
+    const ek = document.getElementById("equity-kpi");
+    const streak = equitySummary ? equitySummary.current_streak : 0;
+    const kpi = (title, value, sub, cls = "") => el("div", { class: "k" }, el("div", { class: "t", text: title }),
+      el("div", { class: "v " + cls, text: value }), el("div", { class: "s", text: sub }));
+    ek.replaceChildren(...(equitySummary ? [
+      kpi("Kết quả", `${equitySummary.wins}-${equitySummary.losses}-${equitySummary.pushes}`, `n=${equitySummary.n} · ${pct(equitySummary.win_pct)}`),
+      kpi("Units", `${equitySummary.units > 0 ? "+" : ""}${num(equitySummary.units, 2)}u`, `ROI ${signed(equitySummary.roi)}`, roiCls(equitySummary.units)),
+      kpi("Max drawdown", `${num(equitySummary.max_drawdown, 2)}u`, `đỉnh → đáy`, "neg"),
+      kpi("Chuỗi hiện tại", streak > 0 ? `${streak} thắng` : streak < 0 ? `${Math.abs(streak)} thua` : "–", `tốt nhất ${equitySummary.best_streak} · tệ nhất ${Math.abs(equitySummary.worst_streak)}`, roiCls(streak)),
+    ] : []));
+    const daily = [...new Map(equity.map((r) => [r.et_date, r])).values()];
+    const equityCtx = document.getElementById("equity-chart");
+    if (charts.equity) charts.equity.destroy();
+    const equityOptions = baseOptions();
+    delete equityOptions.scales.y.min; delete equityOptions.scales.y.max;
+    equityOptions.scales.y.ticks.callback = (v) => v + "u";
+    equityOptions.plugins.legend = { display: true, position: "top", align: "start",
+      labels: { color: css("--ink-2"), usePointStyle: true, pointStyle: "line", boxWidth: 18 } };
+    charts.equity = new Chart(equityCtx, {
+      type: "line",
+      data: { labels: daily.map((r) => r.et_date.slice(5).replace("-", "/")), datasets: [
+        { label: "Units", data: daily.map((r) => r.cumulative_units), borderColor: css("--s1"), backgroundColor: css("--s1"), borderWidth: 2, pointRadius: 3, tension: 0 },
+        { label: "Drawdown", data: daily.map((r) => r.drawdown), borderColor: css("--critical"), backgroundColor: css("--critical"), borderWidth: 2, pointRadius: 2, tension: 0 },
+      ] }, options: equityOptions,
+    });
+
+    const showFlips = state.market === "ALL" || state.market === "spread";
+    const flipRows = showFlips ? T("Spread_Flip_Results").filter((r) => state.league === "ALL" || r.league === state.league) : [];
+    const flipSummary = showFlips ? T("Spread_Flip_Summary").find((r) => r.league === state.league) : null;
+    const fk = document.getElementById("spread-flip-kpi");
+    fk.replaceChildren(...(flipSummary ? [
+      kpi("Kết quả", `${flipSummary.wins}-${flipSummary.losses}-${flipSummary.pushes}`, `n=${flipSummary.n} · ${pct(flipSummary.win_pct)}`),
+      kpi("Units", `${flipSummary.units > 0 ? "+" : ""}${num(flipSummary.units, 2)}u`, `ROI ${signed(flipSummary.roi)}`, roiCls(flipSummary.units)),
+      kpi("Giữ dấu −", num(flipSummary.held_negative), `${num(flipSummary.reverted)} đổi trở lại`),
+      kpi("Chờ", num(flipSummary.pending), "chưa chấm"),
+    ] : []));
+    renderTable("spread-flip-results", flipRows, [
+      { label: "Ngày", value: (r) => r.et_date },
+      { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.away_abbr} @ ${r.home_abbr}` },
+      { label: "+ → −", value: (r) => `${r.team} ${lineFmt(r.open_line)} → ${lineFmt(r.crossed_line)}` },
+      { label: "Close", value: (r) => `${lineFmt(r.close_line)} · CLV ${lineFmt(r.clv)}`, cls: (r) => roiCls(r.clv) },
+      { label: "Tỉ số", num: true, value: (r) => r.away_score === null ? "–" : `${r.away_score}-${r.home_score}` },
+      { label: "Kết quả", value: (r) => r.result ? resultPill(r.result) : waitPill(), sort: (r) => r.result || "" },
+    ], null, { pageSize: 20 });
+
     let rows = T("Trend_Weekly");
     if (state.range) {
       const cutoff = Date.now() - state.range * 86400000 - 7 * 86400000;
@@ -2898,6 +3009,15 @@ const DATA = /*__DATA__*/null;
       moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] : [],
   });
   const COMPACT = {
+    "trend-radar": (r) => ({ title: r.day_group === "ALL" ? "Tất cả ngày" : r.day_group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN",
+      right: el("b", { class: roiCls(r.delta_roi), text: ({ up: "↗", down: "↘", flat: "→", new: "●", gone: "○" })[r.trend] || "" }),
+      sub: `${r.current_wins}-${r.current_losses}-${r.current_pushes} · ${pct(r.current_win_pct)} · ROI ${signed(r.current_roi)}` }),
+    "ratio-matrix": (r) => ({ title: `${r.ratio} · ${r.day_group === "T2-6" ? "T2–6 theo" : "T7–CN ngược"}`,
+      right: el("b", { class: roiCls(r.roi), text: pct(r.win_pct) }),
+      sub: `${r.wins}-${r.losses}-${r.pushes} · n=${r.n} · ROI ${signed(r.roi)}` }),
+    "spread-flip-results": (r) => ({ title: `${String(r.et_date || "").slice(5).replace("-", "/")} · ${r.away_abbr} @ ${r.home_abbr}`,
+      right: r.result ? resultPill(r.result) : waitPill(),
+      sub: `${leagueName(r.league)} · ${r.team} ${lineFmt(r.open_line)} → ${lineFmt(r.crossed_line)} · close ${lineFmt(r.close_line)}` }),
     "past-table-": (r) => ({ title: `${r.et_date} · ${leagueName(r.league)} · ${vs(r.match)}`,
       right: resultPill(r.side_result), sub: `${MARKET_LABEL[r.market] || r.market} · ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`,
       more: [moreBlock("Thông tin trước trận và kết quả", pastSnapshotDetail(r))] }),

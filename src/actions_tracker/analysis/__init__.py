@@ -14,6 +14,8 @@ from actions_tracker.weather import weather_table
 from actions_tracker.analysis.in_play import in_play
 from actions_tracker.analysis.second_half import second_half_plays, second_half_summary
 from actions_tracker.analysis.line_movement import line_movement_tables
+from actions_tracker.analysis.intelligence import (method_equity, pick_ratio_matrix, spread_flip_results,
+                                                   trend_radar)
 from actions_tracker.analysis import forecast as fc
 from actions_tracker.analysis.my_method import (WEEKDAY_DECISION_VOTES, decision_method_plays, my_method_plays,
                                                 my_method_summary, season_plays, season_sensitivity, season_summary)
@@ -66,6 +68,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     up = add_season(upcoming(cg, cs, now), hs)
     board = upcoming_board(picks, now)
     line_movement, spread_flips = line_movement_tables(conn, now)
+    equity, equity_summary = method_equity(dm)
+    flip_results, flip_summary = spread_flip_results(conn)
     tables = {
         "Picks": picks,
         "Consensus": cs,
@@ -82,6 +86,12 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Upcoming_Board": board,
         "Line_Movement": line_movement,
         "Spread_Flips": spread_flips,
+        "Trend_Radar": trend_radar(dm),
+        "Pick_Ratio_Matrix": pick_ratio_matrix(dm),
+        "Method_Equity": equity,
+        "Method_Equity_Summary": equity_summary,
+        "Spread_Flip_Results": flip_results,
+        "Spread_Flip_Summary": flip_summary,
         "Match_News": load_news(conn, board, now),
         "Sports_News": load_sports_news(conn),
         "Media_Picks": load_media_picks(conn, board, now),
