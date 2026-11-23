@@ -690,6 +690,11 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <div id="live-scoreboards"></div>
       <div class="table-scroll" id="inplay-table"></div>
     </div>
+    <div class="card spread-flip-card" id="spread-flip-card" hidden>
+      <h2><span aria-hidden="true">＋→−</span><span class="sr-only">Spread đổi từ được cộng điểm sang chấp điểm</span></h2>
+      <p class="note">ESPN · line đầu S21 thấy → hiện tại</p>
+      <div class="table-scroll" id="spread-flip-table"></div>
+    </div>
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <div class="table-scroll" id="upcoming-table"></div>
@@ -1900,6 +1905,7 @@ const DATA = /*__DATA__*/null;
   function upcomingTab() {
     decideCard();
     inPlayCard();
+    spreadFlipCard();
     renderTable("board-table", rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)), [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Giải", value: (r) => leagueName(r.league) },
@@ -1918,11 +1924,52 @@ const DATA = /*__DATA__*/null;
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => sideName(r) },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
+      { label: "ESPN Δ", value: (r) => lineMovementShort(r) },
       STATUS_COL,
       { label: "Lịch sử (live)", num: true, value: (r) => histCell(r.hist_win_pct, r.hist_n), sort: (r) => r.hist_win_pct },
       { label: "Lịch sử mùa", num: true, value: (r) => histCell(r.season_win_pct, r.season_n, GROUP_LABEL[r.day_group]), sort: (r) => r.season_win_pct },
-    ], null, HOT);
+    ], null, withHot({ detail: lineMovementDetail, collapsibleDetail: true,
+      detailKey: (r) => `line|${r.game_id}|${r.market}` }));
     todayResultsCard();
+  }
+
+  const lineFmt = (value) => value === null || value === undefined ? "–"
+    : `${Number(value) > 0 ? "+" : ""}${num(value, Number.isInteger(Number(value)) ? 0 : 1)}`;
+  const movementRows = (r) => T("Line_Movement").filter((x) => Number(x.game_id) === Number(r.game_id) && x.market === r.market);
+  function lineMovementShort(r) {
+    const rows = movementRows(r), side = rows.filter((x) => x.side === r.side);
+    const use = side.length ? side : rows;
+    if (!use.length) return "–";
+    const first = use[0], last = use[use.length - 1];
+    return first.line === last.line ? lineFmt(last.line) : `${lineFmt(first.line)} → ${lineFmt(last.line)}`;
+  }
+  function lineMovementDetail(r) {
+    const rows = movementRows(r);
+    if (!rows.length) return null;
+    const groups = [...new Set(rows.map((x) => x.side))].map((side) => {
+      const part = rows.filter((x) => x.side === side), team = part[0].team || LABEL[side] || side;
+      return el("div", { class: "line-move-side" }, el("b", { text: team }),
+        el("div", { class: "line-move-track" }, ...part.map((x, i) => el("span", {
+          class: i && Number(x.delta) > 0 ? "up" : i && Number(x.delta) < 0 ? "down" : "",
+          text: `${new Date(x.captured_at).toLocaleTimeString("vi-VN", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit" })} · ${lineFmt(x.line)}${x.odds ? ` (${x.odds > 0 ? "+" : ""}${x.odds})` : ""}`,
+        }))));
+    });
+    return el("div", { class: "line-move-detail" }, ...groups);
+  }
+  function spreadFlipCard() {
+    const card = document.getElementById("spread-flip-card");
+    const rows = T("Spread_Flips").filter((r) => (!state.day || r.et_date === state.day)
+      && (state.league === "ALL" || r.league === state.league));
+    card.hidden = !rows.length;
+    if (!rows.length) return;
+    renderTable("spread-flip-table", rows, [
+      { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Giải", value: (r) => leagueName(r.league) },
+      { label: "Trận", value: (r) => `${r.away_abbr} @ ${r.home_abbr}` },
+      { label: "Đội", value: (r) => el("b", { text: r.team }) },
+      { label: "Spread", value: (r) => `${lineFmt(r.open_line)} → ${lineFmt(r.current_line)}` },
+      { label: "Đổi lúc", value: (r) => fmtTime(r.crossed_at) },
+    ], null, { rowClass: () => "spread-flip-row" });
   }
 
   // dashed break-even line + optional end-of-line direct labels
@@ -2865,7 +2912,10 @@ const DATA = /*__DATA__*/null;
     "upcoming-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
       right: el("b", { text: `${MARKET_LABEL[r.market] || r.market}: ${sideName(r)}` }),
       sub: `${leagueName(r.league)} · ${num(r.votes)}/${num(r.total_votes)} · ${BOARD_STATUS[statusOf(r)] || ""}`
-        + (r.season_n ? ` · mùa ${pct(r.season_win_pct)} (n=${num(r.season_n)})` : "") }),
+        + ` · ESPN ${lineMovementShort(r)}` + (r.season_n ? ` · mùa ${pct(r.season_win_pct)} (n=${num(r.season_n)})` : ""),
+      more: movementRows(r).length ? [moreBlock("Lịch sử line ESPN", lineMovementDetail(r))] : [] }),
+    "spread-flip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
+      right: el("b", { text: r.team }), sub: `${leagueName(r.league)} · ${lineFmt(r.open_line)} → ${lineFmt(r.current_line)}` }),
     "board-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`, right: MARKET_LABEL[r.market] || r.market,
       sub: `${leagueName(r.league)} · ${boardSide(r, "a")} · ${boardSide(r, "b")} · ${BOARD_STATUS[statusOf(r)] || ""}` }),
     "mine-plays": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`,

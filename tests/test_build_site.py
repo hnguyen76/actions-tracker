@@ -57,6 +57,14 @@ def test_second_half_tab_sits_after_upcoming_and_uses_espn_odds(tmp_path):
     assert 'const allTracked = currentTab() === "second-half"' in html
 
 
+def test_upcoming_has_espn_line_history_and_plus_to_minus_table(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'id="spread-flip-card"' in html and 'id="spread-flip-table"' in html
+    assert 'T("Line_Movement")' in html and 'T("Spread_Flips")' in html
+    assert 'Lịch sử line ESPN' in html and 'lineMovementDetail' in html
+    assert 'line|${r.game_id}|${r.market}' in html
+
+
 def test_thanksgiving_logo_play_is_infrequent_decorative_and_motion_safe(tmp_path):
     out = build_site({}, [], tmp_path / "site", None, "t")
     html = out.read_text("utf-8")
