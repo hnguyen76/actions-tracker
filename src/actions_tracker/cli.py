@@ -328,6 +328,12 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
                 print(f"Da bao Telegram: {n} keo vua len >= {alerts.RISE_PICKS} picks.")
         except alerts.TelegramError as e:
             print(f"LOI Telegram: {e}")
+        try:
+            n = alerts.notify_spread_flips(conn, tables.get("Spread_Flips"), now, telegram)
+            if n:
+                print(f"Da bao Telegram: {n} spread doi tu + sang -.")
+        except alerts.TelegramError as e:
+            print(f"LOI Telegram spread + sang -: {e}")
         _notify_second_half(conn, now, telegram)
     total = conn.execute("SELECT count(*) FROM picks").fetchone()[0]
     print(f"Tong picks trong DB: {total}. Excel: {report_path}. Dashboard: {site_dir / 'index.html'}")

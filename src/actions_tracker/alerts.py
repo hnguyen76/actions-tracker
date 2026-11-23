@@ -408,6 +408,83 @@ def notify_rising(conn: sqlite3.Connection, board: pd.DataFrame, now: str, teleg
     return len(rows)
 
 
+# --- ESPN spread changed from plus to minus ---------------------------------------------------------------
+_SPREAD_FLIP_SCHEMA = ("CREATE TABLE IF NOT EXISTS spread_flip_alerts(game_id INTEGER, side TEXT, sent_at TEXT, "
+                       "PRIMARY KEY(game_id, side))")
+
+
+def due_spread_flips(conn: sqlite3.Connection, flips: pd.DataFrame | None, now: str) -> list[dict]:
+    """Upcoming spread sides first seen above zero and now below zero, not announced before."""
+    conn.execute(_SPREAD_FLIP_SCHEMA)
+    if flips is None or flips.empty:
+        return []
+    seen = {(int(r[0]), str(r[1])) for r in conn.execute("SELECT game_id, side FROM spread_flip_alerts")}
+    rows = flips[flips["start_time"].astype(str) > now].to_dict("records")
+    unique = {}
+    for row in rows:
+        key = (int(row["game_id"]), str(row["side"]))
+        if key not in seen:
+            unique[key] = row
+    return sorted(unique.values(), key=lambda r: (r["start_time"], r["league"], r["game_id"], r["side"]))
+
+
+def mark_spread_flips(conn: sqlite3.Connection, rows: list[dict], now: str) -> None:
+    conn.execute(_SPREAD_FLIP_SCHEMA)
+    conn.executemany("INSERT OR IGNORE INTO spread_flip_alerts(game_id, side, sent_at) VALUES (?, ?, ?)",
+                     [(int(r["game_id"]), str(r["side"]), now) for r in rows])
+    conn.commit()
+
+
+def _signed_line(value) -> str:
+    number = float(value)
+    text = f"{number:+g}" if number != 0 else "0"
+    return text.replace("-", "−").replace(".", ",")
+
+
+def _flip_time(value: str) -> str:
+    return _local(value).strftime("%H:%M")
+
+
+def spread_flip_messages(rows: list[dict]) -> list[str]:
+    """Build compact messages; the opening value is the first line observed by S21."""
+    head = f"⚠️ <b>Spread + → −</b> · {len(rows)} trận"
+    blocks = []
+    for row in rows:
+        local = _local(row["start_time"])
+        team = html.escape(str(row["team"]))
+        blocks.append(
+            f"<b>{_LEAGUE.get(row['league'], str(row['league']).upper())} · "
+            f"{html.escape(str(row['away_abbr']))} @ {html.escape(str(row['home_abbr']))}</b> — "
+            f"{local:%H:%M} {_DAY[local.day_of_week]} {local:%d/%m}\n"
+            f"🔄 <b>{team} {_signed_line(row['open_line'])} → {_signed_line(row['current_line'])}</b> · "
+            f"dịch {_signed_line(row['move'])}\n"
+            f"S21 thấy đầu {_flip_time(row['first_seen_at'])} · đổi dấu {_flip_time(row['crossed_at'])} ET"
+        )
+    messages, chunk = [], [head]
+    for block in blocks:
+        if len("\n\n".join(chunk + [block, DASHBOARD])) > TG_LIMIT and len(chunk) > 1:
+            messages.append("\n\n".join(chunk + [DASHBOARD]))
+            chunk = [head + " (tiếp)"]
+        chunk.append(block)
+    messages.append("\n\n".join(chunk + [DASHBOARD]))
+    return messages
+
+
+def notify_spread_flips(conn: sqlite3.Connection, flips: pd.DataFrame | None, now: str,
+                        telegram: tuple[str | None, str | None], post=requests.post) -> int:
+    """Alert once per game/side after ESPN snapshots cross from a positive to a negative spread."""
+    token, chat = telegram
+    if not token or not chat:
+        return 0
+    rows = due_spread_flips(conn, flips, now)
+    if not rows:
+        return 0
+    for text in spread_flip_messages(rows):
+        send_telegram(token, chat, text, post=post)
+    mark_spread_flips(conn, rows, now)
+    return len(rows)
+
+
 def db_meta(conn: sqlite3.Connection, key: str):
     row = conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
     return row[0] if row else None
