@@ -29,6 +29,7 @@ from actions_tracker.sports_news import load_sports_news
 from actions_tracker.media_picks import load_picks as load_media_picks
 from actions_tracker.media_ats import load_ats
 from actions_tracker.pregame_archive import load_snapshots
+from actions_tracker.playoffs import load_playoff_tables
 
 
 def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = None) -> dict[str, pd.DataFrame]:
@@ -120,6 +121,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "History_Summary": hs,
         "History_Weekly": history_weekly(hp),
     }
+    tables.update(load_playoff_tables(conn))
     from actions_tracker.analysis.signals import expert_sides, include_live_decisions, signals
     from actions_tracker.game_context import context_tables
     ctx, opening = context_tables(conn)
