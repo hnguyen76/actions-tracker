@@ -42,6 +42,13 @@ exit 0
     assert (repo / ".git" / "actions-last-published").read_text("utf-8").strip() == "abc123"
 
 
+def test_live_commit_rebuilds_before_publish_so_old_html_cannot_return(tmp_path):
+    script = (ROOT / "scripts" / "auto_update.sh").read_text("utf-8")
+    publish_block = script.split("# Republish for new data", 1)[1]
+    assert 'if [ "$MODE" != update ]; then' in publish_block
+    assert 'publish_site "$rebuild"' in publish_block
+
+
 def test_termux_setup_installs_always_on_sync_and_overnight_news_crons():
     setup = (ROOT / "scripts" / "termux_setup.sh").read_text("utf-8")
     assert '2-59/5 * * * * $J sync $L' in setup

@@ -160,6 +160,17 @@ def test_live_command_updates_scores_without_lines_and_rebuilds_site(tmp_path):
     assert c.execute("SELECT state FROM live_scores WHERE game_id = 1").fetchone()[0] == "in"
 
 
+def test_live_command_refreshes_playoff_cache_and_builds_even_without_a_live_game(tmp_path, monkeypatch):
+    from actions_tracker.cli import live_scores
+    from actions_tracker import playoffs
+    conn = db.connect(tmp_path / "a.db")
+    conn.close()
+    monkeypatch.setattr(playoffs, "refresh_playoff_picture", lambda conn, now, get: 170)
+    assert live_scores(tmp_path / "a.db", tmp_path / "site", ["nfl"], NOW,
+                       playoff_get=lambda *a, **k: None) == 0
+    assert (tmp_path / "site" / "index.html").exists()
+
+
 def test_verified_event_ids_include_upcoming_games_and_survive_reopen(tmp_path):
     c = _db(tmp_path)
     live.collect_espn(c, "ncaaf", NOW, get=lambda *a, **k: _R())
