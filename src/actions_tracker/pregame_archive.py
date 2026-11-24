@@ -98,6 +98,7 @@ def capture_snapshots(conn: sqlite3.Connection, tables: dict[str, pd.DataFrame],
             "winner": _records(tables.get("Media_Picks"), game_id),
             "weather": _records(tables.get("Weather"), game_id),
             "comments": _pregame_comments(tables.get("Picks"), game_id, market, row.get("start_time")),
+            "playoff": _records(tables.get("Pregame_Playoff"), game_id),
         }
         conn.execute(
             """INSERT INTO pregame_snapshots

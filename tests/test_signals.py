@@ -66,6 +66,22 @@ def test_signals_for_the_side_bet():
     assert ("🟢", "Tiền lớn nghiêng về bạn: vé 30% · tiền 55%") in two
 
 
+def test_playoff_picture_is_a_highlighted_supporting_signal_not_a_rule():
+    decisions = _df([dict(game_id=7, market="spread", bet_side="home")],
+                    ["game_id", "market", "bet_side"])
+    playoff = pd.DataFrame([
+        dict(game_id=7, side="away", abbr="CIN", record="7-3", seed=4, rank=None,
+             playoff_prob=.82, picture="field"),
+        dict(game_id=7, side="home", abbr="WSH", record="4-5-1", seed=11, rank=None,
+             playoff_prob=.18, picture="outside"),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), playoff=playoff)
+    [row] = got.to_dict("records")
+    assert row["tone"] == "🔴" and row["highlight"] is True
+    assert row["text"] == ("PLAYOFF NÓNG · Đội bạn WSH 4-5-1 · seed #11 · 18% | "
+                           "Đối thủ CIN 7-3 · seed #4 · 82%")
+
+
 def test_weekday_signal_shows_this_weeks_graded_similar_pick_bucket_only():
     decisions = _df([dict(game_id=9, market="spread", bet_side="home")],
                     ["game_id", "market", "bet_side"])

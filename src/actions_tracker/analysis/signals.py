@@ -4,7 +4,7 @@
 2. NFL key numbers 3 and 7                                         5. key-player injury status
 3. form of the experts on the same side (30-day units at pick)     6. same-situation season rate (forecast)
 7. public tickets vs money (Action Network public page)             8. same-share plays graded this ET week
-9. same-share season history, kept separate from the live record
+9. same-share season history, kept separate from the live record       10. current playoff picture
 The cover forecast (6) is listed first, and only when it is for the side being bet.
 These are descriptive aids, not tested rules.
 """
@@ -164,10 +164,39 @@ def _history_pick_record(play, history_plays: pd.DataFrame) -> tuple[str, str] |
                   f" · {wins} thắng · {losses} thua{push_text}")
 
 
+def _playoff_label(row) -> str:
+    if row is None:
+        return "–"
+    rank = pd.to_numeric(getattr(row, "rank", None), errors="coerce")
+    seed = pd.to_numeric(getattr(row, "seed", None), errors="coerce")
+    place = f"CFP #{int(rank)}" if pd.notna(rank) else f"seed #{int(seed)}" if pd.notna(seed) else "ngoài field"
+    probability = pd.to_numeric(getattr(row, "playoff_prob", None), errors="coerce")
+    chance = f" · {probability * 100:.0f}%" if pd.notna(probability) else ""
+    return f"{getattr(row, 'abbr', '–')} {getattr(row, 'record', '–')} · {place}{chance}"
+
+
+def _playoff_signal(game_id: int, market: str, side: str, rows: dict) -> tuple[str, str] | None:
+    mine, opponent = rows.get((game_id, side)), rows.get((game_id, _OTHER[side]))
+    if mine is None or opponent is None:
+        return None
+    tone = "⚪"
+    if market in ("spread", "ml"):
+        mine_p = pd.to_numeric(getattr(mine, "playoff_prob", None), errors="coerce")
+        opp_p = pd.to_numeric(getattr(opponent, "playoff_prob", None), errors="coerce")
+        if pd.notna(mine_p) and pd.notna(opp_p) and abs(mine_p - opp_p) >= .15:
+            tone = "🟢" if mine_p > opp_p else "🔴"
+        elif getattr(mine, "picture", None) != getattr(opponent, "picture", None):
+            strength = {"field": 2, "bubble": 1, "outside": 0}
+            difference = strength.get(getattr(mine, "picture", None), 0) - strength.get(
+                getattr(opponent, "picture", None), 0)
+            tone = "🟢" if difference > 0 else "🔴" if difference < 0 else "⚪"
+    return tone, f"PLAYOFF NÓNG · Đội bạn {_playoff_label(mine)} | Đối thủ {_playoff_label(opponent)}"
+
+
 def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame, opening: pd.DataFrame,
             context: pd.DataFrame, public: pd.DataFrame, expert_sides: pd.DataFrame,
             forecast: pd.DataFrame, method_plays: pd.DataFrame | None = None,
-            history_plays: pd.DataFrame | None = None) -> pd.DataFrame:
+            history_plays: pd.DataFrame | None = None, playoff: pd.DataFrame | None = None) -> pd.DataFrame:
     if decisions is None or decisions.empty:
         return pd.DataFrame(columns=SIGNAL_COLS)
     g_by = {int(r.id): r for r in games.itertuples()} if len(games) else {}
@@ -178,6 +207,8 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
     fc = {int(r.game_id): r for r in forecast.itertuples()} if forecast is not None and len(forecast) else {}
     method = {(int(r.game_id), r.market): r for r in method_plays.itertuples()} \
         if method_plays is not None and len(method_plays) else {}
+    playoff_rows = {(int(r.game_id), r.side): r for r in playoff.itertuples()} \
+        if playoff is not None and len(playoff) else {}
     rows = []
     for d in decisions.drop_duplicates(["game_id", "market"]).itertuples():
         gid, market, side = int(d.game_id), d.market, getattr(d, "bet_side", None)
@@ -197,6 +228,9 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
         history = _history_pick_record(method.get((gid, market)), history_plays)
         if history:
             out.append(history)
+        playoff_signal = _playoff_signal(gid, market, side, playoff_rows)
+        if playoff_signal:
+            out.append(playoff_signal)
         # 1. line movement
         o, c = opn.get((gid, market, side)), cur.get((gid, market, side))
         if o is not None and c is not None and not pd.isna(o) and not pd.isna(c) and abs(c - o) >= 0.5:
@@ -256,7 +290,7 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             what = "tiền lớn nghiêng về bạn" if gap >= 10 else "tiền lớn ở bên kia" if gap <= -10 else "public"
             out.append((tone, f"{what[0].upper() + what[1:]}: vé {p.tickets_pct:g}% · tiền {p.money_pct:g}%"))
         rows += [{"game_id": gid, "market": market, "side": side, "order": i, "tone": t, "text": s,
-                  "highlight": s.startswith("CẦU THỦ CHỦ CHỐT")}
+                  "highlight": s.startswith(("CẦU THỦ CHỦ CHỐT", "PLAYOFF NÓNG"))}
                  for i, (t, s) in enumerate(out)]
     return pd.DataFrame(rows, columns=SIGNAL_COLS)
 
