@@ -370,6 +370,15 @@ td.media-picks-cell { white-space: normal; min-width: 250px; max-width: 330px; v
 .expert-comment { margin: 7px 0; }
 .expert-comment-pick { color: var(--text); font-weight: 650; }
 .expert-comment-note { color: var(--muted); margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pregame-playoff { display: grid; gap: 6px; min-width: 230px; }
+.pregame-playoff-team { display: grid; grid-template-columns: 26px minmax(42px, .7fr) 1fr auto; align-items: center;
+  gap: 7px; padding: 6px 8px; border: 1px solid var(--grid); border-radius: 10px; color: var(--ink-2); }
+.pregame-playoff-team img { width: 24px; height: 24px; object-fit: contain; }
+.pregame-playoff-team b { color: var(--ink); }
+.pregame-playoff-team.playoff-in { border-color: color-mix(in srgb, var(--win) 35%, var(--grid)); }
+.pregame-playoff-team.playoff-bubble { border-color: color-mix(in srgb, var(--warning) 45%, var(--grid)); }
+.pregame-playoff-place { font-size: 12px; }
+.pregame-playoff-prob { font-weight: 700; color: var(--accent); }
 .ats-capture-note { color: var(--warning); display: block; margin-left: 0; }
 .media-experts { margin: 5px 0 0; padding-left: 17px; color: var(--ink-2); }
 .media-experts li + li { margin-top: 3px; }
@@ -1697,10 +1706,36 @@ const DATA = /*__DATA__*/null;
       el("div", { class: "expert-comment-pick", text: `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}` }),
       el("div", { class: "expert-comment-note", text: x.expert_note }))));
   }
+  let pregamePlayoffMap = null;
+  const playoffPlace = (x) => x.rank ? `CFP #${x.rank}` : x.seed ? `#${x.seed}` : "OUT";
+  function playoffRowsCell(items) {
+    if (!items || !items.length) return el("span", { class: "news-empty", text: "Chưa có playoff picture" });
+    return el("div", { class: "pregame-playoff" }, ...items.slice().sort((a, b) =>
+      (a.side === "away" ? 0 : 1) - (b.side === "away" ? 0 : 1)).map((x) => {
+      const chance = x.playoff_prob === null || x.playoff_prob === undefined ? "–" : `${Math.round(Number(x.playoff_prob) * 100)}%`;
+      return el("div", { class: `pregame-playoff-team ${x.picture === "field" ? "playoff-in" : x.picture === "bubble" ? "playoff-bubble" : ""}` },
+        x.logo ? el("img", { src: x.logo, alt: "", loading: "lazy" }) : el("span", {}),
+        el("b", { text: x.abbr || x.team || "–" }),
+        el("span", { class: "pregame-playoff-place", text: `${x.record || "–"} · ${playoffPlace(x)}` }),
+        el("span", { class: "pregame-playoff-prob", text: chance }));
+    }));
+  }
+  function playoffContextCell(r) {
+    if (!pregamePlayoffMap) {
+      pregamePlayoffMap = new Map();
+      for (const item of T("Pregame_Playoff")) {
+        const key = Number(item.game_id);
+        if (!pregamePlayoffMap.has(key)) pregamePlayoffMap.set(key, []);
+        pregamePlayoffMap.get(key).push(item);
+      }
+    }
+    return playoffRowsCell(pregamePlayoffMap.get(Number(r.game_id)) || []);
+  }
   const detailBlock = (label, content) => el("div", { class: "detail-block" }, el("div", { class: "detail-h", text: label }),
     content instanceof Node ? content : el("span", { class: "muted", text: content || "–" }));
   const decisionDetail = (r) => el("div", { class: "detail-grid" },
     detailBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), detailBlock("Tin tức", matchNewsCell(r)),
+    detailBlock("Playoff", playoffContextCell(r)),
     detailBlock("Comment của expert", expertCommentsCell(r)), detailBlock("Chuyên gia chọn spread", atsPicksCell(r)),
     detailBlock("Thời tiết (giờ đá)", weatherCell(r)));
   const liveDecisionDetail = (r) => {
@@ -1752,6 +1787,7 @@ const DATA = /*__DATA__*/null;
       detailBlock("So sánh trước trận → kết quả", comparison),
       detailBlock("Tín hiệu trước trận", archivedList(d.signals, (x) => `${x.tone || "•"} ${x.text || "–"}`)),
       detailBlock("Tin tức trước trận", archivedNews(d.news)),
+      detailBlock("Playoff trước trận", playoffRowsCell(d.playoff)),
       detailBlock("Comment của expert", archivedList(d.comments, (x) => `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}: ${x.expert_note || "–"}`)),
       detailBlock("Chuyên gia chọn spread", archivedATS(d.ats)),
       detailBlock("Thời tiết giờ đá", archivedWeather(d.weather)),
@@ -3141,6 +3177,7 @@ const DATA = /*__DATA__*/null;
       + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`],
     more: includeMore ? [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
       moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
+      moreBlock("Playoff", playoffContextCell(r)),
       moreBlock("Comment của expert", expertCommentsCell(r)),
       moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
       moreBlock("Thời tiết (giờ đá)", weatherCell(r)),
@@ -3164,6 +3201,7 @@ const DATA = /*__DATA__*/null;
         sub: [`${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
           lineFlipRuleBadge(r), threePickTrendBadge(r)],
         more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), moreBlock("Tin tức", matchNewsCell(r)),
+          moreBlock("Playoff", playoffContextCell(r)),
           moreBlock("Comment của expert", expertCommentsCell(r)),
           moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },

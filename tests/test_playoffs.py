@@ -1,8 +1,9 @@
 import json
 
 from actions_tracker import db
-from actions_tracker.playoffs import (NFL_SIMS, _save, load_playoff_tables, ncaaf_projection,
+from actions_tracker.playoffs import (NFL_SIMS, _save, load_playoff_tables, ncaaf_projection, pregame_playoff_table,
                                       nfl_projection, parse_ncaaf_standings, parse_nfl_standings)
+import pandas as pd
 
 NOW = "2026-11-24T12:00:00.000Z"
 
@@ -95,3 +96,33 @@ def test_cached_rows_survive_an_offline_site_rebuild(tmp_path):
     assert tables["NFL_Playoff"].iloc[0]["playoff_prob"] == .98
     payload = conn.execute("SELECT payload FROM playoff_cache WHERE league='nfl'").fetchone()[0]
     assert json.loads(payload)["standings"][0]["abbr"] == "BUF"
+
+
+def test_pregame_playoff_matches_aliases_and_keeps_unranked_ncaaf_standings():
+    nfl_was = {"league": "nfl", "team_id": "28", "team": "Washington Commanders", "abbr": "WSH",
+               "logo": None, "conference": "NFC", "division": "East", "record": "4-5-1",
+               "conf_record": "3-4-1", "wins": 4, "losses": 5, "ties": 1, "point_diff": -25,
+               "seed": 11, "captured_at": NOW}
+    nfl_cin = {**nfl_was, "team_id": "4", "team": "Cincinnati Bengals", "abbr": "CIN",
+               "record": "7-3", "seed": 4}
+    playoff = [
+        {**nfl_was, "rank": None, "playoff_prob": .18, "picture": "outside", "bid": "", "model": "test"},
+        {**nfl_cin, "rank": None, "playoff_prob": .82, "picture": "field", "bid": "DIV", "model": "test"},
+    ]
+    ncaaf = {"league": "ncaaf", "team_id": "1", "team": "Miami Hurricanes", "abbr": "MIA",
+             "logo": None, "conference": "ACC", "division": "", "record": "6-5", "conf_record": "4-4",
+             "wins": 6, "losses": 5, "ties": 0, "point_diff": 10, "seed": 99, "captured_at": NOW}
+    games = pd.DataFrame([
+        {"id": 7, "league": "nfl", "away_abbr": "CIN", "home_abbr": "WAS",
+         "away_name": "Cincinnati Bengals", "home_name": "Washington Commanders"},
+        {"id": 8, "league": "ncaaf", "away_abbr": "MIA", "home_abbr": "FSU",
+         "away_name": "Miami FL Hurricanes", "home_name": "Florida State Seminoles"},
+    ])
+    tables = {"NFL_Standings": pd.DataFrame([nfl_was, nfl_cin]), "NFL_Playoff": pd.DataFrame(playoff),
+              "NCAAF_Standings": pd.DataFrame([ncaaf]), "NCAAF_Playoff": pd.DataFrame()}
+    got = pregame_playoff_table(games, tables)
+    was = got[(got.game_id == 7) & (got.side == "home")].iloc[0]
+    mia = got[(got.game_id == 8) & (got.side == "away")].iloc[0]
+    assert (was.abbr, was.seed, was.playoff_prob, was.picture) == ("WSH", 11, .18, "outside")
+    assert (mia.abbr, mia.record, mia.picture) == ("MIA", "6-5", "outside")
+    assert pd.isna(mia.seed)

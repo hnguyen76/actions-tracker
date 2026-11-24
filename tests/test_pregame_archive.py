@@ -27,6 +27,12 @@ def _tables(votes=5):
              "expert_note": "Đăng sau kickoff", "created_at": "2026-11-15T20:01:00Z",
              "start_time": "2026-11-15T20:00:00Z"},
         ]),
+        "Pregame_Playoff": pd.DataFrame([
+            {"game_id": 7, "league": "nfl", "side": "away", "abbr": "NE", "record": "7-3",
+             "seed": 5, "playoff_prob": .72, "picture": "field"},
+            {"game_id": 7, "league": "nfl", "side": "home", "abbr": "DET", "record": "8-2",
+             "seed": 2, "playoff_prob": .94, "picture": "field"},
+        ]),
         "In_Play": pd.DataFrame(),
     }
 
@@ -39,6 +45,7 @@ def test_snapshot_updates_before_kickoff_and_freezes_after(tmp_path):
     snapshot = json.loads(saved.snapshot_json)
     assert snapshot["board"][0]["a_votes"] == 6
     assert [(x["expert_name"], x["expert_note"]) for x in snapshot["comments"]] == [("A", "Matchup tốt")]
+    assert [(x["abbr"], x["seed"]) for x in snapshot["playoff"]] == [("NE", 5), ("DET", 2)]
 
     late = _tables(9)
     late["Upcoming_Board"] = pd.DataFrame()

@@ -66,6 +66,8 @@ def test_playoff_tab_has_espn_standings_and_transparent_models(tmp_path):
     assert 'T("NCAAF_Standings")' in html and 'id="playoff-ncaaf-conf"' in html
     assert '5.000 lần mô phỏng' in html and 'không phải ESPN' in html
     assert '.playoff-chance' in css and '.playoff-in' in css and '.playoff-bubble' in css
+    assert 'T("Pregame_Playoff")' in html and 'playoffContextCell' in html
+    assert 'detailBlock("Playoff"' in html and 'Playoff trước trận' in html
 
 
 def test_upcoming_has_espn_line_history_and_plus_to_minus_table(tmp_path):

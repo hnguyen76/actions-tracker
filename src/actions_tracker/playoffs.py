@@ -18,6 +18,8 @@ from collections import defaultdict
 import pandas as pd
 import requests
 
+from actions_tracker.matching import normalize
+
 REFRESH_HOURS = 6
 NFL_SIMS = 5000
 NFL_STANDINGS = ("https://site.api.espn.com/apis/v2/sports/football/nfl/standings"
@@ -34,6 +36,9 @@ CFP_RANKING = ("https://sports.core.api.espn.com/v2/sports/football/leagues/coll
 STANDING_COLS = ["league", "team_id", "team", "abbr", "logo", "conference", "division", "record",
                  "conf_record", "wins", "losses", "ties", "point_diff", "seed", "captured_at"]
 PLAYOFF_COLS = STANDING_COLS + ["rank", "playoff_prob", "picture", "bid", "model"]
+PREGAME_COLS = ["game_id", "league", "side", "team_id", "team", "abbr", "logo", "conference", "division",
+                "record", "conf_record", "seed", "rank", "playoff_prob", "picture", "bid", "captured_at"]
+_ABBR_ALIASES = {("nfl", "JAC"): "JAX", ("nfl", "LA"): "LAR", ("nfl", "WAS"): "WSH"}
 
 
 class PlayoffError(RuntimeError):
@@ -300,3 +305,39 @@ def load_playoff_tables(conn: sqlite3.Connection) -> dict[str, pd.DataFrame]:
         out[f"{prefix}_Standings"] = pd.DataFrame(payload.get("standings", []), columns=STANDING_COLS)
         out[f"{prefix}_Playoff"] = pd.DataFrame(payload.get("playoff", []), columns=PLAYOFF_COLS)
     return out
+
+
+def pregame_playoff_table(games: pd.DataFrame, tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Attach the latest ESPN standings/playoff row to each NFL/NCAAF team on the game board.
+
+    NCAAF's projection table contains only CFP candidates, so every other FBS team keeps its standings row and is
+    labelled outside the current field without inventing a probability. Team names are the fallback when Action and
+    ESPN use different abbreviations.
+    """
+    if games is None or games.empty:
+        return pd.DataFrame(columns=PREGAME_COLS)
+    output = []
+    for league in ("nfl", "ncaaf"):
+        standings = tables.get(f"{league.upper()}_Standings", pd.DataFrame())
+        playoff = tables.get(f"{league.upper()}_Playoff", pd.DataFrame())
+        if standings is None or standings.empty:
+            continue
+        standing_rows = standings.to_dict("records")
+        by_abbr = {str(r.get("abbr") or "").upper(): r for r in standing_rows}
+        by_name = {normalize(r.get("team")): r for r in standing_rows if normalize(r.get("team"))}
+        playoff_by_id = {str(r.get("team_id")): r for r in playoff.to_dict("records")} if len(playoff) else {}
+        for game in games[games["league"] == league].to_dict("records"):
+            for side in ("away", "home"):
+                abbr = str(game.get(f"{side}_abbr") or "").upper()
+                lookup = _ABBR_ALIASES.get((league, abbr), abbr)
+                standing = by_abbr.get(lookup) or by_name.get(normalize(game.get(f"{side}_name")))
+                if not standing:
+                    continue
+                projected = playoff_by_id.get(str(standing.get("team_id")))
+                merged = {**standing, **(projected or {})}
+                if projected is None and league == "ncaaf":
+                    merged.update({"seed": None, "rank": None, "playoff_prob": None,
+                                   "picture": "outside", "bid": ""})
+                output.append({"game_id": int(game["id"]), "side": side,
+                               **{c: merged.get(c) for c in PREGAME_COLS if c not in {"game_id", "side"}}})
+    return pd.DataFrame(output, columns=PREGAME_COLS)

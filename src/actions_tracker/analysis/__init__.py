@@ -29,7 +29,7 @@ from actions_tracker.sports_news import load_sports_news
 from actions_tracker.media_picks import load_picks as load_media_picks
 from actions_tracker.media_ats import load_ats
 from actions_tracker.pregame_archive import load_snapshots
-from actions_tracker.playoffs import load_playoff_tables
+from actions_tracker.playoffs import load_playoff_tables, pregame_playoff_table
 
 
 def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = None) -> dict[str, pd.DataFrame]:
@@ -127,9 +127,10 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     ctx, opening = context_tables(conn)
     current = pd.read_sql_query("SELECT game_id, market, side, line FROM closing_lines", conn)
     public = pd.read_sql_query("SELECT game_id, market, side, tickets_pct, money_pct FROM public_splits", conn)
-    games = pd.read_sql_query("SELECT id, league, home_abbr, away_abbr FROM games", conn)
+    games = pd.read_sql_query("SELECT id, league, home_abbr, away_abbr, home_name, away_name FROM games", conn)
+    tables["Pregame_Playoff"] = pregame_playoff_table(games, tables)
     signal_inputs = include_live_decisions(tables["Decisions"], tables["In_Play"])
     tables["Signals"] = signals(signal_inputs, games, current, opening, ctx, public,
                                 expert_sides(eligible, forms), tables["Forecast"], tables["Decision_Method"],
-                                tables["History_Plays"])
+                                tables["History_Plays"], tables["Pregame_Playoff"])
     return tables
