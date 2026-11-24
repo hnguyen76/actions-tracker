@@ -12,6 +12,7 @@ import sqlite3
 import pandas as pd
 
 from actions_tracker.analysis.consensus import consensus_games
+from actions_tracker.analysis.line_movement import line_movement_tables
 from actions_tracker.config import MONEY_TICKET_GAP, NIGHT_HOUR, TZ
 from actions_tracker.grading import load_graded_picks, opposite
 
@@ -37,10 +38,15 @@ RULES = [
      "name": "NFL spread: theo đa số khi ≥ 10 expert một phía",
      "how": "Kèo spread NFL có từ 10 expert trở lên cùng chọn một bên (và nhiều hơn bên kia) → đặt bên đó.",
      "hist_wins": 19, "hist_losses": 13},
+    {"id": "spread_flip_follow", "league": "ALL", "leagues": ("nfl", "ncaaf", "nba"), "market": "spread",
+     "name": "Spread mở +, close −: theo đội đổi thành favorite",
+     "how": "ESPN spread đầu tiên S21 thấy là điểm cộng, và line cuối trước giờ đá vẫn là điểm âm → "
+            "theo chính đội đã đổi từ underdog thành favorite tại line close.",
+     "hist_wins": 2, "hist_losses": 5},
 ]
 DAYGROUP_MIN_VOTES = 5  # rule 4 needs at least this many experts on the spread
 NFL_HEAVY_VOTES = 10    # rule 5 needs at least this many experts on the majority spread side
-RULE_LEAGUES = sorted({r["league"] for r in RULES})
+RULE_LEAGUES = sorted({league for rule in RULES for league in rule.get("leagues", (rule["league"],))})
 PUBLIC_LEAGUES = {"ncaaf"}  # public-betting page is read only for these (exception approved 2026-11-12)
 
 
@@ -69,8 +75,8 @@ def evaluate(conn: sqlite3.Connection, now: str) -> list[dict]:
 
     plays: list[dict] = []
 
-    def add(rule_id, game_id, market, bet_side, line, basis):
-        odds = split(game_id, market, bet_side, "odds")
+    def add(rule_id, game_id, market, bet_side, line, basis, odds_override=None):
+        odds = split(game_id, market, bet_side, "odds") if odds_override is None else odds_override
         plays.append({"rule_id": rule_id, "game_id": int(game_id), "market": market, "bet_side": bet_side,
                       "line": line, "odds": None if odds is None else int(odds), "basis": basis})
 
@@ -119,6 +125,23 @@ def evaluate(conn: sqlite3.Connection, now: str) -> list[dict]:
             if tickets is not None and money is not None and money - tickets >= MONEY_TICKET_GAP:
                 add("ncaaf_total_money", game_id, "total", side, split(game_id, "total", side, "line"),
                     f"{side}: {tickets:g}% số bet · {money:g}% tiền")
+
+    # Unlike the Telegram crossing alert, this forward rule only qualifies while the latest pregame line is
+    # still negative. If it returns to plus before kickoff, sync_rule_plays removes it; at kickoff the final
+    # evaluation is frozen and becomes the rule's close/entry line.
+    _, flips = line_movement_tables(conn, now)
+    if not flips.empty:
+        latest = {(int(r["game_id"]), r["side"]): dict(r) for r in conn.execute(
+            "SELECT game_id, side, line, odds FROM closing_lines WHERE market='spread'")}
+        for flip in flips.itertuples():
+            price = latest.get((int(flip.game_id), flip.side), {})
+            line = _num(price.get("line"))
+            if line is None or line >= 0:
+                continue
+            odds = price.get("odds")
+            add("spread_flip_follow", flip.game_id, "spread", flip.side, line,
+                f"{flip.team}: mở +{float(flip.open_line):g} → hiện tại {line:g}; close phải giữ dấu âm",
+                None if odds is None else int(odds))
     return plays
 
 

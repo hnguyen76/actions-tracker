@@ -90,7 +90,7 @@ def test_rules_match_expected_plays(tmp_path):
         == ("home", -7.0)
     assert got[("ncaaf_total_money", 2)]["bet_side"] == "under"
     assert {r["id"] for r in RULES} == {"ncaaf_total_day_fade", "ncaaf_total_money", "ncaaf_spread_away_dog_fade",
-                                        "ncaaf_spread_daygroup", "nfl_spread_heavy_follow"}
+                                        "ncaaf_spread_daygroup", "nfl_spread_heavy_follow", "spread_flip_follow"}
 
 
 def test_no_play_for_tie_few_experts_or_away_favourite(tmp_path):
@@ -181,3 +181,27 @@ def test_nfl_heavy_rule_skips_nine(tmp_path):
     c = _conn(tmp_path)
     _picks(c, 3, "spread", ["home"] * 9, line={"home": -3.5}, league="nfl")
     assert [p for p in evaluate(c, NOW) if p["rule_id"] == "nfl_spread_heavy_follow"] == []
+
+
+def test_spread_flip_rule_needs_open_plus_and_latest_line_minus(tmp_path):
+    c = _conn(tmp_path)
+    _picks(c, 3, "spread", ["away", "home"], line={"away": 2.5, "home": -2.5}, league="nfl")
+    db.upsert_lines(c, [_split(3, "spread", "away", 2.5, None, None, -105),
+                        _split(3, "spread", "home", -2.5, None, None, -115)], "2026-11-13T09:00:00.000Z")
+    db.upsert_lines(c, [_split(3, "spread", "away", -1.5, None, None, -108),
+                        _split(3, "spread", "home", 1.5, None, None, -112)], "2026-11-13T10:00:00.000Z")
+    got = [p for p in evaluate(c, NOW) if p["rule_id"] == "spread_flip_follow"]
+    assert [(p["game_id"], p["bet_side"], p["line"], p["odds"]) for p in got] == [(3, "away", -1.5, -108)]
+    assert "mở +2.5" in got[0]["basis"] and "close phải giữ dấu âm" in got[0]["basis"]
+    sync_rule_plays(c, NOW)
+    play = rule_plays(c).query("rule_id == 'spread_flip_follow'").iloc[0]
+    assert (play.pick, play.entry_line, play.status) == ("NFA", -1.5, "pending")
+    rule = rule_summary(rule_plays(c)).set_index("rule_id").loc["spread_flip_follow"]
+    assert (rule.hist_record, rule.hist_n, rule.decision) == ("2-5", 7, "collecting")
+
+    # A crossing alert may already have fired, but it is not a close-minus rule play after reverting to plus.
+    db.upsert_lines(c, [_split(3, "spread", "away", 1.0, None, None, -110),
+                        _split(3, "spread", "home", -1.0, None, None, -110)], "2026-11-13T11:00:00.000Z")
+    assert [p for p in evaluate(c, NOW) if p["rule_id"] == "spread_flip_follow"] == []
+    sync_rule_plays(c, NOW)
+    assert rule_plays(c).query("rule_id == 'spread_flip_follow'").empty

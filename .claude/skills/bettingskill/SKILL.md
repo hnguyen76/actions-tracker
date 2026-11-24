@@ -106,6 +106,7 @@ Mô phỏng theo thời gian trên 889 kèo lịch sử (12/11): "đánh ngượ
 | `ncaaf_spread_away_dog_fade` | NCAAF spread, consensus chọn đội khách underdog → đặt đội nhà | 74–54 |
 | `ncaaf_spread_daygroup` (thêm 14/11, ý của người dùng) | NCAAF spread, ≥ 5 expert (`DAYGROUP_MIN_VOTES`), có đa số: Thứ 2–6 ET → theo đa số; Thứ 7–CN → đánh ngược | 143–122 (T2-6 26–20, T7-CN 117–102; NFL cùng cách 62–58 nên không áp dụng). Trùng hướng với quy tắc đội khách underdog ở cuối tuần; ngày thường hai quy tắc có thể ngược nhau → "conflict", bỏ qua |
 | `nfl_spread_heavy_follow` (thêm 14/11, ý của người dùng) | NFL spread, ≥ 10 expert (`NFL_HEAVY_VOTES`) cùng một bên → theo đa số. Không đọc trang public NFL (`PUBLIC_LEAGUES` = ncaaf) | 19–13 (59,4%, n=32; lịch sử đếm picks trên thẻ). Live đếm mỗi expert một phiếu, NFL thường chỉ 4–5 expert/kèo → có thể rất ít kèo. NCAAF ≥ 10 picks thì ngược: đa số 17–24 |
+| `spread_flip_follow` (thêm 24/11, ý của người dùng) | NFL/NCAAF/NBA spread: line đầu tiên S21 thấy là dương và line cuối trước kickoff vẫn âm → theo đội đổi từ underdog thành favorite tại close | Dữ liệu ESPN S21 từ 13/11: 2–5, 28,6%, −3,01u (n=7); đang thu thập, chưa đặt tiền |
 
 - Định nghĩa trong `src/actions_tracker/rules.py` (`RULES`) — **không sửa trong lúc kiểm chứng**; thêm quy tắc mới thì thêm id mới.
 - Mỗi lần chạy: đọc trang công khai `/{league}/public-betting` (line, % số bet, % tiền; bảng `public_splits`, đóng băng lúc bắt đầu trận) → `sync_rule_plays` ghi kèo khớp vào `rule_plays`; lần đánh giá cuối trước giờ đá là kèo chính thức.
