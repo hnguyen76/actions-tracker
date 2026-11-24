@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS picks(
     market TEXT CHECK(market IN ('spread','ml','total')),
     pick_side TEXT CHECK(pick_side IN ('home','away','over','under')),
     line REAL, odds INTEGER, units REAL, an_result TEXT,
-    created_at TEXT, starts_at TEXT, settled_at TEXT, play_text TEXT, updated_at TEXT);
+    created_at TEXT, starts_at TEXT, settled_at TEXT, play_text TEXT, expert_note TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS closing_lines(
     game_id INTEGER, market TEXT, side TEXT, line REAL, odds INTEGER,
     tickets_pct REAL, money_pct REAL, captured_at TEXT,
@@ -48,8 +48,8 @@ GAME_COLS = ["id", "league", "season", "week", "start_time", "status", "home_tea
              "home_abbr", "away_abbr", "home_score", "away_score", "home_name", "away_name", "odds_event_id"]
 _NEW_GAME_COLS = {"home_name": "TEXT", "away_name": "TEXT", "odds_event_id": "TEXT"}
 PICK_COLS = ["id", "expert_id", "game_id", "league", "market", "pick_side", "line", "odds", "units",
-             "an_result", "created_at", "starts_at", "settled_at", "play_text"]
-PICK_UPDATABLE = ["an_result", "settled_at", "odds", "line", "units"]
+             "an_result", "created_at", "starts_at", "settled_at", "play_text", "expert_note"]
+PICK_UPDATABLE = ["an_result", "settled_at", "odds", "line", "units", "expert_note"]
 FORM_COLS = ["pick_id", "expert_id", "league", "streak_type", "streak_value", "units_30", "wins_30", "losses_30",
              "pushes_30"]
 LINE_COLS = ["game_id", "market", "side", "line", "odds", "tickets_pct", "money_pct"]
@@ -71,12 +71,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
     the first time the new columns are added (runs once per database)."""
     cols = {r[1] for r in conn.execute("PRAGMA table_info(games)")}
     missing = [c for c in _NEW_GAME_COLS if c not in cols]
-    if not missing:
-        return
-    for c in missing:
-        conn.execute(f"ALTER TABLE games ADD COLUMN {c} {_NEW_GAME_COLS[c]}")
-    conn.execute("UPDATE games SET status = NULL, home_score = NULL, away_score = NULL")
-    conn.execute("DELETE FROM closing_lines")
+    if missing:
+        for c in missing:
+            conn.execute(f"ALTER TABLE games ADD COLUMN {c} {_NEW_GAME_COLS[c]}")
+        conn.execute("UPDATE games SET status = NULL, home_score = NULL, away_score = NULL")
+        conn.execute("DELETE FROM closing_lines")
+    pick_cols = {r[1] for r in conn.execute("PRAGMA table_info(picks)")}
+    if "expert_note" not in pick_cols:
+        conn.execute("ALTER TABLE picks ADD COLUMN expert_note TEXT")
     conn.commit()
 
 

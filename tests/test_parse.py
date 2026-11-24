@@ -34,6 +34,13 @@ def test_real_page_counts_match_raw(league):
     p = parse_picks_page(html, league)
     assert len(p.picks) == expected and len(p.experts) == len(raw)
     assert all(x["league"] == league for x in p.picks)
+    parsed = {x["id"]: x for x in p.picks}
+    for pr in raw:
+        for pick in pr.get("picks") or []:
+            if pick["id"] not in parsed:
+                continue
+            note = (pick.get("meta") or {}).get("note")
+            assert parsed[pick["id"]]["expert_note"] == (note.strip() or None if isinstance(note, str) else None)
 
 
 def test_empty_offseason_is_valid():

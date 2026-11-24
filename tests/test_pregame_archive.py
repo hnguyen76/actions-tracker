@@ -19,6 +19,14 @@ def _tables(votes=5):
         "Media_ATS": pd.DataFrame([{"game_id": 7, "expert": "A", "pick_team": "DET", "line": -3}]),
         "Media_Picks": pd.DataFrame([{"game_id": 7, "expert": "B", "pick_team": "DET"}]),
         "Weather": pd.DataFrame([{"game_id": 7, "indoor": 1}]),
+        "Picks": pd.DataFrame([
+            {"game_id": 7, "market": "spread", "expert_name": "A", "play_text": "DET -3",
+             "expert_note": "Matchup tốt", "created_at": "2026-11-15T18:00:00Z",
+             "start_time": "2026-11-15T20:00:00Z"},
+            {"game_id": 7, "market": "spread", "expert_name": "Late", "play_text": "DET -3",
+             "expert_note": "Đăng sau kickoff", "created_at": "2026-11-15T20:01:00Z",
+             "start_time": "2026-11-15T20:00:00Z"},
+        ]),
         "In_Play": pd.DataFrame(),
     }
 
@@ -28,7 +36,9 @@ def test_snapshot_updates_before_kickoff_and_freezes_after(tmp_path):
     assert capture_snapshots(conn, _tables(5), "2026-11-15T18:00:00Z") == 1
     assert capture_snapshots(conn, _tables(6), "2026-11-15T19:00:00Z") == 1
     saved = load_snapshots(conn).iloc[0]
-    assert json.loads(saved.snapshot_json)["board"][0]["a_votes"] == 6
+    snapshot = json.loads(saved.snapshot_json)
+    assert snapshot["board"][0]["a_votes"] == 6
+    assert [(x["expert_name"], x["expert_note"]) for x in snapshot["comments"]] == [("A", "Matchup tốt")]
 
     late = _tables(9)
     late["Upcoming_Board"] = pd.DataFrame()

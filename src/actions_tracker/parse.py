@@ -58,6 +58,9 @@ def _pick_row(k: dict, expert_id: int, league: str) -> dict | None:
     if k.get("type") not in KEEP_TYPES or k.get("period") != "game" or k.get("player_id"):
         return None
     market, side = KEEP_TYPES[k["type"]]
+    meta = k.get("meta") if isinstance(k.get("meta"), dict) else {}
+    note = meta.get("note")
+    note = note.strip() if isinstance(note, str) else None
     return {
         "id": k["id"],
         "expert_id": k.get("user_id", expert_id),
@@ -73,6 +76,7 @@ def _pick_row(k: dict, expert_id: int, league: str) -> dict | None:
         "starts_at": k.get("starts_at"),
         "settled_at": k.get("settled_at"),
         "play_text": k.get("play"),
+        "expert_note": note or None,
     }
 
 

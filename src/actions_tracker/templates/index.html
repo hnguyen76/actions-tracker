@@ -366,6 +366,10 @@ td.media-picks-cell { white-space: normal; min-width: 250px; max-width: 330px; v
 .media-preview { color: var(--ink-2); font-size: 11.5px; margin-left: 5px; overflow-wrap: anywhere; }
 .ats-line-breakdown { display: block; margin: 3px 0 0; }
 .ats-expert-pick { margin-left: 6px; font-weight: 600; white-space: nowrap; }
+.expert-comments { margin: 0; padding-left: 18px; }
+.expert-comment { margin: 7px 0; }
+.expert-comment-pick { color: var(--text); font-weight: 650; }
+.expert-comment-note { color: var(--muted); margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ats-capture-note { color: var(--warning); display: block; margin-left: 0; }
 .media-experts { margin: 5px 0 0; padding-left: 17px; color: var(--ink-2); }
 .media-experts li + li { margin-top: 3px; }
@@ -1673,11 +1677,32 @@ const DATA = /*__DATA__*/null;
     const play = Object.assign({}, r, { market: "spread" });
     return r.status === "graded" || !boardOf(play) ? "–" : mediaPicksCell(play);
   };
+  let expertCommentsMap = null;
+  function expertCommentsCell(r) {
+    if (!expertCommentsMap) {
+      expertCommentsMap = new Map();
+      for (const item of T("Picks")) {
+        const note = String(item.expert_note || "").trim();
+        if (!note) continue;
+        const created = Date.parse(item.created_at), starts = Date.parse(item.start_time);
+        if (Number.isFinite(created) && Number.isFinite(starts) && created > starts) continue;
+        const key = `${item.game_id}|${item.market}`;
+        if (!expertCommentsMap.has(key)) expertCommentsMap.set(key, []);
+        expertCommentsMap.get(key).push(Object.assign({}, item, { expert_note: note }));
+      }
+    }
+    const items = expertCommentsMap.get(`${r.game_id}|${r.market}`) || [];
+    if (!items.length) return el("span", { class: "news-empty", text: "Không có comment" });
+    return el("ul", { class: "expert-comments" }, ...items.map((x) => el("li", { class: "expert-comment" },
+      el("div", { class: "expert-comment-pick", text: `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}` }),
+      el("div", { class: "expert-comment-note", text: x.expert_note }))));
+  }
   const detailBlock = (label, content) => el("div", { class: "detail-block" }, el("div", { class: "detail-h", text: label }),
     content instanceof Node ? content : el("span", { class: "muted", text: content || "–" }));
   const decisionDetail = (r) => el("div", { class: "detail-grid" },
     detailBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), detailBlock("Tin tức", matchNewsCell(r)),
-    detailBlock("Chuyên gia chọn spread", atsPicksCell(r)), detailBlock("Thời tiết (giờ đá)", weatherCell(r)));
+    detailBlock("Comment của expert", expertCommentsCell(r)), detailBlock("Chuyên gia chọn spread", atsPicksCell(r)),
+    detailBlock("Thời tiết (giờ đá)", weatherCell(r)));
   const liveDecisionDetail = (r) => {
     const detail = decisionDetail(r);
     detail.append(detailBlock("Chuyên gia chọn winner", mediaPicksCell(Object.assign({}, r, { market: "spread", total_votes: 99 }))));
@@ -1727,6 +1752,7 @@ const DATA = /*__DATA__*/null;
       detailBlock("So sánh trước trận → kết quả", comparison),
       detailBlock("Tín hiệu trước trận", archivedList(d.signals, (x) => `${x.tone || "•"} ${x.text || "–"}`)),
       detailBlock("Tin tức trước trận", archivedNews(d.news)),
+      detailBlock("Comment của expert", archivedList(d.comments, (x) => `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}: ${x.expert_note || "–"}`)),
       detailBlock("Chuyên gia chọn spread", archivedATS(d.ats)),
       detailBlock("Thời tiết giờ đá", archivedWeather(d.weather)),
       detailBlock("Chuyên gia chọn winner", archivedWinner(d.winner)));
@@ -3115,6 +3141,7 @@ const DATA = /*__DATA__*/null;
       + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`],
     more: includeMore ? [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
       moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
+      moreBlock("Comment của expert", expertCommentsCell(r)),
       moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
       moreBlock("Thời tiết (giờ đá)", weatherCell(r)),
       moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] : [],
@@ -3137,6 +3164,7 @@ const DATA = /*__DATA__*/null;
         sub: [`${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
           lineFlipRuleBadge(r), threePickTrendBadge(r)],
         more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), moreBlock("Tin tức", matchNewsCell(r)),
+          moreBlock("Comment của expert", expertCommentsCell(r)),
           moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },
     "decide-skip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: MARKET_LABEL[r.market] || r.market, sub: r.pick }),
