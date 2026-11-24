@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS rule_plays(
     rule_id TEXT, game_id INTEGER, market TEXT, bet_side TEXT, line REAL, odds INTEGER, basis TEXT,
     first_logged_at TEXT, logged_at TEXT,
     PRIMARY KEY(rule_id, game_id, market));
+CREATE TABLE IF NOT EXISTS playoff_cache(
+    league TEXT PRIMARY KEY, payload TEXT NOT NULL, captured_at TEXT NOT NULL, source_at TEXT);
 CREATE INDEX IF NOT EXISTS picks_game ON picks(game_id, market);
 """
 

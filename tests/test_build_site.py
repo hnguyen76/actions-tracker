@@ -57,6 +57,17 @@ def test_second_half_tab_sits_after_upcoming_and_uses_espn_odds(tmp_path):
     assert 'const allTracked = currentTab() === "second-half"' in html
 
 
+def test_playoff_tab_has_espn_standings_and_transparent_models(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'data-tab="playoff"' in html and 'data-go="playoff"' in html
+    assert 'T("NFL_Playoff")' in html and 'T("NCAAF_Playoff")' in html
+    assert 'T("NCAAF_Standings")' in html and 'id="playoff-ncaaf-conf"' in html
+    assert '5.000 lần mô phỏng' in html and 'không phải ESPN' in html
+    assert '.playoff-chance' in css and '.playoff-in' in css and '.playoff-bubble' in css
+
+
 def test_upcoming_has_espn_line_history_and_plus_to_minus_table(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert 'id="spread-flip-card"' in html and 'id="spread-flip-table"' in html

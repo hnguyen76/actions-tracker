@@ -289,6 +289,15 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         unexpected = True
         print(f"[rules] LOI sau line ESPN: {type(e).__name__}: {e}")
 
+    if live_get is not None and ({"nfl", "ncaaf"} & set(leagues)):
+        from actions_tracker.playoffs import PlayoffError, refresh_playoff_picture
+        try:
+            count = refresh_playoff_picture(conn, now, get=live_get)
+            if count:
+                print(f"ESPN standings/playoff: {count} doi da cap nhat.")
+        except (PlayoffError, requests.RequestException, ValueError, KeyError) as e:
+            print(f"ESPN standings/playoff chua cap nhat duoc: {e}; dung cache hien co.")
+
     tables = build_tables(conn, now, Path(db_path).parent / "history")
     if news_fetcher is not None:
         from actions_tracker.sports_news import load_sports_news, refresh_sports_news

@@ -465,6 +465,26 @@ tbody tr { transition: background-color .14s ease; }
 
 footer { padding-bottom: 52px; }
 
+/* standings + playoff picture */
+.playoff-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.playoff-head h2 { margin-bottom: 0; }
+.playoff-grid .decide-sub { margin: 4px 0 9px; color: var(--muted); }
+.playoff-team { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+.playoff-team img { width: 28px; height: 28px; object-fit: contain; flex: none; }
+.playoff-chance { min-width: 112px; display: grid; grid-template-columns: minmax(54px, 1fr) 38px; align-items: center; gap: 8px; }
+.playoff-meter { height: 7px; overflow: hidden; border-radius: 999px; background: var(--raised); }
+.playoff-meter i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--s1), var(--good)); }
+.playoff-chance b { text-align: right; font-variant-numeric: tabular-nums; }
+tr.playoff-in > td { background: color-mix(in srgb, var(--good) 7%, transparent); }
+tr.playoff-in > td:first-child { box-shadow: inset 3px 0 0 var(--good); }
+tr.playoff-bubble > td { background: color-mix(in srgb, var(--warning) 6%, transparent); }
+tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+.playoff-conf-label select { min-width: 180px; }
+.model-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.model-grid p { margin: 0; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.model-grid b, .model-grid span { display: block; }
+.model-grid span { margin-top: 5px; color: var(--ink-2); font-size: 14px; }
+
 @media (max-width: 900px) {
   .card { padding: 22px; }
 }
@@ -535,6 +555,10 @@ footer { padding-bottom: 52px; }
   .asb-yard-numbers { margin-top: 6px; }
   .asb-last-play { margin-top: 11px; }
   .live-card-pregame { padding: 13px 14px 15px; }
+  .playoff-grid, .model-grid { grid-template-columns: 1fr; }
+  .playoff-head { align-items: flex-start; }
+  .playoff-conf-label select { min-width: 150px; max-width: 48vw; }
+  .playoff-chance { min-width: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

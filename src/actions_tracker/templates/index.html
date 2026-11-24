@@ -649,6 +649,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button role="tab" data-tab="nba" aria-selected="false">NBA ≥ 7 picks</button>
     <button role="tab" data-tab="season" aria-selected="false">Cách của bạn · cả mùa</button>
     <button role="tab" data-tab="forecast" aria-selected="false">Dự báo</button>
+    <button role="tab" data-tab="playoff" aria-selected="false">Playoff</button>
   </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
@@ -921,6 +922,35 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </div>
   </section>
 
+  <section class="panel" id="tab-playoff">
+    <div class="card playoff-hero">
+      <div class="playoff-head"><h2>🏈 NFL Playoff Picture</h2><span class="pill info">ESPN</span></div>
+      <p class="note">Seed hiện tại của ESPN · % là mô hình 5.000 lần mô phỏng lịch còn lại.</p>
+      <div class="grid2 playoff-grid">
+        <div><h3 class="decide-sub">AFC</h3><div class="table-scroll" id="nfl-playoff-afc"></div></div>
+        <div><h3 class="decide-sub">NFC</h3><div class="table-scroll" id="nfl-playoff-nfc"></div></div>
+      </div>
+    </div>
+    <div class="card playoff-hero">
+      <div class="playoff-head"><h2>🏆 NCAAF · CFP</h2><span class="pill info">TOP 12</span></div>
+      <p class="note">CFP Rankings + 5 conference leaders · % là dự đoán của site, không phải ESPN.</p>
+      <div class="table-scroll" id="ncaaf-playoff-table"></div>
+    </div>
+    <div class="card">
+      <div class="playoff-head"><h2>NCAAF Standings</h2>
+        <label class="playoff-conf-label"><span class="sr-only">Conference</span><select id="playoff-ncaaf-conf"></select></label>
+      </div>
+      <div class="table-scroll" id="ncaaf-standings-table"></div>
+    </div>
+    <div class="card model-card">
+      <h2>ⓘ Mô hình</h2>
+      <div class="model-grid">
+        <p><b>NFL</b><span>Record + point differential + sân nhà + lịch còn lại. Division winners trước, sau đó 3 wildcards; tiebreak được xấp xỉ.</span></p>
+        <p><b>NCAAF</b><span>CFP rank + record + point differential + đội đang dẫn conference. Auto-bid dùng 5 conference leaders cao nhất hiện tại.</span></p>
+      </div>
+    </div>
+  </section>
+
   <nav class="bottombar" id="bottombar" aria-label="Điều hướng">
     <button type="button" data-go="upcoming" aria-label="Kèo" title="Kèo" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
     <button type="button" data-go="second-half" aria-label="Kèo hiệp hai" title="Kèo hiệp hai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM12 5v14"/><path d="M7.5 9.5h2v2h-2zM14.5 12.5h2v2h-2z"/></svg></button>
@@ -935,6 +965,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button type="button" data-go="history" aria-label="Lịch sử mùa" title="Lịch sử mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v16H4zM7 3v4M17 3v4M4 10h16M8 14h3M8 17h6"/></svg></button>
     <button type="button" data-go="season-chart" aria-label="Biểu đồ cả mùa" title="Biểu đồ cả mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16M8 17v-5M12 17V7M16 17v-8M20 17V5"/></svg></button>
     <button type="button" data-go="season" aria-label="Cách của bạn cả mùa" title="Cách của bạn cả mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v4a4 4 0 0 1-8 0V4ZM8 6H4v1a5 5 0 0 0 5 5M16 6h4v1a5 5 0 0 1-5 5M12 12v5M8 20h8M9 17h6"/></svg></button>
+    <button type="button" data-go="playoff" aria-label="Bảng xếp hạng và playoff" title="Bảng xếp hạng và playoff"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3a4 4 0 0 1-8 0V4ZM8 6H4v1a5 5 0 0 0 5 5M16 6h4v1a5 5 0 0 1-5 5M12 11v6M8 20h8M9 17h6"/></svg></button>
   </nav>
 
   <footer class="donate-footer">
@@ -2996,6 +3027,62 @@ const DATA = /*__DATA__*/null;
     ]);
   }
 
+  const playoffTeam = (r) => el("span", { class: "playoff-team" },
+    r.logo ? el("img", { src: r.logo, alt: "", loading: "lazy" }) : null,
+    el("b", { text: r.abbr || r.team || "–" }));
+  const playoffChance = (r) => {
+    const value = Math.round(Number(r.playoff_prob || 0) * 100);
+    return el("div", { class: "playoff-chance", title: `${value}%` },
+      el("span", { class: "playoff-meter" }, el("i", { style: `width:${value}%` })),
+      el("b", { text: `${value}%` }));
+  };
+  const playoffStatus = (r) => r.picture === "field"
+    ? el("span", { class: "pill win", text: r.bid || "IN" })
+    : r.picture === "bubble" ? el("span", { class: "pill info", text: "BUBBLE" })
+      : el("span", { class: "pill dim", text: "OUT" });
+  const playoffRowClass = (r) => r.picture === "field" ? "playoff-in" : r.picture === "bubble" ? "playoff-bubble" : "";
+
+  function playoffTab() {
+    const nflCols = [
+      { label: "#", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
+      { label: "Đội", value: playoffTeam, sort: (r) => r.team },
+      { label: "W-L", value: (r) => r.record },
+      { label: "DIV", value: (r) => String(r.division || "").replace(/^AFC |^NFC /, "") },
+      { label: "%", value: playoffChance, sort: (r) => r.playoff_prob },
+      { label: "", value: playoffStatus, sort: (r) => r.picture },
+    ];
+    const nfl = T("NFL_Playoff");
+    for (const conf of ["AFC", "NFC"]) renderTable(`nfl-playoff-${conf.toLowerCase()}`,
+      nfl.filter((r) => r.conference === conf), nflCols, null, { rowClass: playoffRowClass });
+
+    renderTable("ncaaf-playoff-table", T("NCAAF_Playoff"), [
+      { label: "Seed", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
+      { label: "CFP", num: true, value: (r) => r.rank || "NR", sort: (r) => r.rank || 99 },
+      { label: "Đội", value: playoffTeam, sort: (r) => r.team },
+      { label: "W-L", value: (r) => r.record },
+      { label: "CONF", value: (r) => r.conference },
+      { label: "DIFF", num: true, value: (r) => (r.point_diff > 0 ? "+" : "") + num(r.point_diff), sort: (r) => r.point_diff },
+      { label: "%", value: playoffChance, sort: (r) => r.playoff_prob },
+      { label: "", value: playoffStatus, sort: (r) => r.picture },
+    ], null, { rowClass: playoffRowClass });
+
+    const select = document.getElementById("playoff-ncaaf-conf");
+    const standings = T("NCAAF_Standings");
+    const conferences = [...new Set(standings.map((r) => r.conference))].sort((a, b) => a.localeCompare(b));
+    const before = select.value;
+    select.replaceChildren(...conferences.map((name) => el("option", { value: name, text: name })));
+    if (conferences.includes(before)) select.value = before;
+    const draw = () => renderTable("ncaaf-standings-table", standings.filter((r) => r.conference === select.value), [
+      { label: "#", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
+      { label: "Đội", value: playoffTeam, sort: (r) => r.team },
+      { label: "W-L", value: (r) => r.record },
+      { label: "CONF", value: (r) => r.conf_record },
+      { label: "DIFF", num: true, value: (r) => (r.point_diff > 0 ? "+" : "") + num(r.point_diff), sort: (r) => r.point_diff },
+    ]);
+    select.onchange = draw;
+    draw();
+  }
+
   // ---------- phone layout: compact rows, bottom bar, filter toggle, live refresh ----------
   const PHONE = window.matchMedia("(max-width: 600px)");
   const isPhone = () => PHONE.matches;
@@ -3082,6 +3169,10 @@ const DATA = /*__DATA__*/null;
       sub: `${boardSide(r, "a")} · ${boardSide(r, "b")}` }),
     "nba-all": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`, right: MARKET_LABEL[r.market] || r.market,
       sub: `${boardSide(r, "a")} · ${boardSide(r, "b")} · ${BOARD_STATUS[statusOf(r)] || ""}` }),
+    "nfl-playoff-": (r) => ({ title: playoffTeam(r), right: playoffChance(r),
+      sub: [`#${r.seed || "–"} · ${r.record} · ${String(r.division || "").replace(/^AFC |^NFC /, "")} · `, playoffStatus(r)] }),
+    "ncaaf-playoff-table": (r) => ({ title: playoffTeam(r), right: playoffChance(r),
+      sub: [`CFP ${r.rank || "NR"} · ${r.record} · ${r.conference} · `, playoffStatus(r)] }),
   };
   const compactFor = (target) => COMPACT[target] || COMPACT[Object.keys(COMPACT).find((k) => k.endsWith("-") && target.startsWith(k))];
 
@@ -3322,7 +3413,7 @@ const DATA = /*__DATA__*/null;
     const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, "second-half": secondHalfTab,
       "season-chart": seasonChartTab, consensus: consensusTab,
       experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
-      forecast: forecastTab };
+      forecast: forecastTab, playoff: playoffTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();
   }
 
