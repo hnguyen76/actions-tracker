@@ -9,14 +9,14 @@ OPPOSITE = {"home": "away", "away": "home", "over": "under", "under": "over"}
 
 COLUMNS = [
     "pick_id", "expert_id", "expert_name", "league", "game_id", "market", "pick_side", "line", "odds",
-    "created_at", "start_time", "status", "home_abbr", "away_abbr", "home_score", "away_score",
+    "play_text", "expert_note", "created_at", "start_time", "status", "home_abbr", "away_abbr", "home_score", "away_score",
     "close_line", "close_odds", "close_captured_at", "opp_close_odds",
     "home_away", "fav_dog", "over_under", "side_result", "expert_result", "line_source",
 ]
 
 _SQL = """
 SELECT p.id AS pick_id, p.expert_id, e.name AS expert_name, p.league, p.game_id, p.market, p.pick_side,
-       p.line, p.odds, p.an_result, p.created_at, COALESCE(g.start_time, p.starts_at) AS start_time,
+       p.line, p.odds, p.play_text, p.expert_note, p.an_result, p.created_at, COALESCE(g.start_time, p.starts_at) AS start_time,
        g.status, g.home_abbr, g.away_abbr, g.home_score, g.away_score,
        cl.line AS close_line, cl.odds AS close_odds, cl.captured_at AS close_captured_at, op.odds AS opp_close_odds
 FROM picks p

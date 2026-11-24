@@ -33,6 +33,14 @@ def _records(frame: pd.DataFrame, game_id: int, market: str | None = None) -> li
     return json.loads(selected.to_json(orient="records", date_format="iso"))
 
 
+def _pregame_comments(frame: pd.DataFrame, game_id: int, market: str, start_time: object) -> list[dict]:
+    records = _records(frame, game_id, market)
+    start = _parse_time(start_time)
+    return [r for r in records if r.get("expert_note") and (
+        start is None or (created := _parse_time(r.get("created_at"))) is None or created <= start
+    )]
+
+
 def _parse_time(value: object) -> datetime | None:
     try:
         parsed = pd.to_datetime(value, utc=True, errors="coerce")
@@ -89,6 +97,7 @@ def capture_snapshots(conn: sqlite3.Connection, tables: dict[str, pd.DataFrame],
             "ats": _records(tables.get("Media_ATS"), game_id),
             "winner": _records(tables.get("Media_Picks"), game_id),
             "weather": _records(tables.get("Weather"), game_id),
+            "comments": _pregame_comments(tables.get("Picks"), game_id, market, row.get("start_time")),
         }
         conn.execute(
             """INSERT INTO pregame_snapshots

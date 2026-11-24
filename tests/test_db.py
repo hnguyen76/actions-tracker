@@ -15,11 +15,13 @@ def test_upsert_idempotent_and_coalesce(tmp_path):
     db.upsert_games(c, [G | {"status": "complete", "home_score": 24, "away_score": 17}], "t2")
     db.upsert_games(c, [G | {"home_abbr": None}], "t3")
     db.upsert_picks(c, [P | {"an_result": "win"}], "t2")
+    db.upsert_picks(c, [P | {"expert_note": "Why this side wins"}], "t2")
     db.upsert_picks(c, [P], "t3")
     assert c.execute("select count(*) from picks").fetchone()[0] == 1
     g = c.execute("select status, home_score, home_abbr from games").fetchone()
     assert tuple(g) == ("scheduled", 24, "HOM")
     assert c.execute("select an_result from picks").fetchone()[0] == "win"
+    assert c.execute("select expert_note from picks").fetchone()[0] == "Why this side wins"
     db.upsert_games(c, [{"id": 100, "status": "complete"}], "t4")
     assert tuple(c.execute("select status, home_abbr from games").fetchone()) == ("complete", "HOM")
 
@@ -62,13 +64,17 @@ def test_migration_adds_columns_and_drops_action_network_scores(tmp_path):
         "INSERT INTO games(id, status, home_score, away_score, home_abbr) VALUES (1, 'complete', 24, 17, 'HOM');"
         "CREATE TABLE closing_lines(game_id INTEGER, market TEXT, side TEXT, line REAL, odds INTEGER,"
         " tickets_pct REAL, money_pct REAL, captured_at TEXT, PRIMARY KEY(game_id, market, side));"
-        "INSERT INTO closing_lines VALUES (1, 'spread', 'home', -3, -110, 60, 70, 't');")
+        "INSERT INTO closing_lines VALUES (1, 'spread', 'home', -3, -110, 60, 70, 't');"
+        "CREATE TABLE picks(id INTEGER PRIMARY KEY, expert_id INTEGER, game_id INTEGER, league TEXT,"
+        " market TEXT, pick_side TEXT, line REAL, odds INTEGER, units REAL, an_result TEXT,"
+        " created_at TEXT, starts_at TEXT, settled_at TEXT, play_text TEXT, updated_at TEXT);")
     old.commit(); old.close()
     c = db.connect(path)
     cols = {r[1] for r in c.execute("PRAGMA table_info(games)")}
     assert {"home_name", "away_name", "odds_event_id"} <= cols
     assert tuple(c.execute("select status, home_score, away_score, home_abbr from games").fetchone()) == (None, None, None, "HOM")
     assert c.execute("select count(*) from closing_lines").fetchone()[0] == 0
+    assert "expert_note" in {r[1] for r in c.execute("PRAGMA table_info(picks)")}
     db.upsert_games(c, [{"id": 1, "status": "complete", "home_score": 30}], "t2")
     c.close()
     c = db.connect(path)  # second connect must not wipe again
