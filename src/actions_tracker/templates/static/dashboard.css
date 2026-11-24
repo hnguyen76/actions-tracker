@@ -332,20 +332,25 @@ section.panel { padding-top: 14px; }
 .line-move-track > span.up { color: var(--good); }
 .line-move-track > span.down { color: var(--bad); }
 
-/* Today's selected ratios are white; decision sample size stays yellow, green, then purple. */
+/* Weekday 3/3–3/4 is a tracked trend; today's selected ratios and sample-size heat remain separate. */
+.heat-three { --decision-heat: #38bdf8; }
 .heat-white { --decision-heat: #f8fafc; }
 .heat-yellow { --decision-heat: var(--warning); }
 .heat-green { --decision-heat: var(--good); }
 .heat-purple { --decision-heat: var(--decision-purple); }
-tr.heat-white > td, tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td {
+tr.heat-three > td, tr.heat-white > td, tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td {
   animation: decision-heat-cell 2.8s ease-in-out infinite;
 }
-tr.heat-white > td:first-child, tr.heat-yellow > td:first-child, tr.heat-green > td:first-child, tr.heat-purple > td:first-child {
+tr.heat-three > td:first-child, tr.heat-white > td:first-child, tr.heat-yellow > td:first-child, tr.heat-green > td:first-child, tr.heat-purple > td:first-child {
   box-shadow: inset 4px 0 0 var(--decision-heat);
 }
-.crow.heat-white, .crow.heat-yellow, .crow.heat-green, .crow.heat-purple {
+.crow.heat-three, .crow.heat-white, .crow.heat-yellow, .crow.heat-green, .crow.heat-purple {
   animation: decision-heat-card 2.8s ease-in-out infinite;
 }
+.decision-reason, .expert-ratio { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.three-pick-trend { border-color: color-mix(in srgb, #38bdf8 58%, var(--border)); background: color-mix(in srgb, #38bdf8 16%, var(--surface-2));
+  color: color-mix(in srgb, #38bdf8 72%, var(--ink)); font-size: 11px; font-weight: 800; letter-spacing: .035em; }
+.crow .three-pick-trend { margin-left: 7px; }
 @keyframes decision-heat-cell {
   0%, 100% { background-color: color-mix(in srgb, var(--decision-heat) 20%, transparent); }
   50% { background-color: color-mix(in srgb, var(--decision-heat) 6%, transparent); }
@@ -527,8 +532,8 @@ footer { padding-bottom: 52px; }
 
 @media (prefers-reduced-motion: reduce) {
   .btn, nav.tabs button, tbody tr { transition: none; }
-  tr.heat-white > td, tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td,
-  .crow.heat-white, .crow.heat-yellow, .crow.heat-green, .crow.heat-purple { animation-duration: 5.6s; }
+  tr.heat-three > td, tr.heat-white > td, tr.heat-yellow > td, tr.heat-green > td, tr.heat-purple > td,
+  .crow.heat-three, .crow.heat-white, .crow.heat-yellow, .crow.heat-green, .crow.heat-purple { animation-duration: 5.6s; }
   .season-thanksgiving .brand-static { animation: none; opacity: 1; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-qb-arm, .season-thanksgiving .logo-pass-ball,
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
