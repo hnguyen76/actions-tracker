@@ -176,7 +176,10 @@ fi
 # Republish for new data, for the regular update clock, or when alert/live pulled a code change first.
 if [ "$COMMITTED" = 1 ] || [ "$MODE" = update ] || published_head_changed; then
   rebuild=0
-  if [ "$COMMITTED" = 0 ] && [ "$MODE" != update ]; then
+  # Only `update` always rebuilds as part of its command. A live/news/alert run may commit a schema/cache
+  # migration without rebuilding (for example when no game is live), so publishing its old site/ would
+  # put stale HTML back on gh-pages after new code was pulled.
+  if [ "$MODE" != update ]; then
     rebuild=1
   fi
   publish_site "$rebuild"

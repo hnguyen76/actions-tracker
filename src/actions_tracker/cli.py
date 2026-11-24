@@ -428,12 +428,12 @@ def _notify_second_half(conn, now: str, telegram, post=None) -> None:
 
 
 def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get=None,
-                telegram: tuple | None = None, post=None) -> int:
+                telegram: tuple | None = None, post=None, playoff_get=None) -> int:
     """Light run for games in progress: ESPN scores only (no Action Network, no lines), then rebuild the site.
     Does nothing (and makes no request) when no picked game is being played."""
     from actions_tracker import live
     conn = db.connect(db_path)
-    changed = 0
+    changed, playoff_changed = 0, 0
     for league in leagues:
         try:
             c = live.collect_espn(conn, league, now, get=get or requests.get, lines=False)
@@ -444,8 +444,16 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
             half = f", luu 1H: {c['halftime_saved']}" if c["halftime_saved"] else ""
             print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong{half}")
         changed += c["live"] + c["final"]
+    if playoff_get is not None and ({"nfl", "ncaaf"} & set(leagues)):
+        from actions_tracker.playoffs import PlayoffError, refresh_playoff_picture
+        try:
+            playoff_changed = refresh_playoff_picture(conn, now, get=playoff_get)
+            if playoff_changed:
+                print(f"ESPN standings/playoff: {playoff_changed} doi da cap nhat.")
+        except (PlayoffError, requests.RequestException, ValueError, KeyError) as e:
+            print(f"ESPN standings/playoff chua cap nhat duoc: {e}; dung cache hien co.")
     _notify_second_half(conn, now, telegram, post)
-    if changed:
+    if changed or playoff_changed:
         tables = build_tables(conn, now, Path(db_path).parent / "history")
         from actions_tracker.pregame_archive import refresh_snapshots
         refresh_snapshots(conn, tables, now)
@@ -546,7 +554,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "live":
         from actions_tracker.alerts import load_telegram
         return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
-                           utc_now(), telegram=load_telegram(Path.cwd()))
+                           utc_now(), telegram=load_telegram(Path.cwd()), playoff_get=requests.get)
     if args.cmd == "news":
         from actions_tracker.sports_news import load_sports_news, refresh_sports_news
         from actions_tracker.match_news import board_games, load_news, refresh_news
