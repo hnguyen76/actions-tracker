@@ -1390,17 +1390,33 @@ const DATA = /*__DATA__*/null;
     return statusOf(r) === "majority";
   };
   const WHITE_PICK_RATIOS = new Set(["2/3", "3/4", "4/5", "6/7"]);
-  const todayWhitePickRatio = (r) => {
-    if (!r.start_time || etDate(r.start_time) !== etDate(Date.now())) return false;
+  const WEEKDAY_THREE_PICK_RATIOS = new Set(["3/3", "3/4"]);
+  const pickRatioOf = (r) => {
     const b = boardOf(r);
     const total = Number(b ? b.total_votes : r.total_votes) || 0;
     const votes = b ? Math.max(Number(b.a_votes) || 0, Number(b.b_votes) || 0) : Number(r.votes) || 0;
-    return WHITE_PICK_RATIOS.has(`${votes}/${total}`);
+    return `${votes}/${total}`;
   };
-  const HOT = { rowClass: (r) => todayWhitePickRatio(r) ? "heat-white"
+  const weekdayThreePickTrend = (r) => {
+    if (!r.start_time || !WEEKDAY_THREE_PICK_RATIOS.has(pickRatioOf(r))) return false;
+    const day = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "America/New_York" })
+      .format(new Date(r.start_time));
+    return day !== "Sat" && day !== "Sun";
+  };
+  const threePickTrendBadge = (r) => weekdayThreePickTrend(r)
+    ? el("span", { class: "pill three-pick-trend", text: "🔥 3 PICKS",
+      title: "Trend weekday 3/3–3/4 · theo majority expert", "aria-label": "Trend weekday 3 trên 3 hoặc 3 trên 4" })
+    : null;
+  const todayWhitePickRatio = (r) => {
+    if (!r.start_time || etDate(r.start_time) !== etDate(Date.now())) return false;
+    return WHITE_PICK_RATIOS.has(pickRatioOf(r));
+  };
+  const HOT = { rowClass: (r) => weekdayThreePickTrend(r) ? "heat-three"
+    : todayWhitePickRatio(r) ? "heat-white"
     : (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
   // Decision card: today's requested ratios are white; other sample sizes keep their existing heat levels.
   const decisionHeatClass = (r) => {
+    if (weekdayThreePickTrend(r)) return "heat-three";
     if (todayWhitePickRatio(r)) return "heat-white";
     const n = picksOn(r);
     return n > 14 ? "heat-purple" : n > 10 ? "heat-green" : n >= HOT_PICKS ? "heat-yellow" : "";
@@ -1759,7 +1775,8 @@ const DATA = /*__DATA__*/null;
       { label: "Expert", value: (r) => nExp(r), sort: (r) => nExp(r) },
       STATUS_COL,
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
-      { label: "Vì sao", value: crowdCount, sort: (r) => crowdShare(r) },
+      { label: "Vì sao", value: (r) => el("span", { class: "decision-reason" },
+        el("span", { text: crowdCount(r) }), threePickTrendBadge(r)), sort: (r) => crowdShare(r) },
     ];
     // a market with no play shrinks to its heading line ("Spread 0 kèo"); the table comes back when there is one
     const section = (market) => {
@@ -1944,7 +1961,8 @@ const DATA = /*__DATA__*/null;
       { label: "Trận", value: (r) => `${r.away_abbr || "?"} @ ${r.home_abbr || "?"}` },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "Side đa số", value: (r) => sideName(r) },
-      { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
+      { label: "Expert", num: true, value: (r) => el("span", { class: "expert-ratio" },
+        el("span", { text: `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` }), threePickTrendBadge(r)) },
       { label: "ESPN Δ", value: (r) => lineMovementShort(r) },
       STATUS_COL,
       { label: "Lịch sử (live)", num: true, value: (r) => histCell(r.hist_win_pct, r.hist_n), sort: (r) => r.hist_win_pct },
@@ -3023,7 +3041,8 @@ const DATA = /*__DATA__*/null;
       more: [moreBlock("Thông tin trước trận và kết quả", pastSnapshotDetail(r))] }),
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
-        sub: `${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
+        sub: [`${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
+          threePickTrendBadge(r)],
         more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), moreBlock("Tin tức", matchNewsCell(r)),
           moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },
@@ -3031,8 +3050,9 @@ const DATA = /*__DATA__*/null;
     "inplay-table": (r) => inPlayCompact(r),
     "upcoming-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
       right: el("b", { text: `${MARKET_LABEL[r.market] || r.market}: ${sideName(r)}` }),
-      sub: `${leagueName(r.league)} · ${num(r.votes)}/${num(r.total_votes)} · ${BOARD_STATUS[statusOf(r)] || ""}`
+      sub: [`${leagueName(r.league)} · ${num(r.votes)}/${num(r.total_votes)} · ${BOARD_STATUS[statusOf(r)] || ""}`
         + ` · ESPN ${lineMovementShort(r)}` + (r.season_n ? ` · mùa ${pct(r.season_win_pct)} (n=${num(r.season_n)})` : ""),
+        threePickTrendBadge(r)],
       more: movementRows(r).length ? [moreBlock("Lịch sử line ESPN", lineMovementDetail(r))] : [] }),
     "spread-flip-table": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`,
       right: el("b", { text: r.team }), sub: `${leagueName(r.league)} · ${lineFmt(r.open_line)} → ${lineFmt(r.current_line)}` }),

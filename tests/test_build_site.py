@@ -96,6 +96,18 @@ def test_today_selected_pick_ratios_are_white_and_other_heat_levels_remain(tmp_p
     assert "@keyframes decision-heat-cell" in css and "@keyframes decision-heat-card" in css
 
 
+def test_weekday_three_pick_trend_is_highlighted_and_labeled(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'new Set(["3/3", "3/4"])' in html
+    assert 'weekdayThreePickTrend(r) ? "heat-three"' in html
+    assert 'text: "🔥 3 PICKS"' in html
+    assert 'Trend weekday 3/3–3/4 · theo majority expert' in html
+    assert '.heat-three { --decision-heat: #38bdf8; }' in css
+    assert '.three-pick-trend' in css
+
+
 def test_mobile_game_cards_start_collapsed_and_are_keyboard_accessible(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert 'Object.assign(rowAttrs, { role: "button", tabindex: "0", "aria-expanded": "false" })' in html
