@@ -1407,6 +1407,11 @@ const DATA = /*__DATA__*/null;
     ? el("span", { class: "pill three-pick-trend", text: "🔥 3 PICKS",
       title: "Trend weekday 3/3–3/4 · theo majority expert", "aria-label": "Trend weekday 3 trên 3 hoặc 3 trên 4" })
     : null;
+  const lineFlipRule = (r) => String(r.rule_ids || "").split(",").includes("spread_flip_follow");
+  const lineFlipRuleBadge = (r) => lineFlipRule(r)
+    ? el("span", { class: "pill line-flip-rule", text: "⇄ +→−",
+      title: "Spread mở dương, close giữ âm", "aria-label": "Spread mở dương và close âm" })
+    : null;
   const todayWhitePickRatio = (r) => {
     if (!r.start_time || etDate(r.start_time) !== etDate(Date.now())) return false;
     return WHITE_PICK_RATIOS.has(pickRatioOf(r));
@@ -1416,6 +1421,7 @@ const DATA = /*__DATA__*/null;
     : (picksOn(r) >= HOT_PICKS && unanimous(r) ? "hot" : "") };
   // Decision card: today's requested ratios are white; other sample sizes keep their existing heat levels.
   const decisionHeatClass = (r) => {
+    if (lineFlipRule(r)) return "spread-flip-rule-row";
     if (weekdayThreePickTrend(r)) return "heat-three";
     if (todayWhitePickRatio(r)) return "heat-white";
     const n = picksOn(r);
@@ -1776,7 +1782,7 @@ const DATA = /*__DATA__*/null;
       STATUS_COL,
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick }) },
       { label: "Vì sao", value: (r) => el("span", { class: "decision-reason" },
-        el("span", { text: crowdCount(r) }), threePickTrendBadge(r)), sort: (r) => crowdShare(r) },
+        el("span", { text: crowdCount(r) }), lineFlipRuleBadge(r), threePickTrendBadge(r)), sort: (r) => crowdShare(r) },
     ];
     // a market with no play shrinks to its heading line ("Spread 0 kèo"); the table comes back when there is one
     const section = (market) => {
@@ -3042,7 +3048,7 @@ const DATA = /*__DATA__*/null;
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),
         sub: [`${leagueName(r.league)} · ${num(b.total_votes)} expert · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`,
-          threePickTrendBadge(r)],
+          lineFlipRuleBadge(r), threePickTrendBadge(r)],
         more: [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)), moreBlock("Tin tức", matchNewsCell(r)),
           moreBlock("Chuyên gia chọn spread", atsPicksCell(r)),
           moreBlock("Thời tiết (giờ đá)", weatherCell(r))] }; },

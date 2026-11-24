@@ -281,6 +281,14 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         db.set_meta(conn, "odds_api_remaining", str(odds_api.remaining))
         print(f"The Odds API con {odds_api.remaining} credit.")
 
+    # ESPN lines are collected after the per-league rule pass. Re-evaluate once so a newly observed
+    # open-plus/current-minus spread appears in Decisions and Rule_Plays in this same update.
+    try:
+        sync_rule_plays(conn, now)
+    except Exception as e:  # noqa: BLE001 - keep the rest of the dashboard available
+        unexpected = True
+        print(f"[rules] LOI sau line ESPN: {type(e).__name__}: {e}")
+
     tables = build_tables(conn, now, Path(db_path).parent / "history")
     if news_fetcher is not None:
         from actions_tracker.sports_news import load_sports_news, refresh_sports_news
