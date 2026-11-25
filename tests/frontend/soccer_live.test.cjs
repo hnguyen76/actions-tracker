@@ -66,3 +66,50 @@ test('a live event reads the score, the clock with stoppage time, halftime, and 
   'uefa.champions'));
   assert.deepEqual([ht.state, ht.halftime, ht.detail], ['live', true, 'HT']);
 });
+
+// real DraftKings pregame + live items for VIL @ SLP, 25/11 12:46 ET (home SLP 494, away VIL 102)
+const ODDS = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/espn_soccer_odds_live.json'), 'utf8'));
+
+test('the DraftKings live market reads the 3-way moneyline and the total now', () => {
+  const live = plain(api.parseLiveOdds(ODDS.items.find((x) => /live/i.test(x.provider.name))));
+  assert.deepEqual(live, { ml: { home: 180, away: 135, draw: 265 }, total: { line: 2.5, over: -172, under: 144 } });
+  assert.equal(api.parseLiveOdds(ODDS.items.find((x) => x.provider.name === 'DraftKings')), null);
+});
+
+test('fetchLive: live games with pregame and live lines; at halftime the half markets and the 2H plays', async () => {
+  const event = (state, name, home, away) => ({ id: '401915293', date: '2026-11-25T17:45Z', competitions: [{
+    status: { displayClock: "45'+3'", period: 1, type: { state, name, shortDetail: name === 'STATUS_HALFTIME' ? 'HT' : "45'+3'" } },
+    competitors: [{ homeAway: 'home', score: String(home), team: { id: '494', abbreviation: 'SLP' } },
+      { homeAway: 'away', score: String(away), team: { id: '102', abbreviation: 'VIL' } }] }] });
+  const secondHalf = { items: [
+    { type: { name: '2nd Half Total' }, current: { over: { american: '+105' }, target: { value: 1.5 } } },
+    { type: { name: '2nd Half Total' }, current: { over: { american: '-135' }, target: { value: 1.5 } } },
+    { type: { name: '2nd Half Total' }, current: { over: { american: '-300' }, target: { value: 0.5 } } },
+    { type: { name: '2nd Half Total' }, current: { over: { american: '+220' }, target: { value: 0.5 } } },
+    { type: { name: '2nd Half Moneyline' }, team: { $ref: 'x/teams/102' }, current: { over: { american: '+150' } } },
+    { type: { name: '2nd Half Moneyline' }, team: { $ref: 'x/teams/494' }, current: { over: { american: '+230' } } },
+    { type: { name: '2nd Half Moneyline' }, current: { over: { american: '+140' } } }] };
+  const run = async (status, home, away) => {
+    const urls = [];
+    const fetcher = async (url) => {
+      urls.push(url);
+      let body = { events: [] };
+      if (url.includes('/uefa.champions/scoreboard')) body = { events: [event('in', status, home, away)] };
+      else if (url.includes('/odds?')) body = ODDS;
+      else if (url.includes('propBets') && urls.filter((u) => u.includes('propBets')).length === 1) body = PROPS;
+      else if (url.includes('propBets')) body = secondHalf;
+      return { ok: true, json: async () => JSON.parse(JSON.stringify(body)) };
+    };
+    return { games: plain(await api.fetchLive(fetcher, Date.parse('2026-11-25T18:35:00Z'))), urls };
+  };
+  const live = await run('STATUS_FIRST_HALF', 0, 0);
+  assert.equal(live.games.length, 1);
+  assert.deepEqual(live.games[0].live.ml, { home: 180, away: 135, draw: 265 });
+  assert.equal(live.games[0].second_half, undefined);                        // only at halftime
+  const ht = (await run('STATUS_HALFTIME', 0, 0)).games[0];
+  assert.equal(ht.halftime, true);
+  assert.deepEqual(ht.markets.first_total, { line: 1.5, over: 127, under: -166 });
+  assert.deepEqual(ht.markets.second_total, { line: 1.5, over: 105, under: -135 });
+  assert.deepEqual(ht.second_half.side, { team: 'away', price: 150, favourite: 'away', covered: false });
+  assert.deepEqual(ht.second_half.total, { side: 'over', line: 1.5, price: 105, first_goals: 0, first_line: 1.5 });
+});

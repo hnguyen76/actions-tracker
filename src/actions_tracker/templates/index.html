@@ -2605,7 +2605,7 @@ const DATA = /*__DATA__*/null;
       }
       host.append(el("article", { class: `soccer-live-game${g.halftime ? " ht" : ""}` },
         el("div", { class: "soccer-live-head" }, el("span", { class: "soccer-live-dot", text: g.halftime ? "HT" : "LIVE" }),
-          el("span", { class: "soccer-meta", text: `${S.short(g.comp)} · ${g.halftime ? "HT" : g.clock || g.detail}` })),
+          el("span", { class: "soccer-meta", text: g.halftime ? S.short(g.comp) : `${S.short(g.comp)} · ${g.clock || g.detail}` })),
         el("div", { class: "soccer-live-score", text: `${g.away.abbr} ${g.away_score}–${g.home_score} ${g.home.abbr}` }),
         row("Trước", g.pregame && g.pregame.ml, g.pregame && g.pregame.total),
         row("Live", g.live && g.live.ml, g.live && g.live.total),
