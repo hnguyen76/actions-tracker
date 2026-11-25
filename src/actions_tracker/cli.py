@@ -246,7 +246,7 @@ def _ungraded_past_games(conn, league: str, now: str) -> int:
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,
         odds_api=None, budget: bool = False, telegram: tuple | None = None, news_fetcher=None,
-        live_get=None) -> int:
+        live_get=None, samples: bool = False) -> int:
     """Exit codes: 0 ok, 1 every league failed, 2 page structure changed, 3 unexpected error,
     4 Excel file open, 5 no The Odds API key."""
     conn = db.connect(db_path)
@@ -275,6 +275,14 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             print(f"[{league}] LOI: {message}")
         else:
             db.mark_league(conn, league, True, now)
+    if samples:  # Action Network soccer pages, kept (not parsed yet) so a soccer parser can be built on them
+        from actions_tracker import page_samples
+        try:
+            n = page_samples.capture(conn, fetcher, now)
+            if n:
+                print(f"[soccer] luu {n} trang mau Action Network")
+        except Exception as e:  # noqa: BLE001 - never fails the run
+            print(f"[soccer] trang mau: loi {type(e).__name__}")
     if odds_api is None and live_get is None:
         print("CANH BAO: khong co nguon ti so/line (ESPN tat, chua co ODDS_API_KEY) - chi luu picks.")
     elif odds_api is not None and odds_api.remaining is not None:
@@ -606,7 +614,8 @@ def main(argv: list[str] | None = None) -> int:
     tg = None if getattr(args, "offline", None) else load_telegram(Path.cwd())
     return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget,
                telegram=tg, news_fetcher=None if getattr(args, "offline", None) else Fetcher(delay=(0.3, 0.8)),
-               live_get=None if getattr(args, "offline", None) else requests.get)
+               live_get=None if getattr(args, "offline", None) else requests.get,
+               samples=not getattr(args, "offline", None))
 
 
 if __name__ == "__main__":
