@@ -26,8 +26,8 @@
       ? [finite(away[0]) + finite(away[1]), finite(home[0]) + finite(home[1])] : null;
   }
 
-  // User rule: grade the first half against ESPN's actual 1H spread/total, then take the opposite result
-  // with ESPN's 2H line. A raw scoreboard deficit alone never decides the spread play. A 2H line implied from
+  // User rule: grade the first half against an exact saved 1H spread/total, then take the opposite result
+  // with an exact 2H line from ESPN or BetMGM. A raw scoreboard deficit alone never decides the spread play. A 2H line implied from
   // the live full-game market is not a real 2H market (and is not recorded by the tracker), so it gives no pick.
   function decide(game) {
     if (!isHalftime(game)) return null;
@@ -57,7 +57,7 @@
 
   // The phone locks the half lines at its first halftime sighting, the same run that sends the Telegram alert.
   // Once that snapshot is published, show those lines instead of the browser's newer ones, so the tab, the
-  // Telegram message and the graded record agree. A locked 2H line is a real ESPN market, never implied.
+  // Telegram message and the graded record agree. A locked 2H line is a real sportsbook market, never implied.
   function withLockedLines(game, snapshot) {
     if (!snapshot) return game;
     const pairs = { away: "second_spread_away", home: "second_spread_home", total: "second_total",

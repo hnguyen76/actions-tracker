@@ -16,7 +16,7 @@ import sqlite3
 import pandas as pd
 import requests
 
-from actions_tracker import db
+from actions_tracker import betmgm, db
 from actions_tracker.config import TZ
 from actions_tracker.matching import match_events, normalize
 from actions_tracker.weather import parse_venue, store_weather
@@ -44,7 +44,12 @@ SECOND_HALF_SCHEMA = (
     "game_id INTEGER PRIMARY KEY, league TEXT NOT NULL, espn_event_id TEXT NOT NULL, captured_at TEXT NOT NULL, "
     "away_score_1h INTEGER NOT NULL, home_score_1h INTEGER NOT NULL, first_spread_away REAL, "
     "first_spread_home REAL, first_total REAL, second_spread_away REAL, second_spread_home REAL, "
-    "second_total REAL)"
+    "second_total REAL, first_source TEXT, second_source TEXT)"
+)
+HALF_PREGAME_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS half_pregame_lines("
+    "game_id INTEGER PRIMARY KEY, captured_at TEXT NOT NULL, source TEXT NOT NULL, first_spread_away REAL, "
+    "first_spread_home REAL, first_total REAL)"
 )
 
 # every distinct 2H line seen at halftime (spread: the away team's line), so a move can be announced with its history
@@ -54,6 +59,58 @@ LINE_HISTORY_SCHEMA = ("CREATE TABLE IF NOT EXISTS second_half_line_history(game
 
 class LiveError(Exception):
     pass
+
+
+def _ensure_half_schemas(conn: sqlite3.Connection) -> None:
+    """Create half-line storage and migrate phone databases made before source labels existed."""
+    conn.execute(SECOND_HALF_SCHEMA)
+    conn.execute(HALF_PREGAME_SCHEMA)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(second_half_snapshots)")}
+    for column in ("first_source", "second_source"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE second_half_snapshots ADD COLUMN {column} TEXT")
+
+
+def _has_half_line(lines: dict) -> bool:
+    return any(lines.get(key) is not None for key in ("away", "home", "total"))
+
+
+def _merge_half(primary: dict, fallback: dict, primary_source: str, fallback_source: str) -> tuple[dict, str | None]:
+    merged = {key: primary.get(key) if primary.get(key) is not None else fallback.get(key)
+              for key in ("away", "home", "total")}
+    used_primary = any(primary.get(key) is not None for key in merged)
+    used_fallback = any(primary.get(key) is None and fallback.get(key) is not None for key in merged)
+    source = " + ".join(x for x, used in ((primary_source, used_primary), (fallback_source, used_fallback)) if used)
+    return merged, source or None
+
+
+def _store_pregame_half_lines(conn: sqlite3.Connection, league: str, upcoming: list[dict], now: str, get) -> int:
+    """Keep the freshest exact BetMGM 1H board before kickoff; NCAAF ESPN does not expose these markets."""
+    if league != "ncaaf" or not upcoming:
+        return 0
+    lines = betmgm.half_lines(get, league, upcoming, "1st")
+    saved = 0
+    for game_id, half in lines.items():
+        if not _has_half_line(half):
+            continue
+        conn.execute(
+            "INSERT INTO half_pregame_lines(game_id, captured_at, source, first_spread_away, first_spread_home, "
+            "first_total) VALUES (?, ?, 'BetMGM', ?, ?, ?) ON CONFLICT(game_id) DO UPDATE SET "
+            "captured_at=excluded.captured_at, source=excluded.source, "
+            "first_spread_away=COALESCE(excluded.first_spread_away, half_pregame_lines.first_spread_away), "
+            "first_spread_home=COALESCE(excluded.first_spread_home, half_pregame_lines.first_spread_home), "
+            "first_total=COALESCE(excluded.first_total, half_pregame_lines.first_total)",
+            (game_id, now, half["away"], half["home"], half["total"]))
+        saved += 1
+    return saved
+
+
+def _stored_first_half(conn: sqlite3.Connection, game_id: int) -> tuple[dict, str | None]:
+    row = conn.execute("SELECT source, first_spread_away, first_spread_home, first_total "
+                       "FROM half_pregame_lines WHERE game_id = ?", (game_id,)).fetchone()
+    if not row:
+        return {"away": None, "home": None, "total": None}, None
+    return {"away": row[1], "home": row[2], "total": row[3]}, row[0]
 
 
 def _num(v):
@@ -263,8 +320,8 @@ def _record_line_history(conn: sqlite3.Connection, game_id: int, now: str, secon
 
 
 def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dict, verified_ids: set[int],
-                              now: str, get) -> int:
-    conn.execute(SECOND_HALF_SCHEMA)
+                              now: str, get, mgm_second: dict[int, dict] | None = None) -> int:
+    _ensure_half_schemas(conn)
     conn.execute(LINE_HISTORY_SCHEMA)
     saved = 0
     for game_id, event in scored.items():
@@ -274,14 +331,21 @@ def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dic
         if away_score is None or home_score is None:
             continue
         first, second = _halftime_odds(get, league, event)
+        first_source = "ESPN" if _has_half_line(first) else None
+        second_source = "ESPN" if _has_half_line(second) else None
+        if league == "ncaaf":
+            stored_first, stored_source = _stored_first_half(conn, game_id)
+            first, first_source = _merge_half(first, stored_first, "ESPN", stored_source or "BetMGM")
+            second, second_source = _merge_half(second, (mgm_second or {}).get(game_id, {}), "ESPN", "BetMGM")
         _record_line_history(conn, game_id, now, second)
         values = (game_id, league, event["event_id"], now, away_score, home_score,
                   first["away"], first["home"], first["total"],
-                  second["away"], second["home"], second["total"])
+                  second["away"], second["home"], second["total"], first_source, second_source)
         conn.execute(
             "INSERT INTO second_half_snapshots(game_id, league, espn_event_id, captured_at, away_score_1h, "
             "home_score_1h, first_spread_away, first_spread_home, first_total, second_spread_away, "
-            "second_spread_home, second_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "second_spread_home, second_total, first_source, second_source) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             # lines are locked at their first sighting (the run that sends the Telegram alert); later halftime
             # polls only fill a line that was still missing, so grading uses the line that was announced
             "ON CONFLICT(game_id) DO UPDATE SET captured_at=excluded.captured_at, "
@@ -291,7 +355,9 @@ def _store_halftime_snapshots(conn: sqlite3.Connection, league: str, scored: dic
             "first_total=COALESCE(second_half_snapshots.first_total, excluded.first_total), "
             "second_spread_away=COALESCE(second_half_snapshots.second_spread_away, excluded.second_spread_away), "
             "second_spread_home=COALESCE(second_half_snapshots.second_spread_home, excluded.second_spread_home), "
-            "second_total=COALESCE(second_half_snapshots.second_total, excluded.second_total)", values)
+            "second_total=COALESCE(second_half_snapshots.second_total, excluded.second_total), "
+            "first_source=COALESCE(second_half_snapshots.first_source, excluded.first_source), "
+            "second_source=COALESCE(second_half_snapshots.second_source, excluded.second_source)", values)
         saved += 1
     return saved
 
@@ -313,13 +379,13 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     conn.execute(SCHEMA)
     conn.execute(ID_SCHEMA)
     conn.execute(DETAIL_SCHEMA)
-    conn.execute(SECOND_HALF_SCHEMA)
+    _ensure_half_schemas(conn)
     t = pd.Timestamp(now)
     # ungraded only: a final ESPN once missed (or that came before ESPN grading) is still picked up later
     started = _picked(conn, league, _iso(t - pd.Timedelta(days=BACKFILL_DAYS)), now, ungraded=True)
     upcoming = _picked(conn, league, now, _iso(t + pd.Timedelta(hours=LINE_LEAD_H)), ungraded=False) if lines else []
     counts = {"lines": 0, "priced_of": len(upcoming), "live": 0, "final": 0, "scored_of": len(started),
-              "halftime_saved": 0}
+              "halftime_saved": 0, "half_pregame_saved": 0}
     if league not in ESPN or not (started or upcoming):
         return counts
     dates = sorted({pd.Timestamp(g["start_time"]).tz_convert(TZ).strftime("%Y%m%d") for g in started + upcoming})
@@ -336,6 +402,12 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
     priced = match_events(upcoming, [e for e in events if e["state"] == "pre"]) if upcoming else {}
     db.upsert_lines(conn, [{**x, "game_id": gid, "tickets_pct": None, "money_pct": None}
                            for gid, e in priced.items() for x in e["lines"]], now)
+    # ESPN's NCAAF feed has no period props. Save the exact BetMGM 1H board while the game is still upcoming,
+    # so it is available when the short-lived 2H board opens at halftime.
+    try:
+        counts["half_pregame_saved"] = _store_pregame_half_lines(conn, league, upcoming, now, get)
+    except Exception:  # noqa: BLE001 - BetMGM is an odds fallback, never a score dependency
+        pass
     if priced and league in ("nfl", "ncaaf"):  # game-time weather for the decision card; never fails the run
         try:
             starts = {g["id"]: g["start_time"] for g in upcoming}
@@ -363,7 +435,16 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
             ids.append((gid, str(event_id)))
     conn.executemany("INSERT INTO live_game_ids(game_id, espn_event_id) VALUES (?, ?) "
                      "ON CONFLICT(game_id) DO UPDATE SET espn_event_id=excluded.espn_event_id", ids)
-    counts["halftime_saved"] = _store_halftime_snapshots(conn, league, scored, {gid for gid, _ in ids}, now, get)
+    mgm_second = {}
+    halftime_ids = {gid for gid, event in scored.items() if event.get("state") == "in" and event.get("is_halftime") is True}
+    if league == "ncaaf" and halftime_ids:
+        try:
+            mgm_games = [games[gid] for gid in halftime_ids if gid in games]
+            mgm_second = betmgm.half_lines(get, league, mgm_games, "2nd")
+        except Exception:  # noqa: BLE001
+            pass
+    counts["halftime_saved"] = _store_halftime_snapshots(
+        conn, league, scored, {gid for gid, _ in ids}, now, get, mgm_second=mgm_second)
     rows = [(gid, e["away_score"], e["home_score"], e["state"], e["detail"], now) for gid, e in scored.items()
             if e["state"] in ("in", "post")]
     conn.executemany(
@@ -414,17 +495,19 @@ SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded"
 
 SECOND_HALF_COLS = ["game_id", "league", "espn_event_id", "captured_at", "away_score_1h", "home_score_1h",
                     "first_spread_away", "first_spread_home", "first_total", "second_spread_away",
-                    "second_spread_home", "second_total"]
+                    "second_spread_home", "second_total", "first_source", "second_source"]
 
 
 def second_half_table(conn: sqlite3.Connection) -> pd.DataFrame:
-    """Persisted halftime score and ESPN half markets for NFL, NCAAF and NBA."""
+    """Persisted halftime score and exact ESPN/BetMGM half markets for NFL, NCAAF and NBA."""
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='second_half_snapshots'").fetchone()
     if not exists:
         return pd.DataFrame(columns=SECOND_HALF_COLS)
+    _ensure_half_schemas(conn)
     rows = [dict(row) for row in conn.execute(
         "SELECT game_id, league, espn_event_id, captured_at, away_score_1h, home_score_1h, first_spread_away, "
-        "first_spread_home, first_total, second_spread_away, second_spread_home, second_total "
+        "first_spread_home, first_total, second_spread_away, second_spread_home, second_total, "
+        "first_source, second_source "
         "FROM second_half_snapshots ORDER BY captured_at DESC, game_id DESC")]
     return pd.DataFrame(rows, columns=SECOND_HALF_COLS)
 

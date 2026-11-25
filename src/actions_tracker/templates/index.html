@@ -764,10 +764,10 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
         <h2>2H</h2><span class="pill dim">THEO DÕI</span>
       </div>
       <div class="second-half-rules" aria-label="Quy tắc hiệp hai">
-        <span title="Spread: đội thua ESPN 1H spread ATS, chọn ngược bằng ESPN 2H spread">1H ATS thua <b>→ ngược 2H</b></span>
-        <span title="Total: kết quả ESPN 1H total Under hoặc Over, chọn phía ngược bằng ESPN 2H total">1H U/O <b>→ ngược 2H</b></span>
+        <span title="Spread: đội thua 1H spread ATS, chọn ngược bằng line 2H cùng nguồn">1H ATS thua <b>→ ngược 2H</b></span>
+        <span title="Total: kết quả 1H total Under hoặc Over, chọn phía ngược bằng line 2H cùng nguồn">1H U/O <b>→ ngược 2H</b></span>
       </div>
-      <p class="note" id="second-half-note">Điểm 1H · live odds ESPN · quyết định lúc halftime</p>
+      <p class="note" id="second-half-note">Điểm ESPN · half odds ESPN/BetMGM · quyết định lúc halftime</p>
       <div class="second-half-list" id="second-half-list"></div>
       <section class="second-half-report" aria-label="Kết quả phương pháp hiệp hai">
         <h3>📊 Cuối ngày</h3>
@@ -2545,7 +2545,7 @@ const DATA = /*__DATA__*/null;
       return [{ game, decision, snapshot }];
     }).sort((a, b) => Date.parse(a.game.start_time) - Date.parse(b.game.start_time));
     const halftime = rows.filter((r) => r.decision).length;
-    note.textContent = rows.length ? `${rows.length} live · ${halftime} halftime · ESPN` : "Điểm 1H · live odds ESPN · quyết định lúc halftime";
+    note.textContent = rows.length ? `${rows.length} live · ${halftime} halftime · ESPN/BetMGM` : "Điểm ESPN · half odds ESPN/BetMGM · quyết định lúc halftime";
     host.replaceChildren();
     if (!rows.length) host.append(el("div", { class: "empty", text: "Chưa có trận live" }));
     const line = (value) => `${value > 0 ? "+" : ""}${num(value, Number.isInteger(Number(value)) ? 0 : 1)}`;
@@ -2571,13 +2571,16 @@ const DATA = /*__DATA__*/null;
         ? `${away} ${line(odds.spread.away && odds.spread.away.line)} · ${home} ${line(odds.spread.home && odds.spread.home.line)}` : "Spread –";
       const liveTotal = odds.total && odds.total.line !== null && odds.total.line !== undefined
         ? `O/U ${num(odds.total.line, 1)}` : "O/U –";
+      const hasSecond = snapshot && [snapshot.second_spread_away, snapshot.second_spread_home, snapshot.second_total]
+        .some((value) => value !== null && value !== undefined && value !== "");
+      const halfSource = hasSecond ? (snapshot.second_source || "ESPN") : null;
       const spread = decision && decision.spread
         ? el("div", { class: "second-half-pick" }, el("span", {}, "↩ ", el("strong", { text:
           `${decision.spread.side === "away" ? away : home} ${line(decision.spread.line)}` })),
           el("small", { text: `1H ${decision.spread.side === "away" ? away : home} ${line(decision.spread.first_line)} thua ATS` }))
         : decision ? el("div", { class: "second-half-pick off" }, el("span", {}, "↩ ", el("strong", { text: "–" })),
-          el("small", { text: decision.first_spread_result === "push" ? "1H spread push" : "chờ ESPN 1H/2H spread" })) : null;
-      let totalMeta = "chờ ESPN 1H odds";
+          el("small", { text: decision.first_spread_result === "push" ? "1H spread push" : "chờ 1H/2H spread" })) : null;
+      let totalMeta = "chờ 1H odds";
       if (decision && decision.first_total !== null) totalMeta = `1H ${num(decision.first_points)} ${decision.first_result === "under" ? "<" : decision.first_result === "over" ? ">" : "="} ${num(decision.first_total, 1)}`;
       const total = decision && decision.total
         ? el("div", { class: "second-half-pick" }, el("span", {}, decision.total.side === "over" ? "↑ " : "↓ ",
@@ -2591,7 +2594,8 @@ const DATA = /*__DATA__*/null;
           el("span", { class: "second-half-score", text: `${num(game.away_score)}–${num(game.home_score)} · ${game.detail || "Live"}` })),
         el("div", { class: "second-half-live-meta" },
           el("span", { text: half ? `1H ${num(half[0])}–${num(half[1])}` : "1H –" }),
-          el("span", { text: `ESPN · ${liveSpread}` }), el("span", { text: liveTotal })),
+          el("span", { text: `ESPN · ${liveSpread}` }), el("span", { text: liveTotal }),
+          halfSource ? el("span", { text: `2H · ${halfSource}` }) : null),
         decision ? el("div", { class: "second-half-picks" }, spread, total)
           : (() => { const live = livePicks(game); return live.length ? el("div", { class: "second-half-picks" }, ...live) : null; })()));
     }
@@ -2655,6 +2659,7 @@ const DATA = /*__DATA__*/null;
       { label: "Trận", value: (r) => r.match },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
       { label: "2H", value: (r) => `${r.pick} ${Number(r.line) > 0 && r.market === "spread" ? "+" : ""}${num(r.line, 1)}` },
+      { label: "Nguồn", value: (r) => r.second_source || "ESPN" },
       { label: "1H", value: (r) => `${r.score_1h} · ${r.first_result}` },
       { label: "2H điểm", value: (r) => r.score_2h || "–" },
       { label: "KQ", value: (r) => r.result === "pending" ? "⏳" : resultPill(r.result), sort: (r) => r.result },

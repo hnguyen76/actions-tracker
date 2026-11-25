@@ -519,9 +519,10 @@ def due_second_half(conn: sqlite3.Connection, now: str) -> list[dict]:
 def second_half_message(rows: list[dict]) -> str:
     """One game: 1H score, then the 2H spread / total picks with the first-half result behind each."""
     first = rows[0]
+    source = html.escape(str(first.get("second_source") or "ESPN"))
     away_1h, home_1h = (int(x) for x in str(first["score_1h"]).split("-"))
     head = (f"⏸ <b>2H · {_LEAGUE.get(first['league'], str(first['league']).upper())} · "
-            f"{html.escape(str(first['match']))}</b>\n1H {away_1h}–{home_1h} · theo dõi")
+            f"{html.escape(str(first['match']))}</b>\n1H {away_1h}–{home_1h} · {source} · theo dõi")
     lines = []
     for r in sorted(rows, key=lambda x: 0 if x["market"] == "spread" else 1):
         pick = html.escape(str(r["pick"]))
