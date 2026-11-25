@@ -469,3 +469,56 @@ def test_half_odds_support_all_three_leagues():
         urls = []
         live._halftime_odds(lambda url, **kwargs: urls.append(url) or R(), league, event)
         assert len(urls) == 1 and f"/sports/{path}/events/123/" in urls[0]
+
+
+def test_ncaaf_uses_saved_betmgm_1h_and_exact_betmgm_2h_when_espn_has_no_props(tmp_path):
+    c = _db(tmp_path)
+    live._ensure_half_schemas(c)
+    c.execute("INSERT INTO half_pregame_lines(game_id, captured_at, source, first_spread_away, "
+              "first_spread_home, first_total) VALUES (1, ?, 'BetMGM', 2.5, -2.5, 27.5)", (NOW,))
+    event = {"event_id": "1", "state": "in", "is_halftime": True, "away_score": 10, "home_score": 14,
+             "situation": {"away_espn_id": "17", "home_espn_id": "8"}}
+
+    class R:
+        status_code = 200
+
+        def json(self):
+            return {"items": []}  # ESPN NCAAF has no 1H/2H propBets
+
+    saved = live._store_halftime_snapshots(
+        c, "ncaaf", {1: event}, {1}, NOW, lambda *args, **kwargs: R(),
+        mgm_second={1: {"away": 4.5, "home": -4.5, "total": 24.5}})
+    assert saved == 1
+    row = dict(c.execute("SELECT * FROM second_half_snapshots WHERE game_id = 1").fetchone())
+    assert (row["first_spread_away"], row["first_spread_home"], row["first_total"]) == (2.5, -2.5, 27.5)
+    assert (row["second_spread_away"], row["second_spread_home"], row["second_total"]) == (4.5, -4.5, 24.5)
+    assert (row["first_source"], row["second_source"]) == ("BetMGM", "BetMGM")
+
+
+def test_ncaaf_pregame_collection_wires_betmgm_half_board_into_storage(tmp_path, monkeypatch):
+    c = _db(tmp_path)
+    calls = []
+
+    def halves(get, league, games, half):
+        calls.append((league, [game["id"] for game in games], half))
+        return {2: {"away": 3.5, "home": -3.5, "total": 28.5}}
+
+    monkeypatch.setattr(live.betmgm, "half_lines", halves)
+    counts = live.collect_espn(c, "ncaaf", NOW, get=lambda *args, **kwargs: _R(), lines=True)
+    row = dict(c.execute("SELECT * FROM half_pregame_lines WHERE game_id = 2").fetchone())
+    assert calls == [("ncaaf", [2], "1st")]
+    assert counts["half_pregame_saved"] == 1
+    assert (row["source"], row["first_spread_away"], row["first_spread_home"], row["first_total"]) == \
+           ("BetMGM", 3.5, -3.5, 28.5)
+
+
+def test_existing_phone_snapshot_table_is_migrated_with_source_columns(tmp_path):
+    c = _db(tmp_path)
+    c.execute("DROP TABLE IF EXISTS second_half_snapshots")
+    c.execute("CREATE TABLE second_half_snapshots(game_id INTEGER PRIMARY KEY, league TEXT NOT NULL, "
+              "espn_event_id TEXT NOT NULL, captured_at TEXT NOT NULL, away_score_1h INTEGER NOT NULL, "
+              "home_score_1h INTEGER NOT NULL, first_spread_away REAL, first_spread_home REAL, first_total REAL, "
+              "second_spread_away REAL, second_spread_home REAL, second_total REAL)")
+    live._ensure_half_schemas(c)
+    columns = {row[1] for row in c.execute("PRAGMA table_info(second_half_snapshots)")}
+    assert {"first_source", "second_source"} <= columns

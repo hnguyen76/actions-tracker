@@ -169,6 +169,11 @@ quy tắc đó; khi đó nói rõ kết quả forward test cũ không còn so s�
 
 ### Nhật ký cách bet
 
+- 25/11/2026: sửa nguồn half odds NCAAF, không đổi quy tắc 2H. ESPN tiếp tục là nguồn score/clock và là
+  nguồn half odds ưu tiên cho NBA/NFL; do ESPN NCAAF không phát hành 1H/2H props, S21 lưu exact BetMGM 1H
+  trước kickoff và khóa exact BetMGM 2H ở lần quét halftime đầu tiên. Giao diện, Telegram và history ghi rõ
+  nguồn; không suy ngược kèo 2H từ live full-game line. BetMGM lỗi/thiếu market thì bỏ qua play, không làm
+  gián đoạn điểm ESPN. Phương pháp vẫn chỉ **theo dõi**, chưa phải rule đạt.
 - 22/11/2026: thêm trang 2H ngay cạnh "Kèo sắp tới". Lúc halftime: chấm kết quả bằng đúng ESPN 1H spread/total,
   rồi chọn phía thua/ngược lại bằng ESPN 2H line (1H spread thua ATS → cùng đội ở 2H; 1H Under → 2H Over;
   1H Over → 2H Under; push → bỏ qua). Back-test đúng line lưu được chỉ có NBA: spread 26–14

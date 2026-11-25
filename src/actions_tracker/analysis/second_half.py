@@ -1,4 +1,4 @@
-"""Forward tracking for the user's halftime 2H method, using only persisted ESPN lines."""
+"""Forward tracking for the user's halftime 2H method, using persisted exact sportsbook lines."""
 
 import sqlite3
 
@@ -9,7 +9,7 @@ from actions_tracker.live import second_half_table
 
 PLAY_COLS = ["game_id", "et_date", "league", "start_time", "match", "market", "pick_side", "pick",
              "line", "first_line", "score_1h", "score_2h", "first_result", "result", "units",
-             "captured_at"]
+             "captured_at", "first_source", "second_source"]
 SUMMARY_COLS = ["scope", "et_date", "league", "market", "tracked", "pending", "wins", "losses",
                 "pushes", "graded", "win_pct", "units", "roi"]
 
@@ -50,7 +50,9 @@ def second_half_plays(conn: sqlite3.Connection) -> pd.DataFrame:
                   "start_time": game["start_time"], "match": f"{away} @ {home}",
                   "score_1h": f"{away_1h}-{home_1h}",
                   "score_2h": f"{away_2h}-{home_2h}" if valid_final else None,
-                  "captured_at": snapshot["captured_at"]}
+                  "captured_at": snapshot["captured_at"],
+                  "first_source": snapshot.get("first_source") or "ESPN",
+                  "second_source": snapshot.get("second_source") or "ESPN"}
 
         first_away, first_home = snapshot["first_spread_away"], snapshot["first_spread_home"]
         if pd.notna(first_away) and pd.notna(first_home):
