@@ -606,3 +606,17 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
 .soccer-history { color: var(--ink-2); font-size: 12.5px; }
 .soccer-history summary { color: var(--muted); cursor: pointer; }
 .soccer-history div { margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* Soccer live: one card per game in play, pregame vs live line, the 2H plays at halftime */
+.soccer-live { display: grid; gap: 9px; margin-top: 12px; }
+.soccer-live-game { display: grid; gap: 6px; padding: 12px 13px; border: 1px solid var(--border); border-left: 3px solid var(--loss);
+  border-radius: 15px; background: var(--surface-2); }
+.soccer-live-game.ht { border-left-color: var(--warning); }
+.soccer-live-head { display: flex; align-items: center; gap: 8px; }
+.soccer-live-dot { padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--loss) 16%, transparent); color: var(--loss);
+  font-size: 11.5px; font-weight: 800; letter-spacing: .06em; }
+.soccer-live-game.ht .soccer-live-dot { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.soccer-live-score { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.soccer-live-row { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; color: var(--ink-2); font-size: 13.5px;
+  font-variant-numeric: tabular-nums; }
+.soccer-live-row small { width: 38px; color: var(--muted); font-weight: 700; }
+.soccer-live-total { color: var(--ink-2); }

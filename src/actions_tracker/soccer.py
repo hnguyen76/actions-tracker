@@ -106,6 +106,7 @@ def parse_events(data: dict, comp: str) -> list[dict]:
             "state": state, "status": name, "detail": status.get("shortDetail"),
             "home_name": teams["home"]["team"].get("displayName"), "away_name": teams["away"]["team"].get("displayName"),
             "home_abbr": teams["home"]["team"].get("abbreviation"), "away_abbr": teams["away"]["team"].get("abbreviation"),
+            "home_id": str(teams["home"]["team"].get("id") or ""), "away_id": str(teams["away"]["team"].get("id") or ""),
             "home_score": _int(teams["home"].get("score")), "away_score": _int(teams["away"].get("score")),
             "score_90": score_90(competition, name) if state == "final" else None,
             "odds": parse_odds(competition.get("odds")),
@@ -247,10 +248,11 @@ def collect(conn, now: str, get=None) -> dict:
                 errors += 1
     for e in games.values():
         _store(conn, e, now)
+    half = _capture_half(conn, [e for e in games.values() if e["state"] == "scheduled"], now, get)
     if far:
         db.set_meta(conn, "soccer_far_at", now)
     conn.commit()
-    return {"games": len(games), "errors": errors, "far": far}
+    return {"games": len(games), "errors": errors, "far": far, "half_lines": half}
 
 
 # --- the board: upcoming games, their lines and line history, ranked by how far the market moved ----------------
@@ -393,3 +395,97 @@ def board_table(conn, now: str) -> pd.DataFrame:
     out.loc[order, "signal_rank"] = range(1, len(out) + 1)
     out["signal_rank"] = out["signal_rank"].astype(int)
     return out.astype(object)
+
+
+# --- 1H lines, captured before kickoff: once a game is under way ESPN's pregame half props turn to leftovers ------
+HALF_SCHEMA = ("CREATE TABLE IF NOT EXISTS soccer_half_lines(event_id TEXT PRIMARY KEY, first_ml TEXT, first_total TEXT, "
+               "captured_at TEXT)")
+HALF_WITHIN_H = 12     # games kicking off within 12 h (the phone stops at 23:00 ET; Saturday 7:30 ET games need it)
+HALF_EVERY_MIN = 60    # refresh each game's 1H lines at most hourly; the last capture before kickoff stands
+CORE_ODDS = ("https://sports.core.api.espn.com/v2/sports/soccer/leagues/{comp}/events/{id}/competitions/{id}/odds"
+             "?lang=en&region=us&limit=100")
+
+
+def _american(item: dict):
+    return _int(((item.get("current") or {}).get("over") or {}).get("american"))
+
+
+def half_lines(props: dict, home_id: str, away_id: str) -> dict:
+    """DraftKings 1H 3-way moneyline and main 1H total from ESPN's pregame props. Each total line is listed twice,
+    over first; a line set whose over chance does not fall as the line rises is not trusted (no total)."""
+    items = [x for x in (props or {}).get("items", []) if isinstance(x, dict)]
+    ml = {}
+    for x in items:
+        if (x.get("type") or {}).get("name") != "1st Half Moneyline" or _american(x) is None:
+            continue
+        m = re.search(r"/teams/(\d+)", str((x.get("team") or {}).get("$ref") or ""))
+        key = "draw" if not m else "home" if m.group(1) == str(home_id) else "away" if m.group(1) == str(away_id) else None
+        if key:
+            ml[key] = _american(x)
+    lines: dict = {}
+    for x in items:
+        if (x.get("type") or {}).get("name") != "1st Half Total":
+            continue
+        line, price = _num(((x.get("current") or {}).get("target") or {}).get("value")), _american(x)
+        if line is not None and price is not None:
+            lines.setdefault(line, []).append(price)
+    pairs = []
+    for line in sorted(lines):
+        if len(lines[line]) == 2:
+            over, under = lines[line]
+            p = no_vig({"over": over, "under": under})
+            pairs.append({"line": line, "over": over, "under": under, "p": p["over"]})
+    total = None
+    if pairs and all(b["p"] < a["p"] for a, b in zip(pairs, pairs[1:])):
+        main = min(pairs, key=lambda x: abs(x["p"] - 0.5))
+        total = {"line": main["line"], "over": main["over"], "under": main["under"]}
+    return {"first_ml": ml if len(ml) == 3 else None, "first_total": total}
+
+
+def _capture_half(conn, games: list[dict], now: str, get) -> int:
+    conn.execute(HALF_SCHEMA)
+    t, done = pd.Timestamp(now), 0
+    for e in games:
+        start = pd.Timestamp(e["start_time"])
+        if not (t < start <= t + pd.Timedelta(hours=HALF_WITHIN_H)):
+            continue
+        last = conn.execute("SELECT captured_at FROM soccer_half_lines WHERE event_id = ?", (e["event_id"],)).fetchone()
+        if last and t - pd.Timestamp(last[0]) < pd.Timedelta(minutes=HALF_EVERY_MIN):
+            continue
+        try:
+            r = get(CORE_ODDS.format(comp=e["comp"], id=e["event_id"]), timeout=30, headers=UA)
+            items = r.json().get("items", []) if r.status_code == 200 else []
+            dk = next((x for x in items if re.fullmatch(r"draftkings", str((x.get("provider") or {}).get("name") or ""), re.I)), None)
+            ref = str(((dk or {}).get("propBets") or {}).get("$ref") or "")
+            if not ref.startswith(("http://sports.core.api.espn.com/", "https://sports.core.api.espn.com/")):
+                continue
+            ref = re.sub(r"^http:", "https:", ref) + ("&" if "?" in ref else "?") + "limit=1000"
+            r = get(ref, timeout=30, headers=UA)
+            h = half_lines(r.json() if r.status_code == 200 else {}, e["home_id"], e["away_id"])
+        except Exception:  # noqa: BLE001 - 1H lines are a convenience; the next run tries again
+            continue
+        if h["first_ml"] or h["first_total"]:
+            conn.execute("INSERT INTO soccer_half_lines(event_id, first_ml, first_total, captured_at) VALUES (?, ?, ?, ?) "
+                         "ON CONFLICT(event_id) DO UPDATE SET first_ml=excluded.first_ml, first_total=excluded.first_total, "
+                         "captured_at=excluded.captured_at",
+                         (e["event_id"], json.dumps(h["first_ml"]) if h["first_ml"] else None,
+                          json.dumps(h["first_total"]) if h["first_total"] else None, now))
+            done += 1
+    return done
+
+
+HALF_COLS = ["event_id", "first_ml", "first_total", "captured_at"]
+
+
+def half_lines_table(conn, now: str) -> pd.DataFrame:
+    """1H lines of games kicked off in the last 6 h or kicking off within 12 h (for the live 2H plays)."""
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='soccer_half_lines'").fetchone()
+    if not exists:
+        return pd.DataFrame(columns=HALF_COLS)
+    lo, hi = _iso(pd.Timestamp(now) - pd.Timedelta(hours=6)), _iso(pd.Timestamp(now) + pd.Timedelta(hours=HALF_WITHIN_H))
+    rows = [{"event_id": r[0], "first_ml": json.loads(r[1]) if r[1] else None,
+             "first_total": json.loads(r[2]) if r[2] else None, "captured_at": r[3]} for r in conn.execute(
+        "SELECT h.event_id, h.first_ml, h.first_total, h.captured_at FROM soccer_half_lines h "
+        "JOIN soccer_games g ON g.event_id = h.event_id WHERE g.start_time >= ? AND g.start_time <= ? "
+        "ORDER BY g.start_time", (lo, hi))]
+    return pd.DataFrame(rows, columns=HALF_COLS).astype(object)
