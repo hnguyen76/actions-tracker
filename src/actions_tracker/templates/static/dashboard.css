@@ -572,3 +572,37 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }
 }
 
+
+/* Soccer tab: competition chips, games by day, 1X2 prices (opening price small and struck), the market-move rank */
+.soccer-card { max-width: 880px; margin-inline: auto; }
+.soccer-head { display: flex; align-items: center; gap: 10px; }
+.soccer-head h2 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
+.soccer-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.soccer-chip { font: inherit; font-size: 13px; font-weight: 650; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-2); }
+.soccer-chip.on { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+.soccer-list { display: grid; gap: 10px; margin-top: 14px; }
+.soccer-day { margin: 10px 0 0; font-size: 15px; color: var(--ink-2); }
+.soccer-game { display: grid; gap: 8px; min-width: 0; padding: 13px 14px; border: 1px solid var(--border); border-left: 3px solid var(--push);
+  border-radius: 15px; background: var(--surface-2); }
+.soccer-game.strong { border-left-color: var(--warning); }
+.soccer-game.medium { border-left-color: var(--accent); }
+.soccer-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.soccer-rank { padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--ink-2); font-weight: 800; font-variant-numeric: tabular-nums; }
+.soccer-rank.strong { background: color-mix(in srgb, var(--warning) 24%, transparent); color: var(--ink); }
+.soccer-rank.medium { background: var(--accent-wash); color: var(--accent); }
+.soccer-meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.soccer-signals { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.soccer-signal { padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 12.5px; }
+.soccer-match { font-size: 18px; font-weight: 750; }
+.soccer-prices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.soccer-price { display: grid; justify-items: center; gap: 1px; padding: 7px 4px; border-radius: 11px; background: var(--surface); }
+.soccer-price small { color: var(--muted); font-size: 12px; font-weight: 700; }
+.soccer-price strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.soccer-price i { color: var(--muted); font-size: 11.5px; font-style: normal; text-decoration: line-through; }
+.soccer-price.up strong, .soccer-lines b.up { color: var(--win); }
+.soccer-price.down strong, .soccer-lines b.down { color: var(--loss); }
+.soccer-lines { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.soccer-history { color: var(--ink-2); font-size: 12.5px; }
+.soccer-history summary { color: var(--muted); cursor: pointer; }
+.soccer-history div { margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

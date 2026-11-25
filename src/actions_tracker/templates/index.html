@@ -17,6 +17,7 @@
 <script src="scoreboard.js?v=__STATIC_V__"></script>
 <script src="live-scores.js?v=__STATIC_V__"></script>
 <script src="second-half.js?v=__STATIC_V__"></script>
+<script src="soccer.js?v=__STATIC_V__"></script>
 <script src="big-play.js?v=__STATIC_V__"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -654,6 +655,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button role="tab" data-tab="second-half" aria-selected="false">2H</button>
     <button role="tab" data-tab="rules" aria-selected="false">Quy tắc</button>
     <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
+    <button role="tab" data-tab="soccer" aria-selected="false">Soccer</button>
     <button role="tab" data-tab="season-chart" aria-selected="false">Biểu đồ cả mùa</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
@@ -755,6 +757,15 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <h2>Thứ 7 – Chủ nhật</h2>
       <div class="table-scroll" id="past-chart-we"></div>
       <div class="table-scroll" id="past-table-we"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="tab-soccer">
+    <div class="card soccer-card">
+      <div class="soccer-head"><h2>Soccer</h2><span class="pill dim" id="soccer-count"></span></div>
+      <div class="soccer-filters" id="soccer-comps" role="group" aria-label="Giải"></div>
+      <div class="soccer-filters" id="soccer-sort" role="group" aria-label="Sắp xếp"></div>
+      <div class="soccer-list" id="soccer-list"></div>
     </div>
   </section>
 
@@ -969,6 +980,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button type="button" data-go="second-half" aria-label="Kèo hiệp hai" title="Kèo hiệp hai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM12 5v14"/><path d="M7.5 9.5h2v2h-2zM14.5 12.5h2v2h-2z"/></svg></button>
     <button type="button" data-go="inplay" aria-label="Đang đá" title="Đang đá"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" class="dot"/></svg></button>
     <button type="button" data-go="past" aria-label="Kèo đã qua" title="Kèo đã qua"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+    <button type="button" data-go="soccer" aria-label="Soccer" title="Soccer"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5l3.4 2.5-1.3 4h-4.2l-1.3-4z"/><path d="M12 3v4.5M15.4 10l4.6-1.5M14.1 14l2.8 4.2M9.9 14l-2.8 4.2M8.6 10L4 8.5"/></svg></button>
     <button type="button" data-go="rules" aria-label="Cách của bạn" title="Cách của bạn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
     <button type="button" data-go="forecast" aria-label="Dự báo" title="Dự báo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V6M4 18h16M7 15l4-4 3 2 5-6"/></svg></button>
     <button type="button" data-go="nba" aria-label="NBA" title="NBA"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3c-2.5 2.4-4 5.4-4 9s1.5 6.6 4 9M12 3c2.5 2.4 4 5.4 4 9s-1.5 6.6-4 9"/></svg></button>
@@ -2528,6 +2540,65 @@ const DATA = /*__DATA__*/null;
     }
   }
 
+  // Soccer: the next week of the eight competitions with DraftKings 1X2 / spread / total (through ESPN), every line
+  // move the phone saw, and market-move signals ranked (#1 = moved most since the open). soccer.py: Soccer_Board.
+  const soccerView = { comp: "ALL", sort: "time" };
+  function soccerCard(r, today) {
+    const S = window.ActionsSoccer, now = r.now || {}, ml = now.ml || {}, moves = r.moves || {}, open = r.open || {};
+    const time = new Date(r.start_time).toLocaleTimeString("vi-VN", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit" });
+    const price = (label, side) => {
+      const before = (open.ml || {})[side], cur = ml[side];
+      return el("span", { class: `soccer-price ${S.tone((moves.ml || {})[side])}` }, el("small", { text: label }),
+        el("strong", { text: S.price(cur) }), before !== undefined && before !== cur ? el("i", { text: S.price(before) }) : null);
+    };
+    const sp = now.spread || {}, tot = now.total || {}, hist = r.history || {};
+    const histLines = [
+      ...["home", "draw", "away"].filter((s) => (hist.ml || {})[s])
+        .map((s) => [s === "home" ? r.home_abbr : s === "away" ? r.away_abbr : "X", S.history(hist.ml[s], today)]),
+      ...((hist.spread || {}).home ? [[`${r.home_abbr} spread`, S.history(hist.spread.home, today, true)]] : []),
+      ...((hist.total || {}).over ? [["Over", S.history(hist.total.over, today, false)]] : []),
+    ];
+    return el("article", { class: `soccer-game ${r.tone}`, "data-event-id": String(r.event_id) },
+      el("div", { class: "soccer-top" },
+        el("span", { class: `soccer-rank ${r.tone}`, text: `#${r.signal_rank}`, title: "Xếp hạng tín hiệu" }),
+        el("span", { class: "soccer-meta", text: `${time} · ${S.short(r.comp)}` }),
+        el("span", { class: "soccer-signals" }, ...(r.signals || []).slice(0, 2).map((x) => el("b", { class: "soccer-signal", text: x.text })))),
+      el("div", { class: "soccer-match", text: `${r.away_abbr} @ ${r.home_abbr}`, title: `${r.away_name} @ ${r.home_name}` }),
+      el("div", { class: "soccer-prices" }, price(r.home_abbr, "home"), price("X", "draw"), price(r.away_abbr, "away")),
+      el("div", { class: "soccer-lines" },
+        sp.home ? el("span", {}, `${r.home_abbr} ${S.line(sp.home.line)} `, el("b", { text: S.price(sp.home.odds) })) : null,
+        tot.line !== undefined && tot.line !== null
+          ? el("span", {}, `${S.line(tot.line, false)} `,
+            el("b", { class: S.tone((moves.total || {}).over), text: `O ${S.price(tot.over)}` }), " · ",
+            el("b", { class: S.tone((moves.total || {}).under), text: `U ${S.price(tot.under)}` })) : null),
+      histLines.length ? el("details", { class: "soccer-history" }, el("summary", { text: "Lịch sử line" }),
+        ...histLines.map(([label, text]) => el("div", {}, el("b", { text: label }), ` ${text}`))) : null);
+  }
+  function soccerTab() {
+    const S = window.ActionsSoccer, rows = T("Soccer_Board"), host = document.getElementById("soccer-list");
+    if (!S || !host) return;
+    const chip = (label, on, pick) => {
+      const b = el("button", { type: "button", class: `soccer-chip${on ? " on" : ""}`, "aria-pressed": String(on), text: label });
+      b.addEventListener("click", () => { pick(); soccerTab(); });
+      return b;
+    };
+    const comps = S.ORDER.filter((c) => rows.some((r) => r.comp === c));
+    document.getElementById("soccer-comps").replaceChildren(chip("Tất cả", soccerView.comp === "ALL", () => { soccerView.comp = "ALL"; }),
+      ...comps.map((c) => chip(S.short(c), soccerView.comp === c, () => { soccerView.comp = c; })));
+    document.getElementById("soccer-sort").replaceChildren(
+      chip("⏱ Giờ", soccerView.sort === "time", () => { soccerView.sort = "time"; }),
+      chip("🔥 Tín hiệu", soccerView.sort === "signal", () => { soccerView.sort = "signal"; }));
+    const list = S.arrange(rows, soccerView.comp, soccerView.sort), today = etDate(Date.now());
+    document.getElementById("soccer-count").textContent = `${list.length} trận`;
+    host.replaceChildren();
+    if (!list.length) { host.append(el("div", { class: "empty", text: "Chưa có trận có line" })); return; }
+    let day = null;
+    for (const r of list) {
+      if (soccerView.sort === "time" && r.et_date !== day) { day = r.et_date; host.append(el("h3", { class: "soccer-day", text: dayLabel(day) })); }
+      host.append(soccerCard(r, today));
+    }
+  }
+
   function secondHalfTab() {
     const host = document.getElementById("second-half-list"), note = document.getElementById("second-half-note");
     const games = T("Live_Games").filter((g) => state.league === "ALL" || g.league === state.league);
@@ -3489,7 +3560,7 @@ const DATA = /*__DATA__*/null;
     kpis();
     renderLiveSummary(liveInPlayRows());
     const active = document.querySelector("nav.tabs button[aria-selected='true']");
-    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, "second-half": secondHalfTab,
+    const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, soccer: soccerTab, "second-half": secondHalfTab,
       "season-chart": seasonChartTab, consensus: consensusTab,
       experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
       forecast: forecastTab, playoff: playoffTab };

@@ -211,3 +211,11 @@ def test_every_colour_the_charts_read_is_defined(tmp_path):
     used = set(re.findall(r'css\("(--[\w-]+)"\)', html))
     defined = set(re.findall(r"(--[\w-]+)\s*:", styles))
     assert used and not used - defined, sorted(used - defined)
+
+
+def test_soccer_tab_sits_beside_past_and_ships_its_helpers(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    assert html.index('data-tab="past"') < html.index('data-tab="soccer"') < html.index('data-tab="season-chart"')
+    assert 'id="tab-soccer"' in html and 'T("Soccer_Board")' in html and "soccer.js?v=" in html
+    assert (tmp_path / "site" / "soccer.js").exists()

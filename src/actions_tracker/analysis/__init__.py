@@ -17,6 +17,7 @@ from actions_tracker.analysis.line_movement import line_movement_tables
 from actions_tracker.analysis.intelligence import (method_equity, pick_ratio_matrix, spread_flip_results,
                                                    trend_radar)
 from actions_tracker.analysis import forecast as fc
+from actions_tracker.soccer import board_table as soccer_board
 from actions_tracker.analysis.my_method import (WEEKDAY_DECISION_VOTES, decision_method_plays, my_method_plays,
                                                 my_method_summary, season_plays, season_sensitivity, season_summary)
 from actions_tracker.analysis.rule_report import rule_plays, rule_summary
@@ -113,6 +114,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Scores": scores,
         "Weather": weather_table(conn, now),
         "Live_Games": live_games_table(conn, now),
+        "Soccer_Board": soccer_board(conn, now),
         "Second_Half": second_half_table(conn),
         "Second_Half_Plays": half_plays,
         "Second_Half_Summary": second_half_summary(half_plays),

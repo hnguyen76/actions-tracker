@@ -11,6 +11,10 @@ in English (spread, total, moneyline, favorite, underdog, fade).
 - So a code change merged into `main` goes live by itself within ~5–15 minutes. Do not publish from here.
 - Dashboard: https://hnguyen76.github.io/actions-tracker/ — template `src/actions_tracker/templates/index.html`,
   static JS/CSS in `src/actions_tracker/templates/static/`, built by `src/actions_tracker/build_site.py`.
+- Soccer tab: `soccer.py` polls ESPN (EPL, UCL, UEL, La Liga, Serie A, Bundesliga, Ligue 1, MLS) in the phone's
+  update run: DraftKings 1X2/spread/total, every line move (`soccer_line_history`), market-move signals ranked.
+  Soccer bets grade on the 90-minute score. Action Network soccer pages are only saved (`page_samples`) until a
+  copy with picks exists; then the pick parser and the method (Mon-Fri follow >= 2, Sat-Sun fade spread >= 5).
 
 ## Hard rules
 - Never fetch actionnetwork.com from a cloud machine and never work around its bot block (no internal/app
