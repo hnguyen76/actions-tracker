@@ -1,0 +1,444 @@
+{
+"items": [
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 2.27,
+"displayValue": "127/100",
+"alternateDisplayValue": "+127",
+"decimal": 2.27,
+"fraction": "127/100",
+"american": "+127"
+},
+"target": {
+"value": 1.5,
+"displayValue": "1.5"
+}
+},
+"open": {
+"over": {
+"value": 1.24,
+"displayValue": "100/407",
+"alternateDisplayValue": "-407",
+"decimal": 1.24,
+"fraction": "100/407",
+"american": "-407"
+},
+"target": {
+"value": 0.5,
+"displayValue": "0.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 5.0,
+"displayValue": "4/1",
+"alternateDisplayValue": "+400",
+"decimal": 5.0,
+"fraction": "4/1",
+"american": "+400"
+},
+"target": {
+"value": 2.5,
+"displayValue": "2.5"
+}
+},
+"open": {
+"over": {
+"value": 1.24,
+"displayValue": "100/407",
+"alternateDisplayValue": "-407",
+"decimal": 1.24,
+"fraction": "100/407",
+"american": "-407"
+},
+"target": {
+"value": 0.5,
+"displayValue": "0.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 11.6,
+"displayValue": "53/5",
+"alternateDisplayValue": "+1060",
+"decimal": 11.6,
+"fraction": "53/5",
+"american": "+1060"
+},
+"target": {
+"value": 3.5,
+"displayValue": "3.5"
+}
+},
+"open": {
+"over": {
+"value": 1.24,
+"displayValue": "100/407",
+"alternateDisplayValue": "-407",
+"decimal": 1.24,
+"fraction": "100/407",
+"american": "-407"
+},
+"target": {
+"value": 0.5,
+"displayValue": "0.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 1.27,
+"displayValue": "100/359",
+"alternateDisplayValue": "-359",
+"decimal": 1.27,
+"fraction": "100/359",
+"american": "-359"
+},
+"target": {
+"value": 0.5,
+"displayValue": "0.5"
+}
+},
+"open": {
+"over": {
+"value": 1.24,
+"displayValue": "100/407",
+"alternateDisplayValue": "-407",
+"decimal": 1.24,
+"fraction": "100/407",
+"american": "-407"
+},
+"target": {
+"value": 0.5,
+"displayValue": "0.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 1.6,
+"displayValue": "50/83",
+"alternateDisplayValue": "-166",
+"decimal": 1.6,
+"fraction": "50/83",
+"american": "-166"
+},
+"target": {
+"value": 1.5,
+"displayValue": "1.5"
+}
+},
+"open": {
+"over": {
+"value": 1.01,
+"displayValue": "1/60",
+"alternateDisplayValue": "-6000",
+"decimal": 1.01,
+"fraction": "1/60",
+"american": "-6000"
+},
+"target": {
+"value": 3.5,
+"displayValue": "3.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 1.15,
+"displayValue": "5/32",
+"alternateDisplayValue": "-640",
+"decimal": 1.15,
+"fraction": "5/32",
+"american": "-640"
+},
+"target": {
+"value": 2.5,
+"displayValue": "2.5"
+}
+},
+"open": {
+"over": {
+"value": 1.01,
+"displayValue": "1/60",
+"alternateDisplayValue": "-6000",
+"decimal": 1.01,
+"fraction": "1/60",
+"american": "-6000"
+},
+"target": {
+"value": 3.5,
+"displayValue": "3.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 1.02,
+"displayValue": "1/44",
+"alternateDisplayValue": "-4400",
+"decimal": 1.02,
+"fraction": "1/44",
+"american": "-4400"
+},
+"target": {
+"value": 3.5,
+"displayValue": "3.5"
+}
+},
+"open": {
+"over": {
+"value": 1.01,
+"displayValue": "1/60",
+"alternateDisplayValue": "-6000",
+"decimal": 1.01,
+"fraction": "1/60",
+"american": "-6000"
+},
+"target": {
+"value": 3.5,
+"displayValue": "3.5"
+}
+}
+},
+{
+"type": {
+"id": "72",
+"name": "1st Half Total"
+},
+"current": {
+"over": {
+"value": 3.54,
+"displayValue": "127/50",
+"alternateDisplayValue": "+254",
+"decimal": 3.54,
+"fraction": "127/50",
+"american": "+254"
+},
+"target": {
+"value": 0.5,
+"displayValue": "0.5"
+}
+},
+"open": {
+"over": {
+"value": 1.01,
+"displayValue": "1/60",
+"alternateDisplayValue": "-6000",
+"decimal": 1.01,
+"fraction": "1/60",
+"american": "-6000"
+},
+"target": {
+"value": 3.5,
+"displayValue": "3.5"
+}
+}
+},
+{
+"type": {
+"id": "73",
+"name": "1st Half Moneyline"
+},
+"team": {
+"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/uefa.champions/seasons/2026/teams/102?lang=en&region=us"
+},
+"current": {
+"over": {
+"value": 2.8,
+"displayValue": "9/5",
+"alternateDisplayValue": "+180",
+"decimal": 2.8,
+"fraction": "9/5",
+"american": "+180"
+}
+},
+"open": {
+"over": {
+"value": 2.6,
+"displayValue": "8/5",
+"alternateDisplayValue": "+160",
+"decimal": 2.6,
+"fraction": "8/5",
+"american": "+160"
+}
+}
+},
+{
+"type": {
+"id": "73",
+"name": "1st Half Moneyline"
+},
+"team": {
+"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/uefa.champions/seasons/2026/teams/494?lang=en&region=us"
+},
+"current": {
+"over": {
+"value": 3.15,
+"displayValue": "43/20",
+"alternateDisplayValue": "+215",
+"decimal": 3.15,
+"fraction": "43/20",
+"american": "+215"
+}
+},
+"open": {
+"over": {
+"value": 3.1,
+"displayValue": "21/10",
+"alternateDisplayValue": "+210",
+"decimal": 3.1,
+"fraction": "21/10",
+"american": "+210"
+}
+}
+},
+{
+"type": {
+"id": "73",
+"name": "1st Half Moneyline"
+},
+"current": {
+"over": {
+"value": 2.3,
+"displayValue": "13/10",
+"alternateDisplayValue": "+130",
+"decimal": 2.3,
+"fraction": "13/10",
+"american": "+130"
+}
+},
+"open": {
+"over": {
+"value": 2.35,
+"displayValue": "27/20",
+"alternateDisplayValue": "+135",
+"decimal": 2.35,
+"fraction": "27/20",
+"american": "+135"
+}
+}
+},
+{
+"type": {
+"id": "286",
+"name": "2nd Half Moneyline"
+},
+"team": {
+"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/uefa.champions/seasons/2026/teams/102?lang=en&region=us"
+},
+"current": {
+"over": {
+"value": 2.6,
+"displayValue": "8/5",
+"alternateDisplayValue": "+160",
+"decimal": 2.6,
+"fraction": "8/5",
+"american": "+160"
+}
+},
+"open": {
+"over": {
+"value": 2.4,
+"displayValue": "7/5",
+"alternateDisplayValue": "+140",
+"decimal": 2.4,
+"fraction": "7/5",
+"american": "+140"
+}
+}
+},
+{
+"type": {
+"id": "286",
+"name": "2nd Half Moneyline"
+},
+"team": {
+"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/uefa.champions/seasons/2026/teams/494?lang=en&region=us"
+},
+"current": {
+"over": {
+"value": 2.9,
+"displayValue": "19/10",
+"alternateDisplayValue": "+190",
+"decimal": 2.9,
+"fraction": "19/10",
+"american": "+190"
+}
+},
+"open": {
+"over": {
+"value": 2.9,
+"displayValue": "19/10",
+"alternateDisplayValue": "+190",
+"decimal": 2.9,
+"fraction": "19/10",
+"american": "+190"
+}
+}
+},
+{
+"type": {
+"id": "286",
+"name": "2nd Half Moneyline"
+},
+"current": {
+"over": {
+"value": 2.55,
+"displayValue": "31/20",
+"alternateDisplayValue": "+155",
+"decimal": 2.55,
+"fraction": "31/20",
+"american": "+155"
+}
+},
+"open": {
+"over": {
+"value": 2.6,
+"displayValue": "8/5",
+"alternateDisplayValue": "+160",
+"decimal": 2.6,
+"fraction": "8/5",
+"american": "+160"
+}
+}
+}
+]
+}

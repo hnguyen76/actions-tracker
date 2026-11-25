@@ -18,6 +18,7 @@
 <script src="live-scores.js?v=__STATIC_V__"></script>
 <script src="second-half.js?v=__STATIC_V__"></script>
 <script src="soccer.js?v=__STATIC_V__"></script>
+<script src="soccer-live.js?v=__STATIC_V__"></script>
 <script src="big-play.js?v=__STATIC_V__"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -763,6 +764,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   <section class="panel" id="tab-soccer">
     <div class="card soccer-card">
       <div class="soccer-head"><h2>Soccer</h2><span class="pill dim" id="soccer-count"></span></div>
+      <div class="soccer-live" id="soccer-live" aria-live="polite" hidden></div>
       <div class="soccer-filters" id="soccer-comps" role="group" aria-label="Giải"></div>
       <div class="soccer-filters" id="soccer-sort" role="group" aria-label="Sắp xếp"></div>
       <div class="soccer-list" id="soccer-list"></div>
@@ -2574,7 +2576,60 @@ const DATA = /*__DATA__*/null;
       histLines.length ? el("details", { class: "soccer-history" }, el("summary", { text: "Lịch sử line" }),
         ...histLines.map(([label, text]) => el("div", {}, el("b", { text: label }), ` ${text}`))) : null);
   }
+  // Live: score, clock (stoppage time "45'+2'"), pregame and live DraftKings lines; at halftime the 2H plays as in NFL
+  // (soccer-live.js). Polled from ESPN every 30 s while the Soccer tab is open and the page visible.
+  const soccerLive = { games: [], busy: false, timer: null, at: 0 };
+  function renderSoccerLive() {
+    const host = document.getElementById("soccer-live"), S = window.ActionsSoccer;
+    if (!host || !S) return;
+    host.replaceChildren();
+    host.hidden = !soccerLive.games.length;
+    const total = (t) => t && t.line !== null && t.line !== undefined
+      ? `${S.line(t.line, false)}${t.over !== null && t.over !== undefined ? ` O ${S.price(t.over)} · U ${S.price(t.under)}` : ""}` : "";
+    for (const g of soccerLive.games) {
+      const row = (label, ml, tot) => el("div", { class: "soccer-live-row" }, el("small", { text: label }),
+        el("span", { text: ml ? `${g.home.abbr} ${S.price(ml.home)} · X ${S.price(ml.draw)} · ${g.away.abbr} ${S.price(ml.away)}` : "–" }),
+        tot ? el("span", { class: "soccer-live-total", text: total(tot) }) : null);
+      const picks = [], h = g.second_half;
+      if (g.halftime && h && h.side) {
+        const team = g[h.side.team].abbr, fav = g[h.side.favourite].abbr, off = h.side.price === null || h.side.price === undefined;
+        picks.push(el("div", { class: `second-half-pick${off ? " off" : ""}` },
+          el("span", {}, el("strong", { text: `↩ ${team} 2H ${off ? "–" : S.price(h.side.price)}` })),
+          el("small", { text: `1H ${fav} −0,5 ${h.side.covered ? "✓" : "✗"}` })));
+      }
+      if (g.halftime && h && h.total) {
+        const t = h.total, off = t.price === null || t.price === undefined;
+        picks.push(el("div", { class: `second-half-pick${off ? " off" : ""}` },
+          el("span", {}, el("strong", { text: `${t.side === "over" ? "↑ Over" : "↓ Under"} ${t.line === null ? "–" : S.line(t.line, false)} ${off ? "" : S.price(t.price)}` })),
+          el("small", { text: `1H ${t.first_goals} ${t.side === "over" ? "<" : ">"} ${S.line(t.first_line, false)}` })));
+      }
+      host.append(el("article", { class: `soccer-live-game${g.halftime ? " ht" : ""}` },
+        el("div", { class: "soccer-live-head" }, el("span", { class: "soccer-live-dot", text: g.halftime ? "HT" : "LIVE" }),
+          el("span", { class: "soccer-meta", text: `${S.short(g.comp)} · ${g.halftime ? "HT" : g.clock || g.detail}` })),
+        el("div", { class: "soccer-live-score", text: `${g.away.abbr} ${g.away_score}–${g.home_score} ${g.home.abbr}` }),
+        row("Trước", g.pregame && g.pregame.ml, g.pregame && g.pregame.total),
+        row("Live", g.live && g.live.ml, g.live && g.live.total),
+        picks.length ? el("div", { class: "second-half-picks" }, ...picks) : null));
+    }
+  }
+  async function refreshSoccerLive() {
+    clearTimeout(soccerLive.timer);
+    if (soccerLive.busy || document.hidden || currentTab() !== "soccer" || !window.ActionsSoccerLive) return;
+    soccerLive.busy = true;
+    try {
+      soccerLive.games = await ActionsSoccerLive.fetchLive();
+      soccerLive.at = Date.now();
+      renderSoccerLive();
+    } catch (e) { /* keep the last summary through a failed poll */ }
+    finally {
+      soccerLive.busy = false;
+      if (currentTab() === "soccer" && !document.hidden) soccerLive.timer = setTimeout(refreshSoccerLive, 30000);
+    }
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && currentTab() === "soccer") refreshSoccerLive(); });
   function soccerTab() {
+    renderSoccerLive();
+    if (Date.now() - soccerLive.at > 25000) refreshSoccerLive();
     const S = window.ActionsSoccer, rows = T("Soccer_Board"), host = document.getElementById("soccer-list");
     if (!S || !host) return;
     const chip = (label, on, pick) => {
