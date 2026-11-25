@@ -2617,7 +2617,8 @@ const DATA = /*__DATA__*/null;
     if (soccerLive.busy || document.hidden || currentTab() !== "soccer" || !window.ActionsSoccerLive) return;
     soccerLive.busy = true;
     try {
-      soccerLive.games = await ActionsSoccerLive.fetchLive();
+      const half = new Map(T("Soccer_Half_Lines").map((r) => [String(r.event_id), r]));
+      soccerLive.games = await ActionsSoccerLive.fetchLive(undefined, Date.now(), half);
       soccerLive.at = Date.now();
       renderSoccerLive();
     } catch (e) { /* keep the last summary through a failed poll */ }

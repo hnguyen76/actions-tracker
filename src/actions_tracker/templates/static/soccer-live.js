@@ -4,8 +4,10 @@
    is checked: the over's chance must fall as the line rises, otherwise the totals are not trusted. There is no 1H
    handicap for soccer, so the 1H "spread" is the 1H moneyline favourite at -0,5:
    - side: the favourite that does not lead at halftime lost its 1H "spread" -> back it in the 2H; a favourite that
-     leads -> back the other team in the 2H (2H 3-way moneyline);
-   - total: 1H goals under the main 1H total -> 2H Over; over it -> 2H Under (main 2H total); on a whole line, none. */
+     leads -> back the other team in the 2H, at DraftKings' live 3-way "Moneyline - Rest of Game";
+   - total: 1H goals under the main 1H total -> 2H Over; over it -> 2H Under, at the live full-game total less the
+     1H goals (the same bet as a 2H total); exactly on a whole line, none.
+   A price off the board at halftime shows as none: never the stale pregame 2H moneyline. */
 (function (root) {
   "use strict";
   const finite = (v) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(String(v).replace("+", ""))) ? null
@@ -14,7 +16,7 @@
   const teamId = (item) => (String(item && item.team && item.team.$ref || "").match(/\/teams\/(\d+)/) || [])[1] || null;
   const american = (item) => finite(item && item.current && item.current.over && item.current.over.american);
 
-  function moneyline(items, name, homeId, awayId) {
+  function moneyline(items, name, homeId, awayId, partial = false) {
     const out = {};
     for (const item of items.filter((x) => x.type && x.type.name === name)) {
       const id = teamId(item), price = american(item);
@@ -23,6 +25,7 @@
       else if (id === String(homeId)) out.home = price;
       else if (id === String(awayId)) out.away = price;
     }
+    if (partial) return Object.keys(out).length ? out : null;   // live: a price can be off the board for a while
     return ["home", "away", "draw"].every((k) => k in out) ? out : null;
   }
   // main line: the over / under pair closest to even; null when a pair breaks the falling over chance
@@ -49,6 +52,7 @@
       second_ml: moneyline(items, "2nd Half Moneyline", homeId, awayId),
       first_total: total(items, "1st Half Total"),
       second_total: total(items, "2nd Half Total"),
+      rest_ml: moneyline(items, "Moneyline - Rest of Game", homeId, awayId, true),
     };
   }
 
@@ -63,7 +67,8 @@
       const lead = favourite === "home" ? home - away : away - home;
       const covered = lead >= 1;                      // the favourite at -0,5 needs a lead at halftime
       const team = covered ? (favourite === "home" ? "away" : "home") : favourite;
-      side = { team, price: m.second_ml ? m.second_ml[team] : null, favourite, covered };
+      const price = m.second_ml && m.second_ml[team] !== undefined ? m.second_ml[team] : null;
+      side = { team, price, favourite, covered };
     }
     let total = null;
     const t1 = m.first_total, goals = home + away;
@@ -123,7 +128,7 @@
   const ODDS_POLL_MS = 60000;   // live odds and the 2H markets at halftime: at most once a minute per game
   const SCOREBOARD = (comp, d) => `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${comp}/scoreboard?dates=${d}`;
   const ODDS = (comp, id) => `https://sports.core.api.espn.com/v2/sports/soccer/leagues/${comp}/events/${id}/competitions/${id}/odds?lang=en&region=us&limit=100`;
-  const oddsCache = new Map(), pregameProps = new Map(), liveProps = new Map();
+  const oddsCache = new Map(), liveProps = new Map();
   function dateKey(ms) {
     const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric",
       month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
@@ -150,7 +155,9 @@
   }
 
   // live games of the eight competitions: score, clock, pregame and live DraftKings odds, and at halftime the 2H plays
-  async function fetchLive(fetcher = root.fetch && root.fetch.bind(root), now = Date.now()) {
+  // halfLines: event_id -> {first_ml, first_total}, the 1H lines the phone captured before kickoff (Soccer_Half_Lines):
+  // once a game is under way ESPN's pregame half props are leftovers, so they are never read here
+  async function fetchLive(fetcher = root.fetch && root.fetch.bind(root), now = Date.now(), halfLines = new Map()) {
     const today = dateKey(now), days = [today.day];
     if (today.hour < 4) days.push(dateKey(now - 86400000).day);          // a late MLS game still on past midnight
     const boards = await Promise.all(COMPS.flatMap((comp) => days.map((d) => getJson(fetcher, SCOREBOARD(comp, d))
@@ -167,21 +174,19 @@
         const body = await getJson(fetcher, ODDS(g.comp, g.event_id));
         return body && Array.isArray(body.items) ? body.items : null;
       }) || [];
-      const pregameItem = items.find((x) => /^draftkings$/i.test(String(x && x.provider && x.provider.name || "")));
       const liveItem = items.find((x) => /live/i.test(String(x && x.provider && x.provider.name || "")));
       g.live = parseLiveOdds(liveItem);
       if (!g.halftime) return;
-      const before = await cached(pregameProps, g.event_id, 6 * 3600000, async () => {
-        const url = propsUrl(pregameItem);
-        return url ? getJson(fetcher, url) : null;
-      });
       const during = await cached(liveProps, g.event_id, ODDS_POLL_MS, async () => {
         const url = propsUrl(liveItem);
         return url ? getJson(fetcher, url) : null;
       });
-      const first = halfMarkets(before, g.home.id, g.away.id), second = halfMarkets(during, g.home.id, g.away.id);
-      g.markets = { first_ml: first.first_ml, first_total: first.first_total,
-        second_ml: second.second_ml || first.second_ml, second_total: second.second_total || first.second_total };
+      // DraftKings has no live "2nd Half" market for soccer at halftime, but two exact equivalents: the 3-way
+      // "Moneyline - Rest of Game", and the live full-game total less the 1H goals (every later goal is a 2H goal)
+      const first = halfLines.get(g.event_id) || {}, rest = halfMarkets(during, g.home.id, g.away.id).rest_ml;
+      const t = g.live && g.live.total, goals = (g.home_score || 0) + (g.away_score || 0);
+      g.markets = { first_ml: first.first_ml, first_total: first.first_total, second_ml: rest,
+        second_total: t && t.line !== null ? { line: t.line - goals, over: t.over, under: t.under } : null };
       g.second_half = decide2H({ home: g.home_score, away: g.away_score }, g.markets);
     }));
     return games.sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time));

@@ -105,3 +105,58 @@ def test_a_total_moved_to_another_line_is_compared_at_the_same_line():
     assert total["delta"] < 6                                   # not 22 points for a one-goal step
     assert any(s["text"] == "Total 3,5→2,5" and s["delta"] is None for s in sigs)
     assert soccer.goals(2.5, soccer.no_vig({"o": -160, "u": 125})["o"]) == pytest.approx(2.9, abs=0.15)
+
+
+# --- 1H lines captured before kickoff (after it ESPN's pregame half props turn to leftovers) ---------------------
+PROPS = json.loads((FX / "espn_soccer_props_pregame.json").read_text("utf-8"))      # VIL @ SLP: home 494, away 102
+
+
+def test_half_lines_read_the_1h_moneyline_and_the_main_1h_total():
+    h = soccer.half_lines(PROPS, "494", "102")
+    assert h == {"first_ml": {"home": 215, "away": 180, "draw": 130}, "first_total": {"line": 1.5, "over": 127, "under": -166}}
+    # 25/11 13:35 ET, after kickoff: two leftover items on different lines -> no total
+    leftovers = {"items": [
+        {"type": {"name": "1st Half Total"}, "current": {"over": {"american": "+1020"}, "target": {"value": 3.5}}},
+        {"type": {"name": "1st Half Total"}, "current": {"over": {"american": "+256"}, "target": {"value": 0.5}}}]}
+    assert soccer.half_lines(leftovers, "494", "102")["first_total"] is None
+
+
+class CoreGet(Get):
+    """ESPN scoreboard (the fixture), then the DraftKings odds list and its props for each game."""
+    def __call__(self, url, **kw):
+        if "sports.core.api.espn.com" not in url:
+            return super().__call__(url, **kw)
+        self.urls.append(url)
+        body = PROPS if "propBets" in url else {"items": [
+            {"provider": {"name": "DraftKings"}, "propBets": {"$ref": url.split("?")[0] + "/propBets?lang=en"}}]}
+
+        class R:
+            status_code = 200
+
+            def json(self):
+                return copy.deepcopy(body)
+        return R()
+
+
+def test_1h_lines_are_captured_before_kickoff_at_most_hourly_and_published(tmp_path):
+    conn = db.connect(tmp_path / "a.db")
+    early = "2026-11-28T05:00:00.000Z"                    # Sat 00:00 ET: both 10:00 ET games are 10 h away
+    get = CoreGet()
+    soccer.collect(conn, early, get=get)
+    core = [u for u in get.urls if "sports.core" in u]
+    assert len(core) == 4                                  # odds list + props, two games
+    again = CoreGet()
+    soccer.collect(conn, "2026-11-28T05:30:00.000Z", get=again)
+    assert not [u for u in again.urls if "sports.core" in u]          # captured 30 min ago: not again
+    later = CoreGet()
+    soccer.collect(conn, "2026-11-28T06:15:00.000Z", get=later)
+    assert len([u for u in later.urls if "sports.core" in u]) == 4    # an hour on: refreshed
+    table = soccer.half_lines_table(conn, "2026-11-28T15:50:00.000Z").set_index("event_id")   # in play now
+    assert table.loc["401879227", "first_total"] == {"line": 1.5, "over": 127, "under": -166}
+    assert table.loc["401879227", "captured_at"] == "2026-11-28T06:15:00.000Z"
+
+
+def test_no_1h_capture_for_games_more_than_twelve_hours_away(tmp_path):
+    conn, get = db.connect(tmp_path / "a.db"), CoreGet()
+    soccer.collect(conn, "2026-11-27T20:00:00.000Z", get=get)          # 19 h before kickoff
+    assert not [u for u in get.urls if "sports.core" in u]

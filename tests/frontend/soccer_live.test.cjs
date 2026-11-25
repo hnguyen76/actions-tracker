@@ -76,40 +76,79 @@ test('the DraftKings live market reads the 3-way moneyline and the total now', (
   assert.equal(api.parseLiveOdds(ODDS.items.find((x) => x.provider.name === 'DraftKings')), null);
 });
 
+test('at halftime the 2H moneyline is DraftKings\' "Moneyline - Rest of Game" (real BAR @ SAB, 25/11 13:34 ET)', () => {
+  const rest = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/espn_soccer_props_live_ht.json'), 'utf8'));
+  assert.deepEqual(plain(api.halfMarkets(rest, '21922', '83').rest_ml), { home: 1100, away: -450, draw: 400 });
+  const onlyDraw = { items: rest.items.filter((x) => !x.team) };              // the team prices were off the board
+  assert.deepEqual(plain(api.halfMarkets(onlyDraw, '21922', '83').rest_ml), { draw: 400 });
+});
+
 test('fetchLive: live games with pregame and live lines; at halftime the half markets and the 2H plays', async () => {
   const event = (state, name, home, away) => ({ id: '401915293', date: '2026-11-25T17:45Z', competitions: [{
     status: { displayClock: "45'+3'", period: 1, type: { state, name, shortDetail: name === 'STATUS_HALFTIME' ? 'HT' : "45'+3'" } },
     competitors: [{ homeAway: 'home', score: String(home), team: { id: '494', abbreviation: 'SLP' } },
       { homeAway: 'away', score: String(away), team: { id: '102', abbreviation: 'VIL' } }] }] });
-  const secondHalf = { items: [
-    { type: { name: '2nd Half Total' }, current: { over: { american: '+105' }, target: { value: 1.5 } } },
-    { type: { name: '2nd Half Total' }, current: { over: { american: '-135' }, target: { value: 1.5 } } },
-    { type: { name: '2nd Half Total' }, current: { over: { american: '-300' }, target: { value: 0.5 } } },
-    { type: { name: '2nd Half Total' }, current: { over: { american: '+220' }, target: { value: 0.5 } } },
-    { type: { name: '2nd Half Moneyline' }, team: { $ref: 'x/teams/102' }, current: { over: { american: '+150' } } },
-    { type: { name: '2nd Half Moneyline' }, team: { $ref: 'x/teams/494' }, current: { over: { american: '+230' } } },
-    { type: { name: '2nd Half Moneyline' }, current: { over: { american: '+140' } } }] };
-  const run = async (status, home, away) => {
+  const restOfGame = (withTeams) => ({ items: [
+    ...(withTeams ? [{ type: { name: 'Moneyline - Rest of Game' }, team: { $ref: 'x/teams/102' }, current: { over: { american: '+150' } } },
+      { type: { name: 'Moneyline - Rest of Game' }, team: { $ref: 'x/teams/494' }, current: { over: { american: '+230' } } }] : []),
+    { type: { name: 'Moneyline - Rest of Game' }, team: null, current: { over: { american: '+140' } } }] });
+  const run = async (status, home, away, withTeams = true) => {
     const urls = [];
     const fetcher = async (url) => {
       urls.push(url);
       let body = { events: [] };
       if (url.includes('/uefa.champions/scoreboard')) body = { events: [event('in', status, home, away)] };
       else if (url.includes('/odds?')) body = ODDS;
-      else if (url.includes('propBets') && urls.filter((u) => u.includes('propBets')).length === 1) body = PROPS;
-      else if (url.includes('propBets')) body = secondHalf;
+      else if (url.includes('propBets')) body = restOfGame(withTeams);
       return { ok: true, json: async () => JSON.parse(JSON.stringify(body)) };
     };
-    return { games: plain(await api.fetchLive(fetcher, Date.parse('2026-11-25T18:35:00Z'))), urls };
+    // the 1H lines the phone captured before kickoff (Soccer_Half_Lines)
+    const half = new Map([['401915293', api.halfMarkets(PROPS, '494', '102')]]);
+    return plain(await api.fetchLive(fetcher, Date.parse('2026-11-25T18:35:00Z'), half));
   };
-  const live = await run('STATUS_FIRST_HALF', 0, 0);
-  assert.equal(live.games.length, 1);
-  assert.deepEqual(live.games[0].live.ml, { home: 180, away: 135, draw: 265 });
-  assert.equal(live.games[0].second_half, undefined);                        // only at halftime
-  const ht = (await run('STATUS_HALFTIME', 0, 0)).games[0];
+  const live = await run('STATUS_FIRST_HALF', 1, 0);
+  assert.equal(live.length, 1);
+  assert.deepEqual(live[0].live.ml, { home: 180, away: 135, draw: 265 });
+  assert.equal(live[0].second_half, undefined);                             // only at halftime
+  // halftime 1-0 to SLP: the live full-game total 2,5 minus the goal = the 2H total 1,5 (same prices)
+  const ht = (await run('STATUS_HALFTIME', 1, 0))[0];
   assert.equal(ht.halftime, true);
   assert.deepEqual(ht.markets.first_total, { line: 1.5, over: 127, under: -166 });
-  assert.deepEqual(ht.markets.second_total, { line: 1.5, over: 105, under: -135 });
+  assert.deepEqual(ht.markets.second_total, { line: 1.5, over: -172, under: 144 });
   assert.deepEqual(ht.second_half.side, { team: 'away', price: 150, favourite: 'away', covered: false });
-  assert.deepEqual(ht.second_half.total, { side: 'over', line: 1.5, price: 105, first_goals: 0, first_line: 1.5 });
+  assert.deepEqual(ht.second_half.total, { side: 'over', line: 1.5, price: -172, first_goals: 1, first_line: 1.5 });
+});
+
+test('fetchLive: a 2H team price off the board shows no price, never the stale pregame 2H moneyline', async () => {
+  const fetcher = async (url) => {
+    let body = { events: [] };
+    if (url.includes('/uefa.champions/scoreboard')) body = { events: [{ id: '777', date: '2026-11-25T17:45Z', competitions: [{
+      status: { displayClock: "45'+3'", period: 1, type: { state: 'in', name: 'STATUS_HALFTIME', shortDetail: 'HT' } },
+      competitors: [{ homeAway: 'home', score: '0', team: { id: '494', abbreviation: 'SLP' } },
+        { homeAway: 'away', score: '0', team: { id: '102', abbreviation: 'VIL' } }] }] }] };
+    else if (url.includes('/odds?')) body = ODDS;
+    else if (url.includes('propBets')) body = { items: [{ type: { name: 'Moneyline - Rest of Game' }, team: null, current: { over: { american: '+150' } } }] };
+    return { ok: true, json: async () => JSON.parse(JSON.stringify(body)) };
+  };
+  const [g] = plain(await api.fetchLive(fetcher, Date.parse('2026-11-25T18:35:00Z'),
+    new Map([['777', api.halfMarkets(PROPS, '494', '102')]])));
+  assert.deepEqual(g.second_half.side, { team: 'away', price: null, favourite: 'away', covered: false });
+});
+
+test('fetchLive never reads the leftover pregame half props: no captured 1H lines, no 2H plays', async () => {
+  const urls = [];
+  const fetcher = async (url) => {
+    urls.push(url);
+    let body = { events: [] };
+    if (url.includes('/uefa.champions/scoreboard')) body = { events: [{ id: '888', date: '2026-11-25T17:45Z', competitions: [{
+      status: { displayClock: "45'+1'", period: 1, type: { state: 'in', name: 'STATUS_HALFTIME', shortDetail: 'HT' } },
+      competitors: [{ homeAway: 'home', score: '0', team: { id: '494', abbreviation: 'SLP' } },
+        { homeAway: 'away', score: '1', team: { id: '102', abbreviation: 'VIL' } }] }] }] };
+    else if (url.includes('/odds?')) body = ODDS;
+    else if (url.includes('propBets')) body = { items: [] };
+    return { ok: true, json: async () => JSON.parse(JSON.stringify(body)) };
+  };
+  const [g] = plain(await api.fetchLive(fetcher, Date.parse('2026-11-25T18:35:00Z')));
+  assert.deepEqual(g.second_half, { side: null, total: null });
+  assert.equal(urls.filter((u) => u.includes('propBets')).length, 1);          // the live props only
 });

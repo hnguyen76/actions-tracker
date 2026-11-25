@@ -1,0 +1,58 @@
+{
+"items": [
+{
+"type": {
+"id": "310",
+"name": "Moneyline - Rest of Game"
+},
+"team": {
+"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/uefa.champions/seasons/2026/teams/83?lang=en&region=us"
+},
+"current": {
+"over": {
+"value": 1.22,
+"displayValue": "2/9",
+"alternateDisplayValue": "-450",
+"decimal": 1.22,
+"fraction": "2/9",
+"american": "-450"
+}
+}
+},
+{
+"type": {
+"id": "310",
+"name": "Moneyline - Rest of Game"
+},
+"team": {
+"$ref": "http://sports.core.api.espn.com/v2/sports/soccer/leagues/uefa.champions/seasons/2026/teams/21922?lang=en&region=us"
+},
+"current": {
+"over": {
+"value": 12.0,
+"displayValue": "11/1",
+"alternateDisplayValue": "+1100",
+"decimal": 12.0,
+"fraction": "11/1",
+"american": "+1100"
+}
+}
+},
+{
+"type": {
+"id": "310",
+"name": "Moneyline - Rest of Game"
+},
+"current": {
+"over": {
+"value": 5.0,
+"displayValue": "4/1",
+"alternateDisplayValue": "+400",
+"decimal": 5.0,
+"fraction": "4/1",
+"american": "+400"
+}
+}
+}
+]
+}
