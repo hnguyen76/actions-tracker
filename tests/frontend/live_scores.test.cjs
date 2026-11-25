@@ -152,12 +152,31 @@ test('fetch groups games by league/date and returns scores without modifying ori
   const scoreboardCalls=calls.filter(x=>x.url.includes('/scoreboard?')),oddsCalls=calls.filter(x=>x.url.includes('/odds?'));
   assert.equal(scoreboardCalls.length,1);
   assert.equal(oddsCalls.length,1);  // both rows share the unique team-matched ESPN event and its odds cache
-  assert.match(scoreboardCalls[0].url,/football\/nfl\/scoreboard\?dates=20261115$/);
+  assert.match(scoreboardCalls[0].url,/football\/nfl\/scoreboard\?dates=20261115&live=\d+$/);
   assert.equal(scoreboardCalls[0].opts.credentials,'omit');
   assert.equal(scoreboardCalls[0].opts.cache,'no-store');
   assert.equal(result.scores.length,2);
   assert.equal(result.scores[0].graded,false);
   assert.equal(game.away_score,undefined);
+});
+test('fast polling returns score and clock before slower drive and odds enrichment', async () => {
+  const raw=event();raw.id='401899999';
+  const target={...game,start_time:raw.date,espn_event_id:raw.id};
+  let releaseSummary;
+  const summaryReady=new Promise(resolve=>{releaseSummary=resolve;});
+  let updateReady;
+  const updated=new Promise(resolve=>{updateReady=resolve;});
+  const result=await api.fetchGames([target],async url => {
+    if(url.includes('/summary?')) { await summaryReady; return {ok:true,json:async()=>driveSummary(raw.id)}; }
+    if(url.includes('/odds?')) return {ok:true,json:async()=>({items:[]})};
+    return {ok:true,json:async()=>({events:[raw]})};
+  },{fast:true,onUpdate:scores=>updateReady(scores)});
+  assert.equal(result.scores[0].away_score,3);
+  assert.equal(result.scores[0].detail,raw.status.type.shortDetail);
+  assert.equal(result.scores[0].drive,undefined);
+  releaseSummary();
+  const [full]=await updated;
+  assert.equal(full.drive.spot,'DET 32');
 });
 test('live football fetches current drive by verified event id and caches it for ten seconds', async () => {
   const raw=event();raw.id='401873071';

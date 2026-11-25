@@ -505,7 +505,9 @@
     })().finally(() => { cached.promise = null; });
     return cached.promise;
   }
-  async function fetchGames(games, fetcher = root.fetch.bind(root)) {
+  async function fetchGames(games, fetcher = root.fetch.bind(root), options = {}) {
+    const fast = options && options.fast === true;
+    const onUpdate = options && typeof options.onUpdate === "function" ? options.onUpdate : null;
     const groups = new Map(), result = { scores: [], failed: [] };
     for (const g of games) {
       if (!PATHS[g.league] || !Number.isFinite(Date.parse(g.start_time))) continue;
@@ -516,16 +518,17 @@
     await Promise.all([...groups.values()].map(async (part) => {
       const g = part[0], controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 12000);
       try {
-        let url = `https://site.web.api.espn.com/apis/site/v2/sports/${PATHS[g.league]}/scoreboard?dates=${dateKey(g.start_time)}`;
+        // ESPN's edge response is cached for a few seconds. A five-second URL bucket prevents Safari from being
+        // handed an older edge entry even though the request itself uses cache: no-store.
+        const liveBucket = Math.floor(Date.now() / 5000);
+        let url = `https://site.web.api.espn.com/apis/site/v2/sports/${PATHS[g.league]}/scoreboard?dates=${dateKey(g.start_time)}&live=${liveBucket}`;
         if (g.league === "ncaaf") url += "&groups=80&limit=300";
         const res = await fetcher(url, { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal });
         if (!res.ok) throw new Error("Scoreboard HTTP " + res.status);
         const body = await res.json();
         if (!Array.isArray(body.events)) throw new Error("Invalid scoreboard");
         const events = body.events.map(parseEvent).filter(Boolean), checked = new Date().toISOString();
-        await Promise.all(part.map(async (game) => {
-          const e = matchEvent(game, events);
-          if (!e || e.state !== "scheduled" && (e.away_score === null || e.home_score === null)) { result.failed.push(Number(game.game_id)); return; }
+        const enrich = async (game, e, base) => {
           let situation = e.situation;
           let drive = null;
           if (e.state === "live" && e.is_halftime && e.season_type === 2 && /^\d+$/.test(e.event_id) && HALFTIME_MINUTES[game.league]) {
@@ -550,12 +553,24 @@
             secondHalf = direct || implied ? { ...(implied || {}), ...(direct || {}) } : null;
           }
           else secondHalfCache.delete(game.league + "/" + e.event_id);
-          result.scores.push({ game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
-            state: e.state, detail: e.detail, situation, drive, updated_at: checked, graded: false,
+          return { ...base, situation, drive,
             ...(liveOdds ? { live_odds: liveOdds } : {}),
             ...(nbaVisual ? { nba_visual: nbaVisual } : {}),
-            ...(secondHalf ? { second_half: secondHalf } : {}) });
-        }));
+            ...(secondHalf ? { second_half: secondHalf } : {}) };
+        };
+        const pending = [];
+        for (const game of part) {
+          const e = matchEvent(game, events);
+          if (!e || e.state !== "scheduled" && (e.away_score === null || e.home_score === null)) { result.failed.push(Number(game.game_id)); continue; }
+          const base = { game_id: Number(game.game_id), away_score: e.away_score, home_score: e.home_score,
+            state: e.state, detail: e.detail, situation: e.situation, updated_at: checked, graded: false };
+          if (fast) {
+            result.scores.push(base);
+            // Score/clock return immediately. Slower drive, graphic and odds requests patch the same card later.
+            enrich(game, e, base).then((full) => { if (onUpdate) onUpdate([full]); }).catch(() => {});
+          } else pending.push(enrich(game, e, base).then((full) => result.scores.push(full)));
+        }
+        if (!fast) await Promise.all(pending);
       } catch (error) { result.failed.push(...part.map((g) => Number(g.game_id))); }
       finally { clearTimeout(timeout); }
     }));
