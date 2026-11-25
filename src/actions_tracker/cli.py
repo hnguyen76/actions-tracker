@@ -246,7 +246,7 @@ def _ungraded_past_games(conn, league: str, now: str) -> int:
 
 def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fetcher, now: str,
         odds_api=None, budget: bool = False, telegram: tuple | None = None, news_fetcher=None,
-        live_get=None, samples: bool = False) -> int:
+        live_get=None, samples: bool = False, soccer: bool = False) -> int:
     """Exit codes: 0 ok, 1 every league failed, 2 page structure changed, 3 unexpected error,
     4 Excel file open, 5 no The Odds API key."""
     conn = db.connect(db_path)
@@ -283,6 +283,15 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
                 print(f"[soccer] luu {n} trang mau Action Network")
         except Exception as e:  # noqa: BLE001 - never fails the run
             print(f"[soccer] trang mau: loi {type(e).__name__}")
+    if soccer and live_get is not None:  # ESPN soccer: next week's games and every DraftKings line move
+        from actions_tracker import soccer as soccer_mod
+        try:
+            c = soccer_mod.collect(conn, now, get=live_get)
+            week = " (ca tuan)" if c["far"] else ""
+            errors = f", loi {c['errors']}" if c["errors"] else ""
+            print(f"[soccer] ESPN: {c['games']} tran{week}{errors}")
+        except Exception as e:  # noqa: BLE001 - never fails the run
+            print(f"[soccer] ESPN: loi {type(e).__name__}")
     if odds_api is None and live_get is None:
         print("CANH BAO: khong co nguon ti so/line (ESPN tat, chua co ODDS_API_KEY) - chi luu picks.")
     elif odds_api is not None and odds_api.remaining is not None:
@@ -615,7 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     return run(Path(args.db), Path(args.report), Path(args.site), leagues, fetcher, utc_now(), api, args.budget,
                telegram=tg, news_fetcher=None if getattr(args, "offline", None) else Fetcher(delay=(0.3, 0.8)),
                live_get=None if getattr(args, "offline", None) else requests.get,
-               samples=not getattr(args, "offline", None))
+               samples=not getattr(args, "offline", None), soccer=not getattr(args, "offline", None))
 
 
 if __name__ == "__main__":
