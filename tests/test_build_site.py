@@ -24,7 +24,12 @@ def test_embeds_json_and_copies_xlsx(tmp_path):
     assert d["generated_at"] == "2026-11-09T00:00:00Z" and d["league_status"][0]["league"] == "nfl"
     assert "</script>" not in html.split("const DATA = ")[1].split(";\n")[0]
     assert (tmp_path / "site" / "actions_report.xlsx").exists()
-    assert 'name="robots" content="noindex"' in html and "chart.umd.min.js" in html
+    assert 'name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex"' in html
+    assert 'name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex"' in html
+    assert 'name="referrer" content="no-referrer"' in html and "Content-Security-Policy" in html
+    assert "chart.umd.min.js" in html and 'integrity="sha384-' in html
+    assert "fonts.googleapis.com" not in html and "fonts.gstatic.com" not in html
+    assert (tmp_path / "site" / "robots.txt").read_text("utf-8") == "User-agent: *\nDisallow: /\n"
 
 
 def test_empty_tables_render(tmp_path):
