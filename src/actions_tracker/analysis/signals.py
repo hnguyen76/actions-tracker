@@ -15,6 +15,7 @@ import pandas as pd
 
 from actions_tracker.analysis.consensus import bucket_of
 from actions_tracker.analysis.my_method import MIN_PICKS
+from actions_tracker.config import FORM_UNITS, TZ
 
 SIGNAL_COLS = ["game_id", "market", "side", "order", "tone", "text", "highlight"]
 _OTHER = {"home": "away", "away": "home", "over": "under", "under": "over"}
@@ -193,10 +194,90 @@ def _playoff_signal(game_id: int, market: str, side: str, rows: dict) -> tuple[s
     return tone, f"PLAYOFF NÓNG · Đội bạn {_playoff_label(mine)} | Đối thủ {_playoff_label(opponent)}"
 
 
+def _day_group(game, play) -> str | None:
+    group = getattr(play, "day_group", None) if play is not None else None
+    if group in ("T2-6", "T7-CN"):
+        return group
+    start = pd.to_datetime(getattr(game, "start_time", None), utc=True, errors="coerce")
+    if pd.isna(start):
+        return None
+    return "T2-6" if start.tz_convert(TZ).dayofweek <= 4 else "T7-CN"
+
+
+def _form_rate(history: pd.DataFrame | None, league: str, market: str, group: str,
+               dim: str, bucket: str) -> tuple[float, int] | None:
+    if history is None or history.empty:
+        return None
+    rows = history[(history["league"] == league) & (history["market"] == market)
+                   & (history["day_group"] == group) & (history["dim"] == dim)
+                   & (history["bucket"] == bucket)]
+    if rows.empty:
+        return None
+    row = rows.iloc[0]
+    rate = pd.to_numeric(row.get("win_pct"), errors="coerce")
+    count = pd.to_numeric(row.get("n"), errors="coerce")
+    return (float(rate), int(count)) if pd.notna(rate) and pd.notna(count) else None
+
+
+def _expert_day_signals(experts: pd.DataFrame, game, play, market: str,
+                        history: pd.DataFrame | None) -> list[tuple[str, str]]:
+    """Special form cues requested for weekdays and weekends.
+
+    Mon–Fri: an expert currently losing more than three straight.
+    Sat–Sun: an expert whose 30-day league record is at least +3 units.
+    """
+    group = _day_group(game, play)
+    if experts.empty or group is None:
+        return []
+    league = str(getattr(game, "league", ""))
+    found = []
+    for e in experts.itertuples():
+        name = str(getattr(e, "expert_name", "") or f"Expert {getattr(e, 'expert_id', '')}")
+        if group == "T2-6" and getattr(e, "streak_type", None) == "cold" \
+                and pd.to_numeric(getattr(e, "streak_value", None), errors="coerce") > 3:
+            rate = _form_rate(history, league, market, group, "streak", "cold_long")
+            stats = f" · lịch sử {rate[0] * 100:.1f}% (n={rate[1]})" if rate else ""
+            tone = "🟢" if rate and rate[0] >= .5238 else "⚪"
+            found.append((tone, f"EXPERT THEO NGÀY · {name} đang thua {int(e.streak_value)} liên tiếp{stats}"))
+        elif group == "T7-CN" and pd.to_numeric(getattr(e, "units_30", None), errors="coerce") >= FORM_UNITS:
+            rate = _form_rate(history, league, market, group, "units_30", "hot")
+            stats = f" · lịch sử {rate[0] * 100:.1f}% (n={rate[1]})" if rate else ""
+            tone = "🟢" if rate and rate[0] >= .5238 else "⚪"
+            found.append((tone, f"EXPERT THEO NGÀY · {name} cuối tuần đang xanh {float(e.units_30):+.1f}u{stats}"))
+    return found
+
+
+def _green_consensus_signal(play, history: pd.DataFrame | None) -> tuple[str, str] | None:
+    """Highlight a profitable majority bucket only when this play follows that majority."""
+    if play is None or history is None or history.empty or getattr(play, "method", None) != "follow":
+        return None
+    votes = pd.to_numeric(getattr(play, "votes", None), errors="coerce")
+    total = pd.to_numeric(getattr(play, "total_votes", None), errors="coerce")
+    if pd.isna(votes) or pd.isna(total) or total <= 0:
+        return None
+    bucket = bucket_of(100.0 * float(votes) / float(total))
+    rows = history[(history["league"] == getattr(play, "league", None))
+                   & (history["market"] == getattr(play, "market", None))
+                   & (history["bucket"] == bucket)]
+    if rows.empty:
+        return None
+    r = rows.iloc[0]
+    roi = pd.to_numeric(r.get("roi"), errors="coerce")
+    rate = pd.to_numeric(r.get("win_pct"), errors="coerce")
+    wins, losses = int(r.get("wins") or 0), int(r.get("losses") or 0)
+    if pd.isna(roi) or pd.isna(rate) or roi <= 0 or bool(r.get("low_sample", False)):
+        return None
+    label = bucket.replace("-", "–")
+    return "🟢", (f"ĐÁM ĐÔNG ĐANG XANH · {label}% expert cùng phía · {wins}-{losses}"
+                  f" · Win {rate * 100:.1f}% · ROI {roi * 100:+.1f}%")
+
+
 def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame, opening: pd.DataFrame,
             context: pd.DataFrame, public: pd.DataFrame, expert_sides: pd.DataFrame,
             forecast: pd.DataFrame, method_plays: pd.DataFrame | None = None,
-            history_plays: pd.DataFrame | None = None, playoff: pd.DataFrame | None = None) -> pd.DataFrame:
+            history_plays: pd.DataFrame | None = None, playoff: pd.DataFrame | None = None,
+            expert_form_history: pd.DataFrame | None = None,
+            consensus_history: pd.DataFrame | None = None) -> pd.DataFrame:
     if decisions is None or decisions.empty:
         return pd.DataFrame(columns=SIGNAL_COLS)
     g_by = {int(r.id): r for r in games.itertuples()} if len(games) else {}
@@ -216,16 +297,20 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             continue
         game = g_by.get(gid)
         out = []
+        play = method.get((gid, market))
+        consensus_signal = _green_consensus_signal(play, consensus_history)
+        if consensus_signal:
+            out.append(consensus_signal)
         # 6. same situation over the season (user's method plays only): the cover forecast, shown first
         f = fc.get(gid)
         if market == "spread" and f is not None and _fc_side(f) == side:
             line = "" if f.line is None or pd.isna(f.line) else " " + _fmt(f.line)
             out.append(("⚪", f"Dự báo cover {f.pick}{line}: {f.p_win * 100:.0f}% ({int(f.basis_n)} kèo tương tự)"
                               " — chưa kiểm chứng"))
-        weekly = _weekly_pick_record(method.get((gid, market)), method_plays)
+        weekly = _weekly_pick_record(play, method_plays)
         if weekly:
             out.append(weekly)
-        history = _history_pick_record(method.get((gid, market)), history_plays)
+        history = _history_pick_record(play, history_plays)
         if history:
             out.append(history)
         playoff_signal = _playoff_signal(gid, market, side, playoff_rows)
@@ -278,6 +363,8 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
         es = expert_sides[(expert_sides["game_id"] == gid) & (expert_sides["market"] == market)] if len(expert_sides) else expert_sides
         if len(es):
             mine_e = es[es["side"] == side]
+            out.extend(_expert_day_signals(mine_e, game, play, market,
+                                           expert_form_history))
             hot = int((mine_e["units_30"] >= 3).sum())
             cold = int((mine_e["units_30"] <= -3).sum())
             if len(mine_e):
@@ -290,22 +377,27 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             what = "tiền lớn nghiêng về bạn" if gap >= 10 else "tiền lớn ở bên kia" if gap <= -10 else "public"
             out.append((tone, f"{what[0].upper() + what[1:]}: vé {p.tickets_pct:g}% · tiền {p.money_pct:g}%"))
         rows += [{"game_id": gid, "market": market, "side": side, "order": i, "tone": t, "text": s,
-                  "highlight": s.startswith(("CẦU THỦ CHỦ CHỐT", "PLAYOFF NÓNG"))}
+                  "highlight": s.startswith(("CẦU THỦ CHỦ CHỐT", "PLAYOFF NÓNG", "EXPERT THEO NGÀY",
+                                             "ĐÁM ĐÔNG ĐANG XANH"))}
                  for i, (t, s) in enumerate(out)]
     return pd.DataFrame(rows, columns=SIGNAL_COLS)
 
 
 def expert_sides(picks: pd.DataFrame, forms: pd.DataFrame) -> pd.DataFrame:
     """Latest pre-game pick per expert x game x market with the expert's 30-day units when the pick was made."""
-    cols = ["game_id", "market", "side", "units_30"]
+    cols = ["game_id", "market", "side", "expert_id", "expert_name", "units_30", "streak_type", "streak_value"]
     if picks.empty:
         return pd.DataFrame(columns=cols)
     p = picks.copy()
     if "start_time" in p and "created_at" in p:
         p = p[p["created_at"].astype(str) < p["start_time"].astype(str)]
     p = p.sort_values("created_at", kind="stable").drop_duplicates(["game_id", "market", "expert_id"], keep="last")
-    units = dict(zip(forms["pick_id"], forms["units_30"])) if len(forms) else {}
+    form_by = forms.set_index("pick_id") if len(forms) else pd.DataFrame()
     key = "pick_id" if "pick_id" in p.columns else "id"
-    p["units_30"] = [units.get(i) for i in p[key]]
+    p["units_30"] = [form_by.at[i, "units_30"] if i in form_by.index else None for i in p[key]]
+    p["streak_type"] = [form_by.at[i, "streak_type"] if i in form_by.index else None for i in p[key]]
+    p["streak_value"] = [form_by.at[i, "streak_value"] if i in form_by.index else None for i in p[key]]
     p["units_30"] = pd.to_numeric(p["units_30"], errors="coerce")
+    if "expert_name" not in p:
+        p["expert_name"] = ""
     return p.rename(columns={"pick_side": "side"})[cols]

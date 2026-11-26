@@ -257,13 +257,58 @@ def test_nba_scoring_leader_day_to_day_is_a_key_injury():
 
 
 def test_expert_sides_latest_pregame_pick_with_form():
-    picks = pd.DataFrame([dict(pick_id=1, expert_id=7, game_id=1, market="spread", pick_side="home",
+    picks = pd.DataFrame([dict(pick_id=1, expert_id=7, expert_name="Ryan", game_id=1, market="spread", pick_side="home",
                                created_at="2026-11-14T10:00Z", start_time="2026-11-15T18:00Z"),
-                          dict(pick_id=2, expert_id=7, game_id=1, market="spread", pick_side="away",
+                          dict(pick_id=2, expert_id=7, expert_name="Ryan", game_id=1, market="spread", pick_side="away",
                                created_at="2026-11-15T10:00Z", start_time="2026-11-15T18:00Z")])
-    forms = pd.DataFrame([dict(pick_id=2, units_30=-5.0)])
+    forms = pd.DataFrame([dict(pick_id=2, units_30=-5.0, streak_type="cold", streak_value=4)])
     e = expert_sides(picks, forms)
-    assert e.to_dict("records") == [dict(game_id=1, market="spread", side="away", units_30=-5.0)]
+    assert e.to_dict("records") == [dict(game_id=1, market="spread", side="away", expert_id=7,
+                                           expert_name="Ryan", units_30=-5.0, streak_type="cold", streak_value=4)]
+
+
+def test_expert_day_signals_use_weekday_losing_streak_and_weekend_hot_form():
+    decisions = _df([dict(game_id=1, market="spread", bet_side="home"),
+                     dict(game_id=2, market="spread", bet_side="away")], ["game_id", "market", "bet_side"])
+    games = _df([dict(id=1, league="nfl"), dict(id=2, league="nfl")], ["id", "league"])
+    experts = pd.DataFrame([
+        dict(game_id=1, market="spread", side="home", expert_id=7, expert_name="Ryan",
+             units_30=-4.0, streak_type="cold", streak_value=4),
+        dict(game_id=2, market="spread", side="away", expert_id=8, expert_name="Mia",
+             units_30=5.5, streak_type="hot", streak_value=2),
+    ])
+    method = pd.DataFrame([
+        dict(game_id=1, market="spread", day_group="T2-6"),
+        dict(game_id=2, market="spread", day_group="T7-CN"),
+    ])
+    history = pd.DataFrame([
+        dict(league="nfl", market="spread", day_group="T2-6", dim="streak", bucket="cold_long", win_pct=.771, n=35),
+        dict(league="nfl", market="spread", day_group="T7-CN", dim="units_30", bucket="hot", win_pct=.55, n=240),
+    ])
+    got = signals(decisions, **{**_NO, "games": games, "expert_sides": experts}, forecast=pd.DataFrame(),
+                  method_plays=method, expert_form_history=history)
+    texts = got[got.highlight].text.tolist()
+    assert "EXPERT THEO NGÀY · Ryan đang thua 4 liên tiếp · lịch sử 77.1% (n=35)" in texts
+    assert "EXPERT THEO NGÀY · Mia cuối tuần đang xanh +5.5u · lịch sử 55.0% (n=240)" in texts
+
+
+def test_profitable_consensus_bucket_is_highlighted_only_when_play_follows_crowd():
+    decisions = _df([dict(game_id=1, market="spread", bet_side="home"),
+                     dict(game_id=2, market="spread", bet_side="away")], ["game_id", "market", "bet_side"])
+    method = pd.DataFrame([
+        dict(game_id=1, league="nfl", market="spread", day_group="T2-6", method="follow",
+             votes=6, total_votes=9),
+        dict(game_id=2, league="nfl", market="spread", day_group="T7-CN", method="fade",
+             votes=6, total_votes=9),
+    ])
+    consensus = pd.DataFrame([dict(league="nfl", market="spread", bucket="60-75", wins=48, losses=27,
+                                        win_pct=.64, roi=.219, low_sample=False)])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=method,
+                  consensus_history=consensus)
+    green = got[got.text.str.startswith("ĐÁM ĐÔNG ĐANG XANH")]
+    assert green.game_id.tolist() == [1]
+    assert "60–75% expert cùng phía · 48-27 · Win 64.0% · ROI +21.9%" in green.iloc[0].text
+    assert green.iloc[0].highlight
 
 
 def test_live_plays_remain_signal_inputs_after_kickoff():
