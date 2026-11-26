@@ -607,6 +607,16 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
 .soccer-history summary { color: var(--muted); cursor: pointer; }
 .soccer-history div { margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .soccer-report-card { max-width: 880px; margin: 14px auto 0; }
+/* Soccer 2H: the plays locked at halftime and their record */
+.soccer-2h { display: grid; gap: 9px; margin-top: 14px; }
+.soccer-2h .soccer-head h3 { margin: 0; font-size: 16px; }
+.soccer-2h .second-half-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.soccer-2h .second-half-stat small { font-size: 11px; }
+.soccer-2h-play { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 10px; font-size: 13px;
+  font-weight: 650; font-variant-numeric: tabular-nums; }
+.soccer-2h-play b { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.soccer-2h-play.win b { color: var(--win); }
+.soccer-2h-play.loss b { color: var(--loss); }
 .soccer-report-card .note { margin: 5px 0 0; }
 .soccer-daily { display: grid; gap: 8px; margin-top: 13px; }
 .soccer-day-result { overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-2); }

@@ -769,6 +769,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <div class="card soccer-card">
       <div class="soccer-head"><h2>Soccer</h2><span class="pill dim" id="soccer-count"></span></div>
       <div class="soccer-live" id="soccer-live" aria-live="polite" hidden></div>
+      <section class="soccer-2h" id="soccer-2h" aria-label="2H soccer"></section>
       <div class="soccer-filters" id="soccer-comps" role="group" aria-label="Giải"></div>
       <div class="soccer-filters" id="soccer-sort" role="group" aria-label="Sắp xếp"></div>
       <div class="soccer-list" id="soccer-list"></div>
@@ -2616,18 +2617,28 @@ const DATA = /*__DATA__*/null;
     host.hidden = !soccerLive.games.length;
     const total = (t) => t && t.line !== null && t.line !== undefined
       ? `${S.line(t.line, false)}${t.over !== null && t.over !== undefined ? ` O ${S.price(t.over)} · U ${S.price(t.under)}` : ""}` : "";
+    const locked = new Map();
+    for (const p of T("Soccer_2H_Plays").filter((x) => x.result === "pending")) {
+      locked.set(String(p.event_id), [...(locked.get(String(p.event_id)) || []), p]);
+    }
     for (const g of soccerLive.games) {
       const row = (label, ml, tot) => el("div", { class: "soccer-live-row" }, el("small", { text: label }),
         el("span", { text: ml ? `${g.home.abbr} ${S.price(ml.home)} · X ${S.price(ml.draw)} · ${g.away.abbr} ${S.price(ml.away)}` : "–" }),
         tot ? el("span", { class: "soccer-live-total", text: total(tot) }) : null);
-      const picks = [], h = g.second_half;
-      if (g.halftime && h && h.side) {
+      const picks = [], h = g.second_half, mine = locked.get(String(g.event_id)) || [];
+      for (const p of mine) {
+        const now = !g.halftime && window.ActionsSoccerLive ? ActionsSoccerLive.lockedStatus(p, g.home_score, g.away_score) : null;
+        picks.push(el("div", { class: `second-half-pick${now ? ` live ${now.now}` : ""}` },
+          el("span", {}, el("strong", { text: soccer2HText(p) })),
+          el("small", { text: now ? `2H ${now.away_2h}–${now.home_2h}` : `🔒 ${soccer2HWhy(p)}` })));
+      }
+      if (!mine.length && g.halftime && h && h.side) {
         const team = g[h.side.team].abbr, fav = g[h.side.favourite].abbr, off = h.side.price === null || h.side.price === undefined;
         picks.push(el("div", { class: `second-half-pick${off ? " off" : ""}` },
           el("span", {}, el("strong", { text: `↩ ${team} 2H ${off ? "–" : S.price(h.side.price)}` })),
           el("small", { text: `1H ${fav} −0,5 ${h.side.covered ? "✓" : "✗"}` })));
       }
-      if (g.halftime && h && h.total) {
+      if (!mine.length && g.halftime && h && h.total) {
         const t = h.total, off = t.price === null || t.price === undefined;
         picks.push(el("div", { class: `second-half-pick${off ? " off" : ""}` },
           el("span", {}, el("strong", { text: `${t.side === "over" ? "↑ Over" : "↓ Under"} ${t.line === null ? "–" : S.line(t.line, false)} ${off ? "" : S.price(t.price)}` })),
@@ -2658,6 +2669,54 @@ const DATA = /*__DATA__*/null;
     }
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && currentTab() === "soccer") refreshSoccerLive(); });
+  // 2H plays the phone locked at halftime, graded on the 90-minute score at the locked price (soccer.py)
+  const soccer2HText = (p) => {
+    const S = window.ActionsSoccer;
+    return p.market === "ml" ? `↩ ${p.pick} 2H ${S.price(p.price)}`
+      : `${p.pick_side === "over" ? "↑ Over" : "↓ Under"} ${S.line(p.line, false)} ${S.price(p.price)}`;
+  };
+  const soccer2HWhy = (p) => p.market === "ml" ? `1H ${p.favourite} −0,5 ${p.covered ? "✓" : "✗"}`
+    : `1H ${p.first_goals} ${p.pick_side === "over" ? "<" : ">"} ${window.ActionsSoccer.line(p.first_line, false)}`;
+  function renderSoccer2H() {
+    const S = window.ActionsSoccer, host = document.getElementById("soccer-2h");
+    if (!S || !host) return;
+    const plays = T("Soccer_2H_Plays"), sums = T("Soccer_2H_Summary");
+    const units = (u) => `${Number(u) >= 0 ? "+" : "−"}${num(Math.abs(Number(u) || 0), 2)}u`;
+    const record = (r) => `${num(r.wins)}-${num(r.losses)}${Number(r.pushes) ? `-${num(r.pushes)}` : ""}`;
+    const tile = (label, r) => el("div", { class: "second-half-stat" }, el("span", { text: label }),
+      el("strong", { text: r ? record(r) : "–" }),
+      el("small", { text: r ? `${pct(r.win_pct)} · ${units(r.units)}${Number(r.pending) ? ` · ⏳ ${num(r.pending)}` : ""}` : "" }));
+    const all = (m) => sums.find((r) => r.scope === "all" && r.market === m);
+    host.replaceChildren(el("div", { class: "soccer-head" }, el("h3", { text: "2H" }), el("span", { class: "pill dim", text: "THEO DÕI" })),
+      el("div", { class: "second-half-summary" }, tile("Tất cả", all("ALL")), tile("↩ Side", all("ml")), tile("↕ Total", all("total"))));
+    if (!plays.length) { host.append(el("div", { class: "empty", text: "Chưa có kèo 2H" })); return; }
+    const days = new Map();
+    for (const p of plays) {
+      const games = days.get(p.et_date) || new Map();
+      games.set(String(p.event_id), [...(games.get(String(p.event_id)) || []), p]);
+      days.set(p.et_date, games);
+    }
+    let index = 0;
+    for (const [date, games] of days) {
+      const d = sums.find((r) => r.scope === "day" && r.et_date === date && r.market === "ALL");
+      const rows = [...games.values()].map((list) => {
+        const g = list[0];
+        return el("div", { class: "soccer-result-game" },
+          el("span", { class: "soccer-result-match", text: `${g.away_abbr} ${g.away_1h}–${g.home_1h} ${g.home_abbr}` }),
+          el("small", { text: `${S.short(g.comp)} · HT` }),
+          ...list.map((p) => {
+            const tone = String(p.result).includes("win") ? "win" : String(p.result).includes("loss") ? "loss" : "";
+            const mark = p.result === "pending" ? "⏳" : tone === "win" ? "✓" : tone === "loss" ? "✗" : "=";
+            return el("div", { class: `soccer-2h-play ${tone}` }, el("span", { text: soccer2HText(p) }),
+              el("b", { text: p.result === "pending" ? mark : `2H ${p.away_2h}–${p.home_2h} ${mark} ${units(p.units)}` }));
+          }));
+      });
+      host.append(el("details", { class: "soccer-day-result", ...(index++ === 0 ? { open: "" } : {}) },
+        el("summary", {}, el("span", { text: dayLabel(date) }), el("b", { text: d ? record(d) : "" }),
+          el("small", { text: d ? `${units(d.units)}${Number(d.pending) ? ` · ⏳ ${num(d.pending)}` : ""}` : "" })),
+        el("div", { class: "soccer-result-games" }, ...rows)));
+    }
+  }
   function renderSoccerDaily() {
     const S = window.ActionsSoccer, host = document.getElementById("soccer-daily");
     if (!S || !host) return;
@@ -2697,6 +2756,7 @@ const DATA = /*__DATA__*/null;
   }
   function soccerTab() {
     renderSoccerLive();
+    renderSoccer2H();
     renderSoccerDaily();
     if (Date.now() - soccerLive.at > 25000) refreshSoccerLive();
     const S = window.ActionsSoccer, rows = T("Soccer_Board"), host = document.getElementById("soccer-list");

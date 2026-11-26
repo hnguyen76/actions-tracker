@@ -21,6 +21,8 @@ from actions_tracker.soccer import board_table as soccer_board
 from actions_tracker.soccer import daily_summary as soccer_daily_summary
 from actions_tracker.soccer import half_lines_table as soccer_half_lines
 from actions_tracker.soccer import results_table as soccer_results
+from actions_tracker.soccer import second_half_summary as soccer_second_half_summary
+from actions_tracker.soccer import second_half_table as soccer_second_half
 from actions_tracker.analysis.my_method import (WEEKDAY_DECISION_VOTES, decision_method_plays, my_method_plays,
                                                 my_method_summary, season_plays, season_sensitivity, season_summary)
 from actions_tracker.analysis.rule_report import rule_plays, rule_summary
@@ -66,6 +68,7 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     scores = scores_table(conn, now)
     half_plays = second_half_plays(conn)
     soccer_history = soccer_results(conn)
+    soccer_2h = soccer_second_half(conn)
     game_info = {int(r["id"]): dict(r) for r in conn.execute("SELECT id, week, away_score, home_score FROM games")}
     sp = season_plays(sides, mm, game_info)
     hs = history_summary(hp)
@@ -122,6 +125,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "Soccer_Half_Lines": soccer_half_lines(conn, now),
         "Soccer_Results": soccer_history,
         "Soccer_Daily": soccer_daily_summary(soccer_history),
+        "Soccer_2H_Plays": soccer_2h,
+        "Soccer_2H_Summary": soccer_second_half_summary(soccer_2h),
         "Second_Half": second_half_table(conn),
         "Second_Half_Plays": half_plays,
         "Second_Half_Summary": second_half_summary(half_plays),

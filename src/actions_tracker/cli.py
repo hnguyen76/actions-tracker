@@ -291,7 +291,8 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             errors = f", loi {c['errors']}" if c["errors"] else ""
             archive = f", {c.get('market_results', 0)} record da cham"
             backfill = f" (+{c['backfilled_results']} cu)" if c.get("backfilled_results") else ""
-            print(f"[soccer] ESPN: {c['games']} tran{week}{archive}{backfill}{errors}")
+            second = f", luu 2H: {c['second_half']}" if c.get("second_half") else ""
+            print(f"[soccer] ESPN: {c['games']} tran{week}{archive}{backfill}{second}{errors}")
         except Exception as e:  # noqa: BLE001 - never fails the run
             print(f"[soccer] ESPN: loi {type(e).__name__}")
     if odds_api is None and live_get is None:
@@ -447,7 +448,7 @@ def _notify_second_half(conn, now: str, telegram, post=None) -> None:
 
 
 def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get=None,
-                telegram: tuple | None = None, post=None, playoff_get=None) -> int:
+                telegram: tuple | None = None, post=None, playoff_get=None, soccer_get=None) -> int:
     """Light run for games in progress: ESPN scores only (no Action Network, no lines), then rebuild the site.
     Does nothing (and makes no request) when no picked game is being played."""
     from actions_tracker import live
@@ -463,6 +464,15 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
             half = f", luu 1H: {c['halftime_saved']}" if c["halftime_saved"] else ""
             print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong{half}")
         changed += c["live"] + c["final"]
+    if soccer_get is not None:  # ESPN soccer: scores, finals and the 2H lines locked at halftime
+        from actions_tracker import soccer as soccer_mod
+        try:
+            s = soccer_mod.live_poll(conn, now, soccer_get)
+            if s["polled"]:
+                print(f"[soccer] diem live: {s['live']} tran dang da, {s['final']} tran vua xong, luu 2H: {s['halftime']}")
+            changed += s["changed"]
+        except Exception as e:  # noqa: BLE001 - never fails the live run
+            print(f"[soccer] diem live: loi {type(e).__name__}")
     if playoff_get is not None and ({"nfl", "ncaaf"} & set(leagues)):
         from actions_tracker.playoffs import PlayoffError, refresh_playoff_picture
         try:
@@ -573,7 +583,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "live":
         from actions_tracker.alerts import load_telegram
         return live_scores(Path(args.db), Path(args.site), [x.strip() for x in args.leagues.split(",") if x.strip()],
-                           utc_now(), telegram=load_telegram(Path.cwd()), playoff_get=requests.get)
+                           utc_now(), telegram=load_telegram(Path.cwd()), playoff_get=requests.get,
+                           soccer_get=requests.get)
     if args.cmd == "news":
         from actions_tracker.sports_news import load_sports_news, refresh_sports_news
         from actions_tracker.match_news import board_games, load_news, refresh_news
