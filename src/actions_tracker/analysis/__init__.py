@@ -149,5 +149,5 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
     tables["Signals"] = signals(signal_inputs, games, current, opening, ctx, public,
                                 expert_sides(eligible, forms), tables["Forecast"], tables["Decision_Method"],
                                 tables["History_Plays"], tables["Pregame_Playoff"], tables["Expert_Form"],
-                                tables["Consensus"])
+                                tables["Consensus"], tables["Trend_Radar"])
     return tables
