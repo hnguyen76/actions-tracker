@@ -303,3 +303,13 @@ def test_rules_tab_leads_with_plain_language_status_cards(tmp_path):
     assert "Đang xanh" in html and "Đang đỏ" in html and "Kèo đang chờ" in html
     assert 'id="mine-overview"' in html and 'id="mine-recent"' in html
     assert "Xem bảng kỹ thuật" in html and "Xem toàn bộ kết quả" in html
+
+
+def test_every_tab_has_a_plain_language_guide(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    expected = {"upcoming", "second-half", "rules", "past", "playoff", "traffic", "soccer", "season-chart",
+                "consensus", "experts", "trend", "history", "nba", "season", "forecast"}
+    for tab in expected:
+        assert f'{tab}: [' in html or f'"{tab}": [' in html
+    assert "function addTabGuides()" in html and "addTabGuides(); tabs();" in html
+    assert "Cách đọc" in html and "Dữ liệu cả mùa" in html and "Chuyên gia" in html

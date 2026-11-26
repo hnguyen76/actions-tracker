@@ -481,6 +481,19 @@ tr.spread-flip-rule-row > td:first-child { box-shadow: inset 4px 0 0 var(--warni
 .rules-detail { margin-top: 14px; }
 .rules-detail > summary { cursor: pointer; font-weight: 700; }
 .rules-detail[open] > summary { margin-bottom: 14px; }
+.tab-guide { margin: 0 0 14px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 18px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow: var(--shadow-soft); }
+.tab-guide > summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  min-height: 64px; padding: 11px 15px; cursor: pointer; list-style: none; }
+.tab-guide > summary::-webkit-details-marker { display: none; }
+.tab-guide-icon { display: grid; place-items: center; width: 39px; height: 39px; border-radius: 13px;
+  background: var(--surface-2); color: var(--accent); font-size: 21px; }
+.tab-guide-copy { display: grid; gap: 2px; min-width: 0; }
+.tab-guide-copy b { font-size: 17px; }
+.tab-guide-copy > span { color: var(--ink-2); }
+.tab-guide-more { padding: 5px 9px; border-radius: 10px; background: var(--surface-2); color: var(--muted); font-size: 13px; }
+.tab-guide > p { margin: 0; padding: 0 15px 14px 66px; color: var(--ink-2); }
+.tab-guide[open] { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); }
 .day-chip {
   min-height: 48px;
   border-color: transparent;
@@ -615,6 +628,10 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
   .rules-overview, .rule-cards, .rules-method-cards { grid-template-columns: 1fr; }
   .rules-best { grid-column: auto; }
   .rule-play-row { align-items: flex-start; }
+  .tab-guide > summary { grid-template-columns: auto minmax(0, 1fr); }
+  .tab-guide-more { display: none; }
+  .tab-guide-copy > span { font-size: 14px; line-height: 1.35; }
+  .tab-guide > p { padding-left: 15px; }
   .decide-sub { margin-top: 18px; }
   .crow { padding: 13px 14px; border-radius: 16px; }
 
