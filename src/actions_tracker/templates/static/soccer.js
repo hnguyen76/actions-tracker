@@ -6,7 +6,7 @@
   const MINUS = "−";
   const SHORT = { "eng.1": "EPL", "uefa.champions": "UCL", "uefa.europa": "UEL", "esp.1": "La Liga", "ita.1": "Serie A",
     "ger.1": "Bundesliga", "fra.1": "Ligue 1", "usa.1": "MLS" };
-  const ORDER = Object.keys(SHORT);
+  const ORDER = ["eng.1", "esp.1", "usa.1"];
   const finite = (v) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
   const comma = (v) => String(Math.abs(v)).replace(".", ",");
 
