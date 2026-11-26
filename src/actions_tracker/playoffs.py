@@ -37,7 +37,8 @@ CFP_RANKING = ("https://sports.core.api.espn.com/v2/sports/football/leagues/coll
 
 STANDING_COLS = ["league", "team_id", "team", "abbr", "logo", "conference", "division", "record",
                  "conf_record", "wins", "losses", "ties", "point_diff", "seed", "captured_at"]
-PLAYOFF_COLS = STANDING_COLS + ["rank", "playoff_prob", "picture", "bid", "model"]
+PLAYOFF_COLS = STANDING_COLS + ["rank", "playoff_prob", "picture", "bid", "model", "projected_seed",
+                                    "projection_reason"]
 NBA_COLS = STANDING_COLS + ["previous_seed", "seed_change", "picture", "bid", "season_type"]
 PREGAME_COLS = ["game_id", "league", "side", "team_id", "team", "abbr", "logo", "conference", "division",
                 "record", "conf_record", "seed", "rank", "playoff_prob", "picture", "bid", "captured_at"]
@@ -214,14 +215,30 @@ def nfl_projection(rows: list[dict], schedule: dict, now: str, season: int) -> l
             for team_id in division_winners + wild:
                 made[team_id] += 1
 
+    projected = {}
+    for conference in {r["conference"] for r in rows}:
+        conference_ids = [k for k, r in by_id.items() if r["conference"] == conference]
+        division_winners = []
+        for division in {by_id[k]["division"] for k in conference_ids}:
+            ids = [k for k in conference_ids if by_id[k]["division"] == division]
+            division_winners.append(max(ids, key=lambda k: (made[k] / NFL_SIMS, strength[k])))
+        division_winners.sort(key=lambda k: (made[k] / NFL_SIMS, strength[k]), reverse=True)
+        wild = sorted((k for k in conference_ids if k not in division_winners),
+                      key=lambda k: (made[k] / NFL_SIMS, strength[k]), reverse=True)[:3]
+        projected.update({team_id: seed for seed, team_id in enumerate(division_winners + wild, start=1)})
+
     out = []
     for row in rows:
         seed = row.get("seed") or 99
+        predicted = projected.get(row["team_id"])
+        chance = made[row["team_id"]] / NFL_SIMS
         out.append({**row, "rank": None, "playoff_prob": made[row["team_id"]] / NFL_SIMS,
-                    "picture": "field" if seed <= 7 else "bubble" if seed <= 10 else "outside",
-                    "bid": "DIV" if seed <= 4 else "WC" if seed <= 7 else "",
-                    "model": f"{NFL_SIMS:,} mô phỏng · tiebreak xấp xỉ"})
-    return sorted(out, key=lambda r: (r.get("seed") or 99, -r["playoff_prob"]))
+                    "picture": "field" if predicted else "bubble" if chance >= .20 else "outside",
+                    "bid": "DIV" if predicted and predicted <= 4 else "WC" if predicted else "",
+                    "model": f"{NFL_SIMS:,} mô phỏng · tiebreak xấp xỉ", "projected_seed": predicted,
+                    "projection_reason": (f"{chance * 100:.0f}% qua {NFL_SIMS:,} mô phỏng · "
+                                          f"{row['record']} · DIFF {row['point_diff']:+g}")})
+    return sorted(out, key=lambda r: (r.get("projected_seed") or 99, -r["playoff_prob"]))
 
 
 def _cfp_payload(rankings: dict, season: int, get) -> dict:
@@ -274,7 +291,10 @@ def ncaaf_projection(rows: list[dict], ranking: dict) -> list[dict]:
                        "playoff_prob": probability,
                        "picture": "field" if team_id in field else "bubble" if rank <= 18 else "outside",
                        "bid": "AUTO" if team_id in auto else "AT-LARGE" if team_id in field else "",
-                       "model": "CFP rank + record + DIFF + conference"})
+                       "model": "CFP rank + record + DIFF + conference", "projected_seed": seeds.get(team_id),
+                       "projection_reason": (f"CFP #{rank if rank != 99 else 'NR'} · {row['record']} · "
+                                             f"DIFF {row['point_diff']:+g}" +
+                                             (" · conference leader" if conf_leader else ""))})
     return sorted(output, key=lambda r: (r.get("seed") or 99, r.get("rank") or 99, -r["playoff_prob"]))
 
 

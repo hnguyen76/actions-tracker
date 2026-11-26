@@ -313,3 +313,12 @@ def test_every_tab_has_a_plain_language_guide(tmp_path):
         assert f'{tab}: [' in html or f'"{tab}": [' in html
     assert "function addTabGuides()" in html and "addTabGuides(); tabs();" in html
     assert "Cách đọc" in html and "Dữ liệu cả mùa" in html and "Chuyên gia" in html
+
+
+def test_playoff_tab_has_live_nfl_and_cfp_prediction_trees(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'id="nfl-prediction-tree"' in html and 'id="ncaaf-prediction-tree"' in html
+    assert "NFL · Cây playoff dự đoán" in html and "NCAAF · Cây CFP dự đoán" in html
+    assert "Seed #1 vs seed thấp nhất còn lại" in html
+    assert "#1 vs đội thắng 8/9" in html and "Hai đội thắng bán kết" in html
+    assert 'Number(r.projected_seed)' in html and "projection_reason" in html

@@ -1045,6 +1045,18 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   </section>
 
   <section class="panel" id="tab-playoff">
+    <div class="card playoff-predict-card">
+      <div class="playoff-head"><h2>🏈 NFL · Cây playoff dự đoán</h2><span class="pill info">5.000 MÔ PHỎNG</span></div>
+      <p class="note">Kết quả mỗi trận làm thay đổi record, point differential và lịch còn lại; S21 chạy lại mô hình rồi tự đổi seed trong cây.</p>
+      <div class="prediction-summary" id="nfl-prediction-summary"></div>
+      <div class="bracket-scroll"><div class="bracket-grid nfl-bracket" id="nfl-prediction-tree"></div></div>
+    </div>
+    <div class="card playoff-predict-card">
+      <div class="playoff-head"><h2>🏆 NCAAF · Cây CFP dự đoán</h2><span class="pill info">TOP 12</span></div>
+      <p class="note">Dựa trên CFP rank, record, point differential và conference leader. Seed 1–4 được nghỉ vòng đầu.</p>
+      <div class="prediction-summary" id="ncaaf-prediction-summary"></div>
+      <div class="bracket-scroll"><div class="bracket-grid cfp-bracket" id="ncaaf-prediction-tree"></div></div>
+    </div>
     <div class="card playoff-hero">
       <div class="playoff-head"><h2>🏈 NFL Playoff Picture</h2><span class="pill info">ESPN</span></div>
       <p class="note"><b>Seed hiện tại</b> là vị trí nếu mùa giải kết thúc hôm nay. <b>Dự báo cuối mùa</b> là mô hình 5.000 lần mô phỏng lịch còn lại, có tính record, point differential và độ khó đối thủ; vì vậy đội seed thấp hơn hiện tại vẫn có thể có xác suất cao hơn.</p>
@@ -3624,8 +3636,50 @@ const DATA = /*__DATA__*/null;
   const playoffRowClass = (r) => r.picture === "field" ? "playoff-in" : r.picture === "bubble" ? "playoff-bubble" : "";
 
   function playoffTab() {
+    const bracketTeam = (r, seed) => el("div", { class: "bracket-team", title: r && r.projection_reason || "" },
+      el("span", { class: "bracket-seed", text: seed ? `#${seed}` : "–" }),
+      r && r.logo ? el("img", { src: r.logo, alt: "", loading: "lazy" }) : null,
+      el("b", { text: r ? (r.abbr || r.team) : "Chờ xác định" }),
+      r && r.playoff_prob !== null && r.playoff_prob !== undefined
+        ? el("span", { class: "bracket-prob", text: `${Math.round(Number(r.playoff_prob) * 100)}%` }) : null);
+    const bracketMatch = (label, a, b) => el("article", { class: "bracket-match" },
+      el("small", { text: label }), bracketTeam(a && a.team, a && a.seed), bracketTeam(b && b.team, b && b.seed));
+    const bracketRound = (title, matches) => el("section", { class: "bracket-round" },
+      el("h3", { text: title }), ...matches);
+    const nflField = T("NFL_Playoff").filter((r) => Number(r.projected_seed) >= 1 && Number(r.projected_seed) <= 7);
+    const byConfSeed = (conf, seed) => nflField.find((r) => r.conference === conf && Number(r.projected_seed) === seed);
+    const nflRounds = [];
+    for (const conf of ["AFC", "NFC"]) {
+      nflRounds.push(bracketRound(`${conf} · Wild Card`, [[2, 7], [3, 6], [4, 5]].map(([a, b]) =>
+        bracketMatch(`${conf} ${a} vs ${b}`, { seed: a, team: byConfSeed(conf, a) }, { seed: b, team: byConfSeed(conf, b) }))));
+      nflRounds.push(bracketRound(`${conf} · Divisional`, [
+        bracketMatch("Seed #1 vs seed thấp nhất còn lại", { seed: 1, team: byConfSeed(conf, 1) }, null),
+        bracketMatch("Hai đội thắng còn lại", null, null),
+      ]));
+    }
+    nflRounds.push(bracketRound("Super Bowl", [bracketMatch("AFC Champion vs NFC Champion", null, null)]));
+    document.getElementById("nfl-prediction-tree").replaceChildren(...nflRounds);
+    document.getElementById("nfl-prediction-summary").replaceChildren(...["AFC", "NFC"].map((conf) =>
+      el("span", {}, el("b", { text: conf }), ` · ${[1, 2, 3, 4, 5, 6, 7].map((s) => (byConfSeed(conf, s) || {}).abbr || "–").join(" · ")}`)));
+
+    const cfp = T("NCAAF_Playoff").filter((r) => Number(r.projected_seed || r.seed) >= 1 && Number(r.projected_seed || r.seed) <= 12);
+    const cfpSeed = (seed) => cfp.find((r) => Number(r.projected_seed || r.seed) === seed);
+    const cfpPair = (a, b, label = `${a} vs ${b}`) => bracketMatch(label,
+      { seed: a, team: cfpSeed(a) }, { seed: b, team: cfpSeed(b) });
+    document.getElementById("ncaaf-prediction-tree").replaceChildren(
+      bracketRound("First Round", [cfpPair(5, 12), cfpPair(6, 11), cfpPair(7, 10), cfpPair(8, 9)]),
+      bracketRound("Quarterfinal", [
+        bracketMatch("#1 vs đội thắng 8/9", { seed: 1, team: cfpSeed(1) }, null),
+        bracketMatch("#2 vs đội thắng 7/10", { seed: 2, team: cfpSeed(2) }, null),
+        bracketMatch("#3 vs đội thắng 6/11", { seed: 3, team: cfpSeed(3) }, null),
+        bracketMatch("#4 vs đội thắng 5/12", { seed: 4, team: cfpSeed(4) }, null),
+      ]),
+      bracketRound("Semifinal", [bracketMatch("Hai cặp bán kết", null, null), bracketMatch("Hai cặp bán kết", null, null)]),
+      bracketRound("Championship", [bracketMatch("Hai đội thắng bán kết", null, null)]));
+    document.getElementById("ncaaf-prediction-summary").replaceChildren(
+      el("span", {}, el("b", { text: "Field dự đoán" }), ` · ${[1,2,3,4,5,6,7,8,9,10,11,12].map((s) => (cfpSeed(s) || {}).abbr || "–").join(" · ")}`));
     const nflCols = [
-      { label: "Seed nay", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
+      { label: "Seed nay → dự đoán", num: true, value: (r) => `${r.seed || "–"} → ${r.projected_seed || "–"}`, sort: (r) => r.projected_seed || 99 },
       { label: "Đội", value: playoffTeam, sort: (r) => r.team },
       { label: "W-L", value: (r) => r.record },
       { label: "DIV", value: (r) => String(r.division || "").replace(/^AFC |^NFC /, "") },

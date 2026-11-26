@@ -597,6 +597,20 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
 .model-grid p { margin: 0; padding: 14px; border-radius: 14px; background: var(--surface-2); }
 .model-grid b, .model-grid span { display: block; }
 .model-grid span { margin-top: 5px; color: var(--ink-2); font-size: 14px; }
+.prediction-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.prediction-summary > span { padding: 8px 11px; border-radius: 12px; background: var(--surface-2); color: var(--ink-2); }
+.bracket-scroll { overflow-x: auto; padding-bottom: 5px; }
+.bracket-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 14px; min-width: 980px; align-items: start; }
+.nfl-bracket { min-width: 1160px; }
+.bracket-round { display: grid; gap: 11px; }
+.bracket-round h3 { margin: 0; color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .05em; }
+.bracket-match { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--border); border-radius: 15px; background: var(--surface-2); }
+.bracket-match > small { color: var(--muted); }
+.bracket-team { display: grid; grid-template-columns: 28px 24px minmax(0, 1fr) auto; align-items: center; gap: 7px;
+  min-height: 38px; padding: 5px 7px; border-radius: 10px; background: var(--surface); }
+.bracket-team img { width: 23px; height: 23px; object-fit: contain; }
+.bracket-seed { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bracket-prob { color: var(--s1); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 900px) {
   .card { padding: 22px; }
@@ -632,6 +646,8 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
   .tab-guide-more { display: none; }
   .tab-guide-copy > span { font-size: 14px; line-height: 1.35; }
   .tab-guide > p { padding-left: 15px; }
+  .playoff-predict-card { padding-left: 14px; padding-right: 14px; }
+  .prediction-summary { flex-wrap: nowrap; overflow-x: auto; }
   .decide-sub { margin-top: 18px; }
   .crow { padding: 13px 14px; border-radius: 16px; }
 
