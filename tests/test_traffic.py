@@ -49,3 +49,41 @@ def test_traffic_spike_is_labeled_as_anomaly(tmp_path, monkeypatch):
     monkeypatch.setattr(traffic.alerts, "load_telegram", lambda root: (None, None))
     conn = db.connect(tmp_path / "actions.db")
     assert "tăng bất thường" in traffic.collect(conn, tmp_path, "2026-11-26T17:20:00+00:00", get=get)["alert"]
+
+
+def test_location_404_does_not_discard_core_traffic(tmp_path, monkeypatch):
+    (tmp_path / traffic.TOKEN_FILE).write_text("secret", "utf-8")
+    hourly = [0] * 24
+    hourly[17] = 3
+
+    def get(url, **kwargs):
+        if url == traffic.DASHBOARD:
+            return Response()
+        if url.endswith("/stats/total"):
+            return Response({"total": 5, "total_events": 2,
+                             "stats": [{"day": "2026-11-26", "hourly": hourly}]})
+        if url.endswith("/stats/hits"):
+            return Response({"hits": [{"title": "Kèo", "path": "tab-upcoming", "count": 2, "event": True}]})
+        if url.endswith("/stats/locations"):
+            return Response({"error": "not available"}, status=404)
+        raise AssertionError(url)
+
+    monkeypatch.setattr(traffic.alerts, "load_telegram", lambda root: (None, None))
+    conn = db.connect(tmp_path / "actions.db")
+    assert traffic.collect(conn, tmp_path, "2026-11-26T17:20:00+00:00", get=get)["visitors"] == 5
+    tables = traffic.tables(conn)
+    assert tables["Traffic_Locations"].empty
+    assert tables["Traffic_Sections"].iloc[0]["name"] == "Kèo"
+
+
+def test_goatcounter_error_names_the_failed_endpoint():
+    def get(url, **kwargs):
+        return Response({"error": "bad range"}, status=404)
+
+    try:
+        traffic._json(get, "https://example.goatcounter.com/api/v0/stats/total", "secret", {})
+    except traffic.TrafficError as exc:
+        assert exc.status == 404
+        assert str(exc) == "GoatCounter stats/total HTTP 404: bad range"
+    else:
+        raise AssertionError("expected TrafficError")

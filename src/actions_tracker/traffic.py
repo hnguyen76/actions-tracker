@@ -27,7 +27,9 @@ SCHEMA = ("CREATE TABLE IF NOT EXISTS traffic_snapshots("
 
 
 class TrafficError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 def setup(root: Path) -> int:
@@ -53,7 +55,17 @@ def _json(get, url: str, token: str, params: dict) -> dict:
     response = get(url, params=params, headers={"Authorization": f"Bearer {token}",
                                                 "Content-Type": "application/json"}, timeout=20)
     if response.status_code != 200:
-        raise TrafficError(f"GoatCounter HTTP {response.status_code}")
+        endpoint = url.split("/api/v0/", 1)[-1]
+        detail = ""
+        try:
+            error = response.json()
+            if isinstance(error, dict):
+                detail = str(error.get("error") or error.get("errors") or "").strip()
+        except (ValueError, TypeError):
+            pass
+        suffix = f": {detail}" if detail else ""
+        raise TrafficError(f"GoatCounter {endpoint} HTTP {response.status_code}{suffix}",
+                           status=int(response.status_code))
     value = response.json()
     if not isinstance(value, dict):
         raise TrafficError("GoatCounter trả dữ liệu không hợp lệ")
@@ -88,7 +100,14 @@ def collect(conn, root: Path, now: str, get=requests.get, post=requests.post) ->
     api = f"https://{SITE_CODE}.goatcounter.com/api/v0"
     total = _json(get, api + "/stats/total", token, params)
     hits = _json(get, api + "/stats/hits", token, params | {"limit": 100})
-    locations = _json(get, api + "/stats/locations", token, params | {"limit": 100})
+    try:
+        locations = _json(get, api + "/stats/locations", token, params | {"limit": 100})
+    except TrafficError as exc:
+        # Location analytics may be unavailable/disabled on a GoatCounter site. It must not prevent
+        # total, hourly and per-page traffic from being saved and published.
+        if exc.status not in {403, 404}:
+            raise
+        locations = {"stats": []}
     day_utc = hour.strftime("%Y-%m-%d")
     hourly = _hourly(total.get("stats") or [], day_utc)
     current = hourly[hour.hour]
