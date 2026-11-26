@@ -3658,9 +3658,13 @@ const DATA = /*__DATA__*/null;
       ]));
     }
     nflRounds.push(bracketRound("Super Bowl", [bracketMatch("AFC Champion vs NFC Champion", null, null)]));
-    document.getElementById("nfl-prediction-tree").replaceChildren(...nflRounds);
-    document.getElementById("nfl-prediction-summary").replaceChildren(...["AFC", "NFC"].map((conf) =>
-      el("span", {}, el("b", { text: conf }), ` · ${[1, 2, 3, 4, 5, 6, 7].map((s) => (byConfSeed(conf, s) || {}).abbr || "–").join(" · ")}`)));
+    document.getElementById("nfl-prediction-tree").replaceChildren(...(nflField.length ? nflRounds : [
+      el("div", { class: "empty", text: "Đang tính lại 5.000 mô phỏng playoff…" })
+    ]));
+    document.getElementById("nfl-prediction-summary").replaceChildren(...(nflField.length
+      ? ["AFC", "NFC"].map((conf) =>
+        el("span", {}, el("b", { text: conf }), ` · ${[1, 2, 3, 4, 5, 6, 7].map((s) => (byConfSeed(conf, s) || {}).abbr || "–").join(" · ")}`))
+      : [el("span", { text: "Dữ liệu dự đoán đang được cập nhật" })]));
 
     const cfp = T("NCAAF_Playoff").filter((r) => Number(r.projected_seed || r.seed) >= 1 && Number(r.projected_seed || r.seed) <= 12);
     const cfpSeed = (seed) => cfp.find((r) => Number(r.projected_seed || r.seed) === seed);
@@ -3679,7 +3683,8 @@ const DATA = /*__DATA__*/null;
     document.getElementById("ncaaf-prediction-summary").replaceChildren(
       el("span", {}, el("b", { text: "Field dự đoán" }), ` · ${[1,2,3,4,5,6,7,8,9,10,11,12].map((s) => (cfpSeed(s) || {}).abbr || "–").join(" · ")}`));
     const nflCols = [
-      { label: "Seed nay → dự đoán", num: true, value: (r) => `${r.seed || "–"} → ${r.projected_seed || "–"}`, sort: (r) => r.projected_seed || 99 },
+      { label: "Seed nay → dự đoán", num: true,
+        value: (r) => `${r.seed || "–"} → ${r.projected_seed || "đang tính"}`, sort: (r) => r.projected_seed || 99 },
       { label: "Đội", value: playoffTeam, sort: (r) => r.team },
       { label: "W-L", value: (r) => r.record },
       { label: "DIV", value: (r) => String(r.division || "").replace(/^AFC |^NFC /, "") },
