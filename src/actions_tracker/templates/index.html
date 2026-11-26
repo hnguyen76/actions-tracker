@@ -199,6 +199,10 @@ h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line
 .live-summary-bet.win::before { background: var(--win); }
 .live-summary-bet.loss { color: var(--loss); background: color-mix(in srgb, var(--loss) 13%, transparent); }
 .live-summary-bet.loss::before { background: var(--loss); }
+.playoff-chance { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.playoff-chance-label { color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.playoff-meter { width: 44px; height: 5px; overflow: hidden; border-radius: 999px; background: var(--raised); }
+.playoff-meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 nav.tabs { display: flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 nav.tabs button { font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1; background: none; border: 0; color: var(--ink-2);
@@ -951,7 +955,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   <section class="panel" id="tab-playoff">
     <div class="card playoff-hero">
       <div class="playoff-head"><h2>🏈 NFL Playoff Picture</h2><span class="pill info">ESPN</span></div>
-      <p class="note">Seed hiện tại của ESPN · % là mô hình 5.000 lần mô phỏng lịch còn lại.</p>
+      <p class="note"><b>Seed hiện tại</b> là vị trí nếu mùa giải kết thúc hôm nay. <b>Dự báo cuối mùa</b> là mô hình 5.000 lần mô phỏng lịch còn lại, có tính record, point differential và độ khó đối thủ; vì vậy đội seed thấp hơn hiện tại vẫn có thể có xác suất cao hơn.</p>
       <div class="grid2 playoff-grid">
         <div><h3 class="decide-sub">AFC</h3><div class="table-scroll" id="nfl-playoff-afc"></div></div>
         <div><h3 class="decide-sub">NFC</h3><div class="table-scroll" id="nfl-playoff-nfc"></div></div>
@@ -1921,6 +1925,31 @@ const DATA = /*__DATA__*/null;
     const games = new Map(T("Live_Games").map((g) => [Number(g.game_id), g]));
     return new Map(rows.map((r) => [Number(r.game_id), { ...r, ...games.get(Number(r.game_id)), ...scoreOf(r) }]));
   }
+  function groupLiveRows(rows) {
+    const games = new Map();
+    for (const row of rows) {
+      const key = Number(row.game_id);
+      if (!games.has(key)) games.set(key, { ...row, plays: [] });
+      games.get(key).plays.push(row);
+    }
+    return [...games.values()];
+  }
+  const livePlayLabel = (r) => {
+    const line = r.line === null || r.line === undefined || r.market === "ml" ? ""
+      : ` ${r.market === "spread" && Number(r.line) > 0 ? "+" : ""}${String(r.line).replace(".", ",")}`;
+    return `${MARKET_LABEL[r.market] || r.market} · ${r.pick}${line}`;
+  };
+  const livePlayBadges = (r) => el("span", { class: "live-summary-bets" },
+    ...(r.plays || [r]).map((play) => el("span", {
+      class: `live-summary-bet ${play.now || "push"}`,
+      text: livePlayLabel(play),
+    })));
+  const groupedLivePill = (r) => {
+    const plays = r.plays || [r], wins = plays.filter((p) => p.now === "win").length;
+    const losses = plays.filter((p) => p.now === "loss").length;
+    if (wins && losses) return el("span", { class: "pill info", text: `${wins} thắng · ${losses} thua` });
+    return nowPill(wins ? "win" : losses ? "loss" : "push", r.state === "final");
+  };
   function renderLiveScoreboards(rows) {
     if (window.ActionsScoreboard) {
       const cards = liveCards(rows);
@@ -1936,17 +1965,13 @@ const DATA = /*__DATA__*/null;
     }
   }
   function renderInPlayTable(rows) {
-    const fmtLine = (x, m) => (x === null || x === undefined ? "" : " " + (m === "spread" && x > 0 ? "+" : "") + String(x).replace(".", ","));
-    const nExperts = (r) => Number((boardOf(r) || {}).total_votes) || Number(r.total_votes) || 0;
-    renderTable("inplay-table", rows, [
+    const grouped = groupLiveRows(rows);
+    renderTable("inplay-table", grouped, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match.replace("@", " @ ")}` },
-      { label: "Expert", value: nExperts, sort: nExperts },
-      STATUS_COL,
-      { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line, r.market) }) },
-      { label: "Vì sao", value: crowdCount, sort: crowdShare },
       SCORE_COL,
-      { label: "Hiện tại", value: (r) => nowPill(r.now, r.state === "final"), sort: (r) => r.now || "" },
+      { label: "Các kèo", value: livePlayBadges, sort: (r) => (r.plays || []).length },
+      { label: "Hiện tại", value: groupedLivePill, sort: (r) => liveSummaryTone(r.plays || [r]) },
     ], null, Object.assign({}, HOT, { detail: liveDecisionDetail }));
   }
   function inPlayCard() {
@@ -3226,9 +3251,13 @@ const DATA = /*__DATA__*/null;
     el("b", { text: r.abbr || r.team || "–" }));
   const playoffChance = (r) => {
     const value = Math.round(Number(r.playoff_prob || 0) * 100);
-    return el("div", { class: "playoff-chance", title: `${value}%` },
+    const diff = Number(r.point_diff || 0);
+    const facts = r.league === "nfl"
+      ? `Seed hiện tại #${r.seed || "–"} · conference ${r.conf_record || "–"} · DIFF ${diff > 0 ? "+" : ""}${num(diff)}`
+      : (r.model || "Dự đoán của site");
+    return el("div", { class: "playoff-chance", title: `${facts} · xác suất cuối mùa ${value}%` },
       el("span", { class: "playoff-meter" }, el("i", { style: `width:${value}%` })),
-      el("b", { text: `${value}%` }));
+      el("span", { class: "playoff-chance-label", text: "Cuối mùa" }), el("b", { text: `${value}%` }));
   };
   const playoffStatus = (r) => r.picture === "field"
     ? el("span", { class: "pill win", text: r.bid || "IN" })
@@ -3238,11 +3267,11 @@ const DATA = /*__DATA__*/null;
 
   function playoffTab() {
     const nflCols = [
-      { label: "#", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
+      { label: "Seed nay", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
       { label: "Đội", value: playoffTeam, sort: (r) => r.team },
       { label: "W-L", value: (r) => r.record },
       { label: "DIV", value: (r) => String(r.division || "").replace(/^AFC |^NFC /, "") },
-      { label: "%", value: playoffChance, sort: (r) => r.playoff_prob },
+      { label: "Dự báo", value: playoffChance, sort: (r) => r.playoff_prob },
       { label: "", value: playoffStatus, sort: (r) => r.picture },
     ];
     const nfl = T("NFL_Playoff");
@@ -3304,9 +3333,8 @@ const DATA = /*__DATA__*/null;
   const newsFor = (r) => matchNewsCell(Object.assign({}, r, { market: "spread", total_votes: 99 }));
   const ruleShort = (r) => String(r.rule_name || r.rule_id || "").replace(/^(NCAAF|NFL) /, "");
   const inPlayCompact = (r, includeMore = true) => ({
-    title: `${leagueName(r.league)} · ${vs(r.match)}`, right: nowPill(r.now, r.state === "final"),
-    sub: [scoreNode(r), ` · Đặt ${r.pick}${ln(r.line, r.market)} · ${num((boardOf(r) || {}).total_votes || r.total_votes || 0)} expert`
-      + ` · ${BOARD_STATUS[statusOf(r)] || ""} · đám đông ${crowdCount(r)}`],
+    title: `${leagueName(r.league)} · ${vs(r.match)}`, right: groupedLivePill(r),
+    sub: [scoreNode(r), livePlayBadges(r)],
     more: includeMore ? [moreBlock("Tín hiệu cho bên bạn đặt", signalsCell(r)),
       moreBlock("Tin tức", newsFor(r), "Chưa có tin tức cho trận này."),
       moreBlock("Playoff", playoffContextCell(r)),
@@ -3368,7 +3396,7 @@ const DATA = /*__DATA__*/null;
     "nba-all": (r) => ({ title: `${fmtShort(r.start_time)} · ${r.away_abbr} @ ${r.home_abbr}`, right: MARKET_LABEL[r.market] || r.market,
       sub: `${boardSide(r, "a")} · ${boardSide(r, "b")} · ${BOARD_STATUS[statusOf(r)] || ""}` }),
     "nfl-playoff-": (r) => ({ title: playoffTeam(r), right: playoffChance(r),
-      sub: [`#${r.seed || "–"} · ${r.record} · ${String(r.division || "").replace(/^AFC |^NFC /, "")} · `, playoffStatus(r)] }),
+      sub: [`Seed nay #${r.seed || "–"} · ${r.record} · CONF ${r.conf_record || "–"} · DIFF ${Number(r.point_diff) > 0 ? "+" : ""}${num(r.point_diff)} · `, playoffStatus(r)] }),
     "ncaaf-playoff-table": (r) => ({ title: playoffTeam(r), right: playoffChance(r),
       sub: [`CFP ${r.rank || "NR"} · ${r.record} · ${r.conference} · `, playoffStatus(r)] }),
   };
@@ -3514,17 +3542,18 @@ const DATA = /*__DATA__*/null;
     if (currentTab() === "second-half") { preserveLiveViewport(secondHalfTab); return; }
     if (currentTab() !== "upcoming") return;
     const rows = rawFilter(allRows);
+    const games = groupLiveRows(rows);
     document.getElementById("inplay-card").hidden = !rows.length;
     if (isPhone()) {
       const current = [...document.querySelectorAll("#inplay-table .clist > .crow")].map((node) => String(node.dataset.gameId));
-      const next = rows.map((r) => String(r.game_id));
+      const next = games.map((r) => String(r.game_id));
       if (current.length !== next.length || current.some((id, i) => id !== next[i])) {
         preserveLiveViewport(redrawLiveCard);
         return;
       }
     }
     renderLiveScoreboards(rows);
-    if (!patchInPlayCompact(rows)) renderInPlayTable(rows);
+    if (!patchInPlayCompact(games)) renderInPlayTable(rows);
   }
   async function refreshLiveScores() {
     if (document.hidden || browserLive.busy) return;
