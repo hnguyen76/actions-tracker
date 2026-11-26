@@ -785,23 +785,34 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   </section>
 
   <section class="panel" id="tab-rules">
+    <div class="card rules-intro">
+      <h2>Quy tắc — nhìn nhanh</h2>
+      <p class="note">Mỗi quy tắc được ghi trước giờ đá rồi mới chấm kết quả. <b>Đang xanh</b> nghĩa là record live hiện có lời; chưa đủ mẫu vẫn chỉ là theo dõi.</p>
+      <div class="rules-overview" id="rules-overview"></div>
+    </div>
     <div class="card mine">
       <h2>Cách của bạn — Mon–Fri theo đám đông, Sat–Sun đánh ngược</h2>
-      <div class="table-scroll" id="mine-summary"></div>
-      <h3 class="decide-sub">Các kèo theo cách này</h3>
-      <div class="table-scroll" id="mine-plays"></div>
+      <div class="rules-method-cards" id="mine-overview"></div>
+      <div class="rules-recent" id="mine-recent"></div>
+      <details class="rules-detail"><summary>Xem toàn bộ cách của bạn</summary>
+        <div class="table-scroll" id="mine-summary"></div>
+        <div class="table-scroll" id="mine-plays"></div>
+      </details>
     </div>
     <div class="card">
-      <h2>Quy tắc đang kiểm chứng — kèo ghi trước giờ đá</h2>
-      <div class="table-scroll" id="rules-summary"></div>
+      <h2>Các quy tắc đang kiểm chứng</h2>
+      <div class="rule-cards" id="rules-cards"></div>
+      <details class="rules-detail"><summary>Xem bảng kỹ thuật</summary><div class="table-scroll" id="rules-summary"></div></details>
     </div>
     <div class="card">
-      <h2>Kèo đang chờ kết quả</h2>
-      <div class="table-scroll" id="rules-pending"></div>
+      <h2>Kèo đang chờ · đã ghi trước giờ đá</h2>
+      <div class="rules-recent" id="rules-pending-list"></div>
+      <details class="rules-detail"><summary>Xem chi tiết kèo chờ</summary><div class="table-scroll" id="rules-pending"></div></details>
     </div>
     <div class="card">
-      <h2>Kèo đã chấm</h2>
-      <div class="table-scroll" id="rules-graded"></div>
+      <h2>Kết quả gần nhất</h2>
+      <div class="rules-recent" id="rules-graded-list"></div>
+      <details class="rules-detail"><summary>Xem toàn bộ kết quả</summary><div class="table-scroll" id="rules-graded"></div></details>
     </div>
   </section>
 
@@ -3246,6 +3257,20 @@ const DATA = /*__DATA__*/null;
     const lg = (r) => state.league === "ALL" || r.league === state.league || r.league === "ALL";
     const sum = T("My_Method_Summary").filter((r) => (state.league === "ALL" ? true : r.league === state.league));
     const rec = (w, l, p) => `${num(w)}-${num(l)}-${num(p)}`;
+    const main = sum.filter((r) => r.day_group !== "ALL" && (r.league === state.league || state.league === "ALL" && r.league === "ALL"));
+    document.getElementById("mine-overview").replaceChildren(...main.map((r) =>
+      el("article", { class: `rules-method-card ${Number(r.roi) > 0 ? "good" : Number(r.roi) < 0 ? "bad" : ""}` },
+        el("span", { text: DG_LABEL[r.day_group] || r.day_group }),
+        el("b", { text: r.n + r.pushes ? `${rec(r.wins, r.losses, r.pushes)} · ${pct(r.win_pct)}` : "Chưa có kết quả" }),
+        el("small", { text: `ROI ${signed(r.roi)} · ${num(r.pending)} đang chờ` }))));
+    const minePlays = T("My_Method").filter(lg);
+    const recentHost = document.getElementById("mine-recent");
+    recentHost.replaceChildren(...minePlays.slice(0, 6).map((r) =>
+      el("article", { class: "rule-play-row" },
+        el("div", {}, el("b", { text: `${fmtTime(r.start_time)} · ${leagueName(r.league)} · ${vs(r.match)}` }),
+          el("span", { text: `${r.method === "follow" ? "Theo" : "Ngược"} đám đông · đặt ${r.pick}` })),
+        r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" }))));
+    if (!minePlays.length) recentHost.append(el("div", { class: "empty", text: EMPTY_TEXT }));
     renderTable("mine-summary", sum, [
       { label: "Giải", value: (r) => leagueName(r.league), cls: (r) => (r.day_group === "ALL" ? "strong" : "") },
       { label: "Nhóm ngày", value: (r) => DG_LABEL[r.day_group] || r.day_group, cls: (r) => (r.day_group === "ALL" ? "strong" : "") },
@@ -3270,7 +3295,33 @@ const DATA = /*__DATA__*/null;
   function rulesTab() {
     mineCard();
     const inFilter = (r) => (state.league === "ALL" || r.league === state.league) && (state.market === "ALL" || r.market === state.market);
-    renderTable("rules-summary", T("Rule_Summary").filter(inFilter), [
+    const summaries = T("Rule_Summary").filter(inFilter);
+    const liveRules = summaries.filter((r) => Number(r.n) > 0);
+    const green = liveRules.filter((r) => Number(r.roi) > 0).length;
+    const red = liveRules.filter((r) => Number(r.roi) < 0).length;
+    const pendingCount = summaries.reduce((n, r) => n + Number(r.pending || 0), 0);
+    const best = liveRules.slice().sort((a, b) => Number(b.roi) - Number(a.roi))[0];
+    const overview = [
+      ["Đang xanh", green, "good"], ["Đang đỏ", red, "bad"],
+      ["Chưa có kết quả", summaries.length - liveRules.length, ""], ["Kèo đang chờ", pendingCount, ""],
+    ];
+    document.getElementById("rules-overview").replaceChildren(...overview.map(([label, value, tone]) =>
+      el("article", { class: `rules-overview-item ${tone}` }, el("span", { text: label }), el("b", { text: num(value) }))),
+      best ? el("article", { class: "rules-best" }, el("span", { text: "Hiệu quả nhất hiện tại" }),
+        el("b", { text: best.name }), el("small", { text: `${num(best.wins)}-${num(best.losses)} · ROI ${signed(best.roi)}` })) : null);
+    document.getElementById("rules-cards").replaceChildren(...summaries.map((r) => {
+      const tone = !r.n ? "waiting" : Number(r.roi) > 0 ? "good" : Number(r.roi) < 0 ? "bad" : "waiting";
+      return el("article", { class: `rule-card ${tone}` },
+        el("div", { class: "rule-card-head" }, el("b", { text: r.name }),
+          el("span", { class: `pill ${tone === "good" ? "win" : tone === "bad" ? "loss" : "dim"}`,
+            text: !r.n ? "CHƯA CÓ KẾT QUẢ" : tone === "good" ? "ĐANG XANH" : tone === "bad" ? "ĐANG ĐỎ" : "HÒA VỐN" })),
+        el("p", { text: r.how }),
+        el("div", { class: "rule-card-stats" },
+          el("span", {}, el("small", { text: "Live" }), el("b", { text: r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}` : "–" })),
+          el("span", {}, el("small", { text: "ROI" }), el("b", { text: signed(r.roi) })),
+          el("span", {}, el("small", { text: "Chờ" }), el("b", { text: num(r.pending) }))));
+    }));
+    renderTable("rules-summary", summaries, [
       { label: "Quy tắc", cls: () => "cell-wrap", sort: (r) => r.name,
         value: (r) => el("div", {}, el("div", { class: "rule-name", text: r.name }), el("div", { class: "rule-how", text: r.how })) },
       { label: "Nhìn lại cả mùa", num: true, value: (r) => `${r.hist_record} · ${pct(r.hist_win_pct)}`, sort: (r) => r.hist_win_pct },
@@ -3300,6 +3351,15 @@ const DATA = /*__DATA__*/null;
     };
     const shortName = (r) => { const t = String(r.rule_name || r.rule_id).replace(/^NCAAF /, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
     const pending = plays.filter((r) => r.status === "pending").sort((a, b) => (a.start_time < b.start_time ? -1 : 1));
+    const simpleList = (target, list, graded = false) => {
+      const host = document.getElementById(target);
+      host.replaceChildren(...list.slice(0, 8).map((r) => el("article", { class: "rule-play-row" },
+        el("div", {}, el("b", { text: `${graded ? r.et_date : fmtTime(r.start_time)} · ${leagueName(r.league)} · ${vs(r.match)}` }),
+          el("span", { text: `${shortName(r)} · đặt ${r.pick}${r.entry_line == null ? "" : ` ${num(r.entry_line, 1)}`}` })),
+        graded ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" }))));
+      if (!list.length) host.append(el("div", { class: "empty", text: EMPTY_TEXT }));
+    };
+    simpleList("rules-pending-list", pending);
     renderTable("rules-pending", pending, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => r.match },
@@ -3309,7 +3369,9 @@ const DATA = /*__DATA__*/null;
       { label: "Ghi lúc", value: (r) => fmtTime(r.logged_at), sort: (r) => r.logged_at },
       SCORE_COL,
     ], null, withHot({ pageSize: 50 }));
-    renderTable("rules-graded", plays.filter((r) => r.status === "graded"), [
+    const graded = plays.filter((r) => r.status === "graded");
+    simpleList("rules-graded-list", graded, true);
+    renderTable("rules-graded", graded, [
       { label: "Ngày", value: (r) => r.et_date },
       { label: "Nhóm ngày", value: (r) => GROUP_LABEL[r.day_group] || r.day_group },
       { label: "Trận", value: (r) => r.match },

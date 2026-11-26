@@ -455,6 +455,32 @@ tr.spread-flip-rule-row > td:first-child { box-shadow: inset 4px 0 0 var(--warni
 .past-detail { margin-top: 14px; }
 .past-detail > summary { cursor: pointer; font-weight: 700; }
 .past-detail[open] > summary { margin-bottom: 14px; }
+.rules-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rules-overview-item, .rules-best { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: var(--surface-2); }
+.rules-overview-item span, .rules-best span, .rules-best small, .rules-method-card span, .rules-method-card small,
+.rule-play-row span, .rule-card p, .rule-card-stats small { color: var(--muted); }
+.rules-overview-item b { font-size: 24px; }
+.rules-overview-item.good { box-shadow: inset 4px 0 0 var(--win); }
+.rules-overview-item.bad { box-shadow: inset 4px 0 0 var(--loss); }
+.rules-best { grid-column: 1 / -1; box-shadow: inset 4px 0 0 var(--s1); }
+.rules-method-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.rules-method-card { display: grid; gap: 5px; padding: 14px; border-radius: 16px; background: var(--surface-2); }
+.rules-method-card.good { box-shadow: inset 4px 0 0 var(--win); }
+.rules-method-card.bad { box-shadow: inset 4px 0 0 var(--loss); }
+.rules-recent { display: grid; gap: 8px; }
+.rule-play-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 15px; background: var(--surface-2); }
+.rule-play-row > div { display: grid; gap: 3px; min-width: 0; }
+.rule-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rule-card { padding: 15px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface-2); }
+.rule-card.good { border-color: color-mix(in srgb, var(--win) 55%, var(--border)); }
+.rule-card.bad { border-color: color-mix(in srgb, var(--loss) 55%, var(--border)); }
+.rule-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.rule-card p { margin: 10px 0; }
+.rule-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.rule-card-stats span { display: grid; padding: 8px 10px; border-radius: 11px; background: var(--surface); }
+.rules-detail { margin-top: 14px; }
+.rules-detail > summary { cursor: pointer; font-weight: 700; }
+.rules-detail[open] > summary { margin-bottom: 14px; }
 .day-chip {
   min-height: 48px;
   border-color: transparent;
@@ -586,6 +612,9 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
   .consensus-card p { min-height: 0; }
   .past-overview, .past-buckets { grid-template-columns: 1fr 1fr; }
   .past-recent-row { align-items: flex-start; }
+  .rules-overview, .rule-cards, .rules-method-cards { grid-template-columns: 1fr; }
+  .rules-best { grid-column: auto; }
+  .rule-play-row { align-items: flex-start; }
   .decide-sub { margin-top: 18px; }
   .crow { padding: 13px 14px; border-radius: 16px; }
 
