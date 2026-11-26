@@ -183,6 +183,8 @@ def test_global_live_summary_shows_every_live_game_and_each_bet_status(tmp_path)
     assert 'class: `live-summary-bet ${p.now || "push"}`' in html
     assert 'renderLiveSummary(allRows)' in html
     assert 'renderLiveSummary(liveInPlayRows())' in html
+    assert 'return "Lost"' in html
+    assert 'total > line' in html
     assert 'if (preserveViewport && Math.abs(heightDelta) > 0.5)' in html
 
 

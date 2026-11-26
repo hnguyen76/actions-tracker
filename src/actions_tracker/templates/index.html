@@ -2145,6 +2145,14 @@ const DATA = /*__DATA__*/null;
     if (states.length && states.every((x) => x === "loss")) return "loss";
     return states.some((x) => x === "win" || x === "loss") ? "mixed" : "push";
   };
+  const liveBetStatusText = (play, score) => {
+    const total = score ? Number(score.away_score) + Number(score.home_score) : NaN;
+    const line = Number(play.line);
+    const isUnder = play.market === "total" && /^under$/i.test(String(play.pick || play.bet_side || "").trim());
+    // A live Under is permanently lost once the score crosses its line; make that finality explicit.
+    if (isUnder && Number.isFinite(total) && Number.isFinite(line) && total > line) return "Lost";
+    return { win: "Đang thắng", loss: "Đang thua", push: "Đang hòa" }[play.now] || "Chưa tính";
+  };
   function renderLiveSummary(rows = liveInPlayRows()) {
     const live = rows.filter((r) => r.state === "live");
     const box = document.getElementById("live-summary"), host = document.getElementById("live-summary-list");
@@ -2166,7 +2174,6 @@ const DATA = /*__DATA__*/null;
     const wins = live.filter((r) => r.now === "win").length, losses = live.filter((r) => r.now === "loss").length;
     const pushes = live.filter((r) => r.now === "push").length;
     document.getElementById("live-summary-record").textContent = `${games.size} trận · ${wins} thắng · ${losses} thua${pushes ? ` · ${pushes} hòa` : ""}`;
-    const status = { win: "Đang thắng", loss: "Đang thua", push: "Đang hòa" };
     const fmtLine = (r) => r.line === null || r.line === undefined || r.market === "ml" ? ""
       : ` ${r.market === "spread" && Number(r.line) > 0 ? "+" : ""}${String(r.line).replace(".", ",")}`;
     for (const plays of games.values()) {
@@ -2178,7 +2185,7 @@ const DATA = /*__DATA__*/null;
         el("span", { class: "live-summary-score" }, scoreText, el("small", { text: clock })),
         el("span", { class: "live-summary-bets" }, ...plays.map((p) => el("span", {
           class: `live-summary-bet ${p.now || "push"}`,
-          text: `${MARKET_LABEL[p.market] || p.market} · ${p.pick}${fmtLine(p)} · ${status[p.now] || "Chưa tính"}`,
+          text: `${MARKET_LABEL[p.market] || p.market} · ${p.pick}${fmtLine(p)} · ${liveBetStatusText(p, score)}`,
         })))));
     }
     const heightDelta = box.offsetHeight - oldHeight;
