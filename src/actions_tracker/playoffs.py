@@ -30,12 +30,15 @@ NCAAF_STANDINGS = ("https://site.api.espn.com/apis/v2/sports/football/college-fo
                    "?region=us&lang=en&contentorigin=espn&group=80&season={season}")
 NCAAF_RANKINGS = ("https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings"
                   "?region=us&lang=en&season={season}&seasontype=2")
+NBA_STANDINGS = ("https://site.api.espn.com/apis/v2/sports/basketball/nba/standings"
+                 "?region=us&lang=en&contentorigin=espn&type=0&level=2")
 CFP_RANKING = ("https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/"
                "seasons/{season}/types/2/weeks/{week}/rankings/21?lang=en&region=us")
 
 STANDING_COLS = ["league", "team_id", "team", "abbr", "logo", "conference", "division", "record",
                  "conf_record", "wins", "losses", "ties", "point_diff", "seed", "captured_at"]
 PLAYOFF_COLS = STANDING_COLS + ["rank", "playoff_prob", "picture", "bid", "model"]
+NBA_COLS = STANDING_COLS + ["previous_seed", "seed_change", "picture", "bid", "season_type"]
 PREGAME_COLS = ["game_id", "league", "side", "team_id", "team", "abbr", "logo", "conference", "division",
                 "record", "conf_record", "seed", "rank", "playoff_prob", "picture", "bid", "captured_at"]
 _ABBR_ALIASES = {("nfl", "JAC"): "JAX", ("nfl", "LA"): "LAR", ("nfl", "WAS"): "WSH"}
@@ -126,6 +129,40 @@ def parse_ncaaf_standings(data: dict, captured_at: str) -> list[dict]:
     if len(rows) < 100:
         raise PlayoffError("ESPN NCAAF standings are incomplete")
     return rows
+
+
+def _nba_season_type(data: dict, now: str) -> str:
+    stamp = pd.Timestamp(now)
+    for season in data.get("seasons", []):
+        if int(season.get("year") or 0) != int(data.get("season", {}).get("year") or 0):
+            continue
+        for item in season.get("types", []):
+            try:
+                if pd.Timestamp(item.get("startDate")) <= stamp < pd.Timestamp(item.get("endDate")):
+                    return "postseason" if str(item.get("id")) == "3" else "playin" if str(item.get("id")) == "5" else "regular"
+            except (TypeError, ValueError):
+                continue
+    return "regular"
+
+
+def parse_nba_standings(data: dict, captured_at: str, previous: dict[str, int] | None = None) -> list[dict]:
+    previous = previous or {}
+    phase = _nba_season_type(data, captured_at)
+    rows = []
+    for conf in data.get("children", []):
+        conference = conf.get("abbreviation") or conf.get("name")
+        for entry in conf.get("standings", {}).get("entries", []):
+            row = _standing_row(entry, "nba", conference, "", captured_at)
+            seed = int(row.get("seed") or 99)
+            old = previous.get(str(row.get("team_id")))
+            row.update({"previous_seed": old, "seed_change": (old - seed) if old else 0,
+                        "picture": "field" if seed <= 6 else "bubble" if seed <= 10 else "outside",
+                        "bid": "PLAYOFF" if seed <= 6 else "PLAY-IN" if seed <= 10 else "OUT",
+                        "season_type": phase})
+            rows.append(row)
+    if len(rows) < 28:
+        raise PlayoffError("ESPN NBA standings are incomplete")
+    return sorted(rows, key=lambda r: (r["conference"], r.get("seed") or 99))
 
 
 def _remaining_nfl_games(data: dict, now: str) -> list[tuple[str, str]]:
@@ -263,7 +300,7 @@ def _save(conn: sqlite3.Connection, league: str, standings: list[dict], playoff:
 def refresh_playoff_picture(conn: sqlite3.Connection, now: str, get=requests.get, force: bool = False) -> int:
     cache = conn.execute("SELECT count(*), min(captured_at) FROM playoff_cache").fetchone()
     oldest = cache[1]
-    if (not force and cache[0] >= 2 and oldest
+    if (not force and cache[0] >= 3 and oldest
             and pd.Timestamp(oldest) > pd.Timestamp(now) - pd.Timedelta(hours=REFRESH_HOURS)):
         return 0
     stamp = pd.Timestamp(now)
@@ -283,7 +320,19 @@ def refresh_playoff_picture(conn: sqlite3.Connection, now: str, get=requests.get
     ranking = _cfp_payload(ranking_index, season, get)
     ncaaf_playoff = ncaaf_projection(ncaaf_rows, ranking)
     _save(conn, "ncaaf", ncaaf_rows, ncaaf_playoff, now, ranking.get("lastUpdated"))
-    return len(nfl_rows) + len(ncaaf_rows)
+
+    previous_nba = {}
+    cached = conn.execute("SELECT payload FROM playoff_cache WHERE league='nba'").fetchone()
+    if cached:
+        try:
+            previous_nba = {str(r.get("team_id")): int(r.get("seed") or 0)
+                            for r in json.loads(cached["payload"]).get("standings", []) if r.get("seed")}
+        except (TypeError, ValueError, json.JSONDecodeError):
+            previous_nba = {}
+    nba_data = _json(get, NBA_STANDINGS)
+    nba_rows = parse_nba_standings(nba_data, now, previous_nba)
+    _save(conn, "nba", nba_rows, nba_rows, now, nba_data.get("season", {}).get("displayName"))
+    return len(nfl_rows) + len(ncaaf_rows) + len(nba_rows)
 
 
 def load_playoff_tables(conn: sqlite3.Connection) -> dict[str, pd.DataFrame]:
@@ -292,6 +341,8 @@ def load_playoff_tables(conn: sqlite3.Connection) -> dict[str, pd.DataFrame]:
         "NFL_Playoff": pd.DataFrame(columns=PLAYOFF_COLS),
         "NCAAF_Standings": pd.DataFrame(columns=STANDING_COLS),
         "NCAAF_Playoff": pd.DataFrame(columns=PLAYOFF_COLS),
+        "NBA_Standings": pd.DataFrame(columns=NBA_COLS),
+        "NBA_Playoff": pd.DataFrame(columns=NBA_COLS),
     }
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='playoff_cache'").fetchone()
     if not exists:
@@ -302,8 +353,10 @@ def load_playoff_tables(conn: sqlite3.Connection) -> dict[str, pd.DataFrame]:
         except (TypeError, json.JSONDecodeError):
             continue
         prefix = str(row["league"]).upper()
-        out[f"{prefix}_Standings"] = pd.DataFrame(payload.get("standings", []), columns=STANDING_COLS)
-        out[f"{prefix}_Playoff"] = pd.DataFrame(payload.get("playoff", []), columns=PLAYOFF_COLS)
+        standing_cols = NBA_COLS if prefix == "NBA" else STANDING_COLS
+        playoff_cols = NBA_COLS if prefix == "NBA" else PLAYOFF_COLS
+        out[f"{prefix}_Standings"] = pd.DataFrame(payload.get("standings", []), columns=standing_cols)
+        out[f"{prefix}_Playoff"] = pd.DataFrame(payload.get("playoff", []), columns=playoff_cols)
     return out
 
 

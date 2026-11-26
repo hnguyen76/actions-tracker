@@ -2,7 +2,8 @@ import json
 
 from actions_tracker import db
 from actions_tracker.playoffs import (NFL_SIMS, _save, load_playoff_tables, ncaaf_projection, pregame_playoff_table,
-                                      nfl_projection, parse_ncaaf_standings, parse_nfl_standings)
+                                      nfl_projection, parse_nba_standings, parse_ncaaf_standings,
+                                      parse_nfl_standings)
 import pandas as pd
 
 NOW = "2026-11-24T12:00:00.000Z"
@@ -49,6 +50,26 @@ def test_parse_espn_standings_keeps_nfl_divisions_and_nested_ncaaf_divisions():
     ncaaf_rows = parse_ncaaf_standings({"children": conferences}, NOW)
     assert len(ncaaf_rows) == 110
     assert {r["division"] for r in ncaaf_rows if r["conference"] == "Sun Belt"} == {"East", "West"}
+
+
+def test_nba_standings_tracks_seed_movement_and_postseason_phase():
+    data = {"season": {"year": 2027}, "seasons": [{"year": 2027, "types": [
+        {"id": "2", "startDate": "2026-10-01T00:00Z", "endDate": "2027-04-19T00:00Z"},
+        {"id": "3", "startDate": "2027-04-19T00:00Z", "endDate": "2027-06-30T00:00Z"},
+    ]}], "children": []}
+    team_id = 1
+    for conference in ("East", "West"):
+        entries = [_entry(team_id + seed - 1, f"{conference[0]}{seed}", 20 - seed, seed, seed)
+                   for seed in range(1, 16)]
+        data["children"].append({"abbreviation": conference, "standings": {"entries": entries}})
+        team_id += 15
+    rows = parse_nba_standings(data, NOW, {"1": 3, "8": 7, "11": 10})
+    assert len(rows) == 30
+    assert (rows[0]["bid"], rows[0]["seed_change"], rows[0]["season_type"]) == ("PLAYOFF", 2, "regular")
+    assert next(r for r in rows if r["team_id"] == "8")["picture"] == "bubble"
+    assert next(r for r in rows if r["team_id"] == "11")["picture"] == "outside"
+    postseason = parse_nba_standings(data, "2027-05-01T12:00:00Z")
+    assert all(r["season_type"] == "postseason" for r in postseason)
 
 
 def test_nfl_model_uses_division_winners_then_three_wildcards():

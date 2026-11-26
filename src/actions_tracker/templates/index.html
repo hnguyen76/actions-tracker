@@ -1043,6 +1043,14 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
         <p><b>NCAAF</b><span>CFP rank + record + point differential + đội đang dẫn conference. Auto-bid dùng 5 conference leaders cao nhất hiện tại.</span></p>
       </div>
     </div>
+    <div class="card playoff-hero" id="nba-playoff-card" hidden>
+      <div class="playoff-head"><h2>🏀 NBA Standings</h2><span class="pill info" id="nba-season-label">Regular Season</span></div>
+      <p class="note">Seed 1–6 vào thẳng Playoff · seed 7–10 vào Play-In · ▲/▼ là thay đổi thứ hạng từ lần cập nhật ESPN trước.</p>
+      <div class="grid2 playoff-grid">
+        <div><h3 class="decide-sub">Eastern Conference</h3><div class="table-scroll" id="nba-playoff-east"></div></div>
+        <div><h3 class="decide-sub">Western Conference</h3><div class="table-scroll" id="nba-playoff-west"></div></div>
+      </div>
+    </div>
   </section>
 
   <section class="panel" id="tab-traffic">
@@ -3509,6 +3517,29 @@ const DATA = /*__DATA__*/null;
     ]);
     select.onchange = draw;
     draw();
+
+    const nba = T("NBA_Standings");
+    const nbaMove = (r) => {
+      const move = Number(r.seed_change || 0);
+      if (move > 0) return el("b", { class: "nba-move-up", text: `▲ ${move}` });
+      if (move < 0) return el("b", { class: "nba-move-down", text: `▼ ${Math.abs(move)}` });
+      return el("span", { class: "muted", text: "—" });
+    };
+    const nbaCols = [
+      { label: "Seed", num: true, value: (r) => r.seed || "–", sort: (r) => r.seed || 99 },
+      { label: "Đội", value: playoffTeam, sort: (r) => r.team },
+      { label: "W-L", value: (r) => r.record },
+      { label: "Lên/xuống", value: nbaMove, sort: (r) => r.seed_change },
+      { label: "", value: playoffStatus, sort: (r) => r.picture },
+    ];
+    for (const conf of ["East", "West"]) renderTable(`nba-playoff-${conf.toLowerCase()}`,
+      nba.filter((r) => r.conference === conf), nbaCols, null, { rowClass: playoffRowClass });
+    const nbaCard = document.getElementById("nba-playoff-card");
+    const postseason = nba.some((r) => r.season_type === "postseason");
+    nbaCard.hidden = !nba.length;
+    document.getElementById("nba-season-label").textContent = postseason ? "NBA Playoffs" : "Regular Season";
+    const playoffPanel = document.getElementById("tab-playoff");
+    if (nba.length) (postseason ? playoffPanel.prepend(nbaCard) : playoffPanel.append(nbaCard));
   }
 
   function trafficTab() {
@@ -3631,6 +3662,11 @@ const DATA = /*__DATA__*/null;
       sub: [`Seed nay #${r.seed || "–"} · ${r.record} · CONF ${r.conf_record || "–"} · DIFF ${Number(r.point_diff) > 0 ? "+" : ""}${num(r.point_diff)} · `, playoffStatus(r)] }),
     "ncaaf-playoff-table": (r) => ({ title: playoffTeam(r), right: playoffChance(r),
       sub: [`CFP ${r.rank || "NR"} · ${r.record} · ${r.conference} · `, playoffStatus(r)] }),
+    "nba-playoff-": (r) => { const move = Number(r.seed_change || 0);
+      return { title: playoffTeam(r), right: playoffStatus(r),
+        sub: [`Seed #${r.seed || "–"} · ${r.record} · `,
+          el("b", { class: move > 0 ? "nba-move-up" : move < 0 ? "nba-move-down" : "muted",
+            text: move > 0 ? `▲ ${move}` : move < 0 ? `▼ ${Math.abs(move)}` : "Không đổi" })] }; },
   };
   const compactFor = (target) => COMPACT[target] || COMPACT[Object.keys(COMPACT).find((k) => k.endsWith("-") && target.startsWith(k))];
 

@@ -309,7 +309,7 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
         unexpected = True
         print(f"[rules] LOI sau line ESPN: {type(e).__name__}: {e}")
 
-    if live_get is not None and ({"nfl", "ncaaf"} & set(leagues)):
+    if live_get is not None and ({"nfl", "ncaaf", "nba"} & set(leagues)):
         from actions_tracker.playoffs import PlayoffError, refresh_playoff_picture
         try:
             count = refresh_playoff_picture(conn, now, get=live_get)
@@ -473,7 +473,7 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
             changed += s["changed"]
         except Exception as e:  # noqa: BLE001 - never fails the live run
             print(f"[soccer] diem live: loi {type(e).__name__}")
-    if playoff_get is not None and ({"nfl", "ncaaf"} & set(leagues)):
+    if playoff_get is not None and ({"nfl", "ncaaf", "nba"} & set(leagues)):
         from actions_tracker.playoffs import PlayoffError, refresh_playoff_picture
         try:
             playoff_changed = refresh_playoff_picture(conn, now, get=playoff_get)
