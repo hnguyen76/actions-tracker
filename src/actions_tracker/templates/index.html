@@ -381,6 +381,17 @@ td.media-picks-cell { white-space: normal; min-width: 250px; max-width: 330px; v
 .expert-comment-pick { color: var(--text); font-weight: 650; }
 .expert-comment-note { color: var(--muted); margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .expert-comment-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.form-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.form-summary-card { padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-2); }
+.form-summary-card h3 { margin: 0 0 8px; font-size: 16px; }
+.form-summary-result { margin: 0; color: var(--ink); font-size: 18px; font-weight: 750; line-height: 1.3; }
+.form-summary-detail { margin: 7px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+.form-summary-status { display: inline-flex; margin-top: 10px; padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 750; }
+.form-summary-status.good { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.form-summary-status.wait { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.form-tech { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.form-tech > summary { cursor: pointer; color: var(--muted); font-weight: 650; }
+@media (max-width: 600px) { .form-summary { grid-template-columns: 1fr; } }
 .pregame-playoff { display: grid; gap: 6px; min-width: 230px; }
 .pregame-playoff-team { display: grid; grid-template-columns: 26px minmax(42px, .7fr) 1fr auto; align-items: center;
   gap: 7px; padding: 6px 8px; border: 1px solid var(--grid); border-radius: 10px; color: var(--ink-2); }
@@ -874,12 +885,17 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 
   <section class="panel" id="tab-experts">
     <div class="card">
-      <h2>Expert đang xanh thì pick tiếp theo có hay thua?</h2>
-      <div class="grid2">
-        <div><p class="note"><b>Mon–Fri</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
-        <div><p class="note"><b>Sat–Sun</b></p><div class="table-scroll" id="form-chart-we"></div></div>
-      </div>
-      <div class="table-scroll" id="form-table"></div>
+      <h2>Phong độ expert có giúp pick kế tiếp thắng không?</h2>
+      <p class="note">So sánh các pick trước đây có cùng trạng thái. Mốc cần vượt là 52,4% để hòa vốn.</p>
+      <div class="form-summary" id="form-summary"></div>
+      <details class="form-tech">
+        <summary>Xem biểu đồ và số liệu chi tiết</summary>
+        <div class="grid2">
+          <div><p class="note"><b>Trong tuần</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
+          <div><p class="note"><b>Cuối tuần</b></p><div class="table-scroll" id="form-chart-we"></div></div>
+        </div>
+        <div class="table-scroll" id="form-table"></div>
+      </details>
     </div>
     <div class="card">
       <h2>Expert</h2>
@@ -2372,8 +2388,28 @@ const DATA = /*__DATA__*/null;
     host.append(svg);
   }
 
+  function formSummary(rows) {
+    const host = document.getElementById("form-summary");
+    const card = (group, title) => {
+      const choices = FORM_ROWS.map(([dim, bucket, label]) => ({ label,
+        row: rows.find((r) => r.day_group === group && r.dim === dim && r.bucket === bucket) }))
+        .filter((x) => x.row && Number(x.row.n) >= 30)
+        .sort((a, b) => Number(b.row.win_pct) - Number(a.row.win_pct));
+      if (!choices.length) return el("div", { class: "form-summary-card" }, el("h3", { text: title }),
+        el("p", { class: "form-summary-detail", text: "Chưa đủ 30 pick để kết luận." }));
+      const best = choices[0], r = best.row, strong = Number(r.ci_low) > BREAKEVEN;
+      const status = strong ? "Tín hiệu lịch sử rõ" : Number(r.win_pct) > BREAKEVEN ? "Có lợi, nhưng chưa chắc" : "Chưa thấy lợi thế";
+      return el("div", { class: "form-summary-card" }, el("h3", { text: title }),
+        el("p", { class: "form-summary-result", text: `${best.label}: thắng ${pct(r.win_pct)}` }),
+        el("p", { class: "form-summary-detail", text: `${num(r.wins)} thắng · ${num(r.losses)} thua${r.pushes ? ` · ${num(r.pushes)} hòa` : ""} trong ${num(r.n)} pick tương tự.` }),
+        el("span", { class: `form-summary-status ${strong ? "good" : "wait"}`, text: status }));
+    };
+    host.replaceChildren(card("T2-6", "Trong tuần"), card("T7-CN", "Cuối tuần"));
+  }
+
   function formSection() {
     const rows = T("Expert_Form").filter((r) => r.league === state.league && r.market === state.market);
+    formSummary(rows);
     formChart("form-chart-wk", rows.filter((r) => r.day_group === "T2-6"));
     formChart("form-chart-we", rows.filter((r) => r.day_group === "T7-CN"));
     const cell = (dim, b, group) => {
@@ -2385,8 +2421,8 @@ const DATA = /*__DATA__*/null;
     renderTable("form-table", table, [
       { label: "Phong độ lúc pick", value: (x) => x.label },
       { label: "Tất cả ngày", num: true, value: (x) => cell(x.dim, x.b, "ALL") },
-      { label: "Mon–Fri", num: true, value: (x) => cell(x.dim, x.b, "T2-6") },
-      { label: "Sat–Sun", num: true, value: (x) => cell(x.dim, x.b, "T7-CN") },
+      { label: "Trong tuần", num: true, value: (x) => cell(x.dim, x.b, "T2-6") },
+      { label: "Cuối tuần", num: true, value: (x) => cell(x.dim, x.b, "T7-CN") },
       { label: "CI 95% (tất cả)", num: true, value: (x) => `${pct(x.all.ci_low)} – ${pct(x.all.ci_high)}` },
       { label: "ROI (tất cả)", num: true, value: (x) => signed(x.all.roi), cls: (x) => roiCls(x.all.roi) },
     ]);
