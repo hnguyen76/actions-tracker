@@ -20,7 +20,7 @@ def test_predict_uses_specific_situation_with_enough_plays_and_shrinks():
     assert abs(f["p_win"] - (15 + 10) / 40) < 1e-9                              # 75% raw -> 62.5% after the prior
     # a unanimous play has no situation of its own -> falls back to the league x day group
     u = fc._prep(pd.DataFrame([_play(9, None, votes=5, total=5)])).to_dict("records")[0]
-    assert fc.predict(u, counts)["basis"] == "NCAAF · Thứ 7–CN"
+    assert fc.predict(u, counts)["basis"] == "NCAAF · Sat–Sun"
 
 
 def test_forecast_upcoming_and_walk_forward():

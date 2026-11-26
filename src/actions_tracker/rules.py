@@ -30,9 +30,9 @@ RULES = [
      "how": "Đa số expert (≥ 3) chọn spread đội khách và đội khách là underdog → đặt đội nhà (favorite).",
      "hist_wins": 74, "hist_losses": 54},
     {"id": "ncaaf_spread_daygroup", "league": "ncaaf", "market": "spread",
-     "name": "NCAAF spread: Thứ 2–6 theo đa số, Thứ 7–CN đánh ngược",
-     "how": "Kèo spread có ≥ 5 expert và một bên nhiều hơn: trận Thứ 2–6 (giờ miền Đông) → đặt bên đa số; "
-            "trận Thứ 7–CN → đặt bên còn lại.",
+     "name": "NCAAF spread: Mon–Fri theo đa số, Sat–Sun đánh ngược",
+     "how": "Kèo spread có ≥ 5 expert và một bên nhiều hơn: trận Mon–Fri (giờ miền Đông) → đặt bên đa số; "
+            "trận Sat–Sun → đặt bên còn lại.",
      "hist_wins": 143, "hist_losses": 122},
     {"id": "nfl_spread_heavy_follow", "league": "nfl", "market": "spread",
      "name": "NFL spread: theo đa số khi ≥ 10 expert một phía",
@@ -106,7 +106,7 @@ def evaluate(conn: sqlite3.Connection, now: str) -> list[dict]:
                 line = None if maj is None else (maj if weekday else -maj)
             team = game["home_abbr"] if r.side == "home" else game["away_abbr"]
             add("ncaaf_spread_daygroup", r.game_id, "spread", bet, line,
-                f"đa số {team} {votes} · {'Thứ 2–6: theo' if weekday else 'Thứ 7–CN: đánh ngược'}")
+                f"đa số {team} {votes} · {'Mon–Fri: theo' if weekday else 'Sat–Sun: đánh ngược'}")
         if r.market == "spread" and r.side == "away":
             away_line = split(r.game_id, "spread", "away", "line")
             if away_line is None:

@@ -24,7 +24,7 @@ def _db(tmp_path):
 def _tables():
     decisions = pd.DataFrame([
         dict(game_id=1, market="spread", action="paper", pick="UK -3", stake_u=0.0,
-             reason="NCAAF spread: Thứ 2–6 theo đa số, Thứ 7–CN đánh ngược: đa số FLA 3/5"),
+             reason="NCAAF spread: Mon–Fri theo đa số, Sat–Sun đánh ngược: đa số FLA 3/5"),
         dict(game_id=2, market="total", action="paper", pick="Under 46,5", stake_u=0.0, reason="NCAAF total"),
         dict(game_id=2, market="spread", action="skip", pick="Đa số chọn UCF (4/5)", stake_u=0.0, reason="x"),
     ])
@@ -43,7 +43,7 @@ def test_due_games_only_soon_with_picks_and_not_sent(tmp_path):
 def test_message_lists_games_and_hides_small_totals(tmp_path):
     c = _db(tmp_path)
     [msg] = alerts.build_messages(alerts.due_games(c, NOW), _tables(), NOW)
-    assert "18:15 ET Thứ 7 14/11" in msg and "còn 15 phút" in msg and "2 trận" in msg
+    assert "18:15 ET Sat 14/11" in msg and "còn 15 phút" in msg and "2 trận" in msg
     assert "NCAAF · FLA @ UK" in msg and "📝 Spread: UK -3 · 5 expert\n" in msg
     assert "Under 46,5" not in msg                       # total with 3 experts is hidden, like on the dashboard
     assert "▫️ Spread: Đa số chọn UCF (4/5) · 5 expert · bỏ qua" in msg

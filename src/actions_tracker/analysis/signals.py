@@ -112,7 +112,7 @@ def _weekly_pick_record(play, method_plays: pd.DataFrame) -> tuple[str, str] | N
     tone = "🟢" if wins > losses else "🔴" if losses > wins else "⚪"
     push_text = f" · {pushes} hòa" if pushes else ""
     label = bucket.replace("-", "–")
-    period = "Tuần này T2–T6" if day_group == "T2-6" else "Cuối tuần này T7–CN"
+    period = "Tuần này Mon–Fri" if day_group == "T2-6" else "Cuối tuần này Sat–Sun"
     return tone, (f"{period} · pick tương đương {label}%: {len(graded)} trận"
                   f" · {wins} thắng · {losses} thua{push_text}")
 
@@ -159,7 +159,7 @@ def _history_pick_record(play, history_plays: pd.DataFrame) -> tuple[str, str] |
     tone = "🟢" if wins > losses else "🔴" if losses > wins else "⚪"
     push_text = f" · {pushes} hòa" if pushes else ""
     label = bucket.replace("-", "–")
-    period = "T2–T6 · follow" if day_group == "T2-6" else "T7–CN · fade spread"
+    period = "Mon–Fri · follow" if day_group == "T2-6" else "Sat–Sun · fade spread"
     return tone, (f"Lịch sử mùa NFL/NCAAF ({period}, pick_count) · {label}%: {len(graded)} trận"
                   f" · {wins} thắng · {losses} thua{push_text}")
 

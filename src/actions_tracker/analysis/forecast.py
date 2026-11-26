@@ -24,7 +24,7 @@ FORECAST_COLS = ["league", "game_id", "start_time", "et_date", "day_group", "mat
                  "ev_u"]
 BACKTEST_COLS = ["league", "p_bucket", "n", "wins", "losses", "win_pct", "avg_p", "units"]
 CELL_COLS = ["league", "day_group", "crowd_type", "bucket", "n", "wins", "losses", "raw_pct", "p_win"]
-_DG = {"T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN"}
+_DG = {"T2-6": "Mon–Fri", "T7-CN": "Sat–Sun"}
 _CT = {"unanimous": "đồng thuận", "mixed": "không đồng thuận"}
 
 
