@@ -289,7 +289,9 @@ def run(db_path: Path, report_path: Path, site_dir: Path, leagues: list[str], fe
             c = soccer_mod.collect(conn, now, get=live_get)
             week = " (ca tuan)" if c["far"] else ""
             errors = f", loi {c['errors']}" if c["errors"] else ""
-            print(f"[soccer] ESPN: {c['games']} tran{week}{errors}")
+            archive = f", {c.get('market_results', 0)} record da cham"
+            backfill = f" (+{c['backfilled_results']} cu)" if c.get("backfilled_results") else ""
+            print(f"[soccer] ESPN: {c['games']} tran{week}{archive}{backfill}{errors}")
         except Exception as e:  # noqa: BLE001 - never fails the run
             print(f"[soccer] ESPN: loi {type(e).__name__}")
     if odds_api is None and live_get is None:

@@ -166,6 +166,11 @@ GAMES_SCHEMA = ("CREATE TABLE IF NOT EXISTS soccer_games(event_id TEXT PRIMARY K
                 "odds_json TEXT, updated_at TEXT)")
 LINES_SCHEMA = ("CREATE TABLE IF NOT EXISTS soccer_line_history(event_id TEXT, market TEXT, side TEXT, line REAL, "
                 "odds INTEGER, seen_at TEXT, PRIMARY KEY(event_id, market, side, seen_at))")
+RESULTS_SCHEMA = ("CREATE TABLE IF NOT EXISTS soccer_market_results(event_id TEXT, comp TEXT, start_time TEXT, "
+                  "et_date TEXT, day_group TEXT, home_abbr TEXT, away_abbr TEXT, home_90 INTEGER, away_90 INTEGER, "
+                  "market TEXT, side TEXT, open_line REAL, open_odds INTEGER, close_line REAL, close_odds INTEGER, "
+                  "close_seen_at TEXT, result TEXT, profit_u REAL, graded_at TEXT, "
+                  "PRIMARY KEY(event_id, market, side))")
 NEAR_DAYS = 3        # today and the next two days, every run (lines move most close to kickoff)
 FAR_DAYS = 8         # up to a week ahead ...
 FAR_EVERY_H = 2      # ... every two hours
@@ -211,6 +216,11 @@ def _store(conn, e: dict, now: str) -> None:
         (e["event_id"], e["comp"], _iso(e["start_time"]), e["home_name"], e["away_name"], e["home_abbr"], e["away_abbr"],
          e["state"], e["status"], e["detail"], e["home_score"], e["away_score"], h90, a90,
          json.dumps(opened) if opened else None, json.dumps(current) if current else None, now))
+    if e["state"] == "final" and e["score_90"]:
+        saved = conn.execute("SELECT open_json, odds_json FROM soccer_games WHERE event_id = ?", (e["event_id"],)).fetchone()
+        saved_open = json.loads(saved[0] or "{}") if saved else opened
+        saved_close = json.loads(saved[1] or "{}") if saved else current
+        _store_market_results(conn, e, saved_open, saved_close, now)
     if e["state"] != "scheduled":
         return
     for market, sides in current.items():
@@ -223,6 +233,63 @@ def _store(conn, e: dict, now: str) -> None:
                              "VALUES (?, ?, ?, ?, ?, ?)", (e["event_id"], market, side, line, price, now))
 
 
+def _profit(result: str, odds: int | None) -> float | None:
+    """Profit for one unit risked at American odds; quarter-line halves keep their half result."""
+    if odds is None:
+        return None
+    win = odds / 100 if odds > 0 else 100 / -odds
+    return round({"win": win, "loss": -1.0, "push": 0.0,
+                  "half_win": win / 2, "half_loss": -0.5}[result], 4)
+
+
+def _store_market_results(conn, e: dict, opened: dict, current: dict, now: str) -> None:
+    """Freeze every offered closing side once the 90-minute score is final.
+
+    These are market outcomes, not claims that the owner bet every side.  Keeping every side, price, line and score
+    lets a later analysis join expert picks or test a new rule without reconstructing old ESPN pages.
+    """
+    closing = {m: {s: ([None, v, now] if m == "ml" else [*v, now]) for s, v in values.items()}
+               for m, values in current.items()}
+    for market, side, line, odds, seen_at in conn.execute(
+            "SELECT h.market, h.side, h.line, h.odds, h.seen_at FROM soccer_line_history h "
+            "WHERE h.event_id = ? AND h.seen_at = (SELECT MAX(x.seen_at) FROM soccer_line_history x "
+            "WHERE x.event_id = h.event_id AND x.market = h.market AND x.side = h.side)", (e["event_id"],)):
+        closing.setdefault(market, {})[side] = [line, odds, seen_at]
+    local = pd.Timestamp(e["start_time"]).tz_convert(TZ)
+    home, away = e["score_90"]
+    for market, sides in closing.items():
+        for side, close in sides.items():
+            close_line, close_odds = (close + [None])[:2] if isinstance(close, list) else (None, close)
+            close_seen = close[2] if isinstance(close, list) and len(close) > 2 else now
+            if close_odds is None or market not in _SIDES or side not in _SIDES[market]:
+                continue
+            result = grade(market, side, close_line, home, away)
+            raw_open = opened.get(market, {}).get(side)
+            open_line, open_odds = (None, raw_open) if market == "ml" else (
+                (raw_open or [None, None])[:2] if isinstance(raw_open, list) else (None, None))
+            conn.execute(
+                "INSERT INTO soccer_market_results(event_id, comp, start_time, et_date, day_group, "
+                "home_abbr, away_abbr, home_90, away_90, market, side, open_line, open_odds, close_line, close_odds, "
+                "close_seen_at, result, profit_u, graded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(event_id, market, side) DO UPDATE SET home_90=excluded.home_90, away_90=excluded.away_90, "
+                "result=excluded.result, profit_u=excluded.profit_u, graded_at=excluded.graded_at",
+                (e["event_id"], e["comp"], _iso(e["start_time"]), local.strftime("%Y-%m-%d"),
+                 "T2-6" if local.day_of_week <= 4 else "T7-CN", e["home_abbr"], e["away_abbr"], home, away,
+                 market, side, open_line, open_odds, close_line, close_odds, close_seen, result,
+                 _profit(result, close_odds), now))
+
+
+def _backfill_market_results(conn, now: str) -> int:
+    """Archive final games already stored before this table existed, without needing ESPN to return them again."""
+    games = [dict(r) for r in conn.execute(
+        "SELECT g.* FROM soccer_games g WHERE g.state = 'final' AND g.home_90 IS NOT NULL AND g.away_90 IS NOT NULL "
+        "AND NOT EXISTS (SELECT 1 FROM soccer_market_results r WHERE r.event_id = g.event_id)")]
+    for g in games:
+        event = {**g, "score_90": (g["home_90"], g["away_90"])}
+        _store_market_results(conn, event, json.loads(g["open_json"] or "{}"), json.loads(g["odds_json"] or "{}"), now)
+    return len(games)
+
+
 def collect(conn, now: str, get=None) -> dict:
     """Poll ESPN for yesterday .. two days ahead (and a week ahead every FAR_EVERY_H hours) in every competition;
     store each game and every line that moved. A failed request is skipped. Never touches the other leagues."""
@@ -232,6 +299,8 @@ def collect(conn, now: str, get=None) -> dict:
     get = get or requests.get
     conn.execute(GAMES_SCHEMA)
     conn.execute(LINES_SCHEMA)
+    conn.execute(RESULTS_SCHEMA)
+    backfilled = _backfill_market_results(conn, now)
     last_far = db.get_meta(conn, "soccer_far_at")
     far = last_far is None or pd.Timestamp(now) - pd.Timestamp(last_far) >= pd.Timedelta(hours=FAR_EVERY_H)
     games, errors = {}, 0
@@ -252,7 +321,9 @@ def collect(conn, now: str, get=None) -> dict:
     if far:
         db.set_meta(conn, "soccer_far_at", now)
     conn.commit()
-    return {"games": len(games), "errors": errors, "far": far, "half_lines": half}
+    results = conn.execute("SELECT COUNT(*) FROM soccer_market_results").fetchone()[0]
+    return {"games": len(games), "errors": errors, "far": far, "half_lines": half,
+            "market_results": results, "backfilled_results": backfilled}
 
 
 # --- the board: upcoming games, their lines and line history, ranked by how far the market moved ----------------
