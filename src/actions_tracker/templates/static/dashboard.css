@@ -606,6 +606,28 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
 .soccer-history { color: var(--ink-2); font-size: 12.5px; }
 .soccer-history summary { color: var(--muted); cursor: pointer; }
 .soccer-history div { margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.soccer-report-card { max-width: 880px; margin: 14px auto 0; }
+.soccer-report-card .note { margin: 5px 0 0; }
+.soccer-daily { display: grid; gap: 8px; margin-top: 13px; }
+.soccer-day-result { overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-2); }
+.soccer-day-result > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center;
+  padding: 10px 12px; cursor: pointer; list-style: none; }
+.soccer-day-result > summary::-webkit-details-marker { display: none; }
+.soccer-day-result > summary span { font-weight: 750; }
+.soccer-day-result > summary b { color: var(--ink-2); font-size: 12px; }
+.soccer-day-result > summary small { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.soccer-result-games { display: grid; border-top: 1px solid var(--grid); }
+.soccer-result-game { display: grid; grid-template-columns: minmax(110px, 1fr) auto; gap: 4px 10px; align-items: center;
+  padding: 9px 12px; border-top: 1px solid var(--grid); }
+.soccer-result-game:first-child { border-top: 0; }
+.soccer-result-match { font-size: 14px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.soccer-result-game > small { color: var(--muted); font-size: 10.5px; }
+.soccer-result-markets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+.soccer-result-pill { padding: 2px 7px; border-radius: 999px; background: var(--raised); color: var(--ink-2);
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.soccer-result-pill.ml { color: var(--accent); background: var(--accent-wash); }
+.soccer-result-pill.spread { color: var(--win); background: color-mix(in srgb, var(--win) 12%, transparent); }
+.soccer-result-pill.total { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
 /* Soccer live: one card per game in play, pregame vs live line, the 2H plays at halftime */
 .soccer-live { display: grid; gap: 9px; margin-top: 12px; }
 .soccer-live-game { display: grid; gap: 6px; padding: 12px 13px; border: 1px solid var(--border); border-left: 3px solid var(--loss);
