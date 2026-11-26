@@ -86,6 +86,7 @@ def test_nfl_model_uses_division_winners_then_three_wildcards():
                              "point_diff": wins * 10, "seed": seed, "captured_at": NOW})
     projected = nfl_projection(rows, {"events": []}, NOW, 2026)
     assert sum(r["playoff_prob"] == 1 for r in projected if r["conference"] == "AFC") == 7
+    assert {r["projected_seed"] for r in projected if r["conference"] == "AFC" and r["projected_seed"]} == set(range(1, 8))
     assert all(r["model"].startswith(f"{NFL_SIMS:,}") for r in projected)
 
 
@@ -104,6 +105,7 @@ def test_ncaaf_picture_uses_cfp_refs_and_excludes_independent_auto_bid():
     assert len(projected) == 25 and sum(r["picture"] == "field" for r in projected) == 12
     assert next(r for r in projected if r["team_id"] == "3")["bid"] == "AT-LARGE"
     assert sum(r["bid"] == "AUTO" for r in projected) == 5
+    assert {r["projected_seed"] for r in projected if r["picture"] == "field"} == set(range(1, 13))
 
 
 def test_cached_rows_survive_an_offline_site_rebuild(tmp_path):
