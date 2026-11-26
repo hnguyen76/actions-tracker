@@ -380,6 +380,7 @@ td.media-picks-cell { white-space: normal; min-width: 250px; max-width: 330px; v
 .expert-comment { margin: 7px 0; }
 .expert-comment-pick { color: var(--text); font-weight: 650; }
 .expert-comment-note { color: var(--muted); margin-top: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.expert-comment-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .pregame-playoff { display: grid; gap: 6px; min-width: 230px; }
 .pregame-playoff-team { display: grid; grid-template-columns: 26px minmax(42px, .7fr) 1fr auto; align-items: center;
   gap: 7px; padding: 6px 8px; border: 1px solid var(--grid); border-radius: 10px; color: var(--ink-2); }
@@ -1080,6 +1081,20 @@ const DATA = /*__DATA__*/null;
     return e;
   }
 
+  function linkifiedText(value) {
+    const text = String(value || ""), parts = text.split(/(https?:\/\/[^\s]+)/gi);
+    return el("span", {}, ...parts.map((part) => {
+      if (!/^https?:\/\//i.test(part)) return part;
+      const suffix = part.match(/[),.;!?]+$/)?.[0] || "";
+      const candidate = suffix ? part.slice(0, -suffix.length) : part;
+      try {
+        const url = new URL(candidate);
+        if (!["https:", "http:"].includes(url.protocol)) return part;
+        return el("span", {}, el("a", { href: url.href, target: "_blank", rel: "noopener noreferrer", text: candidate }), suffix);
+      } catch (_) { return part; }
+    }));
+  }
+
   const compactSummary = (c) => [
     el("div", { class: "c1" }, el("div", { class: "ct" }, c.title ?? ""),
       c.right === null || c.right === undefined ? null : el("div", { class: "cr" }, c.right)),
@@ -1739,7 +1754,7 @@ const DATA = /*__DATA__*/null;
     if (!items.length) return el("span", { class: "news-empty", text: "Không có comment" });
     return el("ul", { class: "expert-comments" }, ...items.map((x) => el("li", { class: "expert-comment" },
       el("div", { class: "expert-comment-pick", text: `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}` }),
-      el("div", { class: "expert-comment-note", text: x.expert_note }))));
+      el("div", { class: "expert-comment-note" }, linkifiedText(x.expert_note)))));
   }
   let pregamePlayoffMap = null;
   const playoffPlace = (x) => x.rank ? `CFP #${x.rank}` : x.seed ? `#${x.seed}` : "OUT";
@@ -1790,7 +1805,10 @@ const DATA = /*__DATA__*/null;
     return pregameSnapshotMap.get(`${r.game_id}|${r.market}`) || null;
   }
   const archivedList = (items, text, cls = "") => items && items.length
-    ? el("ul", { class: cls || "signals" }, ...items.map((x) => el("li", { text: text(x) })))
+    ? el("ul", { class: cls || "signals" }, ...items.map((x) => {
+      const content = text(x);
+      return typeof content === "string" ? el("li", { text: content }) : el("li", {}, content);
+    }))
     : el("span", { class: "news-empty", text: "Chưa có dữ liệu đã lưu" });
   function archivedNews(items) {
     return archivedList(items, (x) => `${x.team_abbr || ""} · ${x.sentiment === "positive" ? "Có lợi" : "Bất lợi"}: ${x.summary || "–"}`);
@@ -1823,7 +1841,8 @@ const DATA = /*__DATA__*/null;
       detailBlock("Tín hiệu trước trận", archivedList(d.signals, (x) => `${x.tone || "•"} ${x.text || "–"}`)),
       detailBlock("Tin tức trước trận", archivedNews(d.news)),
       detailBlock("Playoff trước trận", playoffRowsCell(d.playoff)),
-      detailBlock("Comment của expert", archivedList(d.comments, (x) => `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}: ${x.expert_note || "–"}`)),
+      detailBlock("Comment của expert", archivedList(d.comments, (x) => el("span", {},
+        el("b", { text: `${x.expert_name || "Expert"} · ${x.play_text || "Pick"}: ` }), linkifiedText(x.expert_note || "–")))),
       detailBlock("Chuyên gia chọn spread", archivedATS(d.ats)),
       detailBlock("Thời tiết giờ đá", archivedWeather(d.weather)),
       detailBlock("Chuyên gia chọn winner", archivedWinner(d.winner)));

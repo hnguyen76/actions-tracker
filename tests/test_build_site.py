@@ -226,3 +226,11 @@ def test_soccer_tab_sits_beside_past_and_ships_its_helpers(tmp_path):
     assert 'id="tab-soccer"' in html and 'T("Soccer_Board")' in html and "soccer.js?v=" in html
     assert 'id="soccer-daily"' in html and 'T("Soccer_Results")' in html and 'T("Soccer_Daily")' in html
     assert (tmp_path / "site" / "soccer.js").exists()
+
+
+def test_expert_comment_urls_are_safe_clickable_links(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert "function linkifiedText(value)" in html
+    assert '["https:", "http:"].includes(url.protocol)' in html
+    assert 'target: "_blank", rel: "noopener noreferrer"' in html
+    assert "linkifiedText(x.expert_note)" in html
