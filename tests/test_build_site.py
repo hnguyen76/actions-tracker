@@ -218,4 +218,5 @@ def test_soccer_tab_sits_beside_past_and_ships_its_helpers(tmp_path):
     html = out.read_text("utf-8")
     assert html.index('data-tab="past"') < html.index('data-tab="soccer"') < html.index('data-tab="season-chart"')
     assert 'id="tab-soccer"' in html and 'T("Soccer_Board")' in html and "soccer.js?v=" in html
+    assert 'id="soccer-daily"' in html and 'T("Soccer_Results")' in html and 'T("Soccer_Daily")' in html
     assert (tmp_path / "site" / "soccer.js").exists()

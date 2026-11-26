@@ -141,6 +141,17 @@ def test_existing_final_games_are_backfilled_without_refetching_espn(tmp_path):
     draw = conn.execute("SELECT result FROM soccer_market_results WHERE event_id='401879227' "
                         "AND market='ml' AND side='draw'").fetchone()[0]
     assert draw == "win"
+    results = soccer.results_table(conn)
+    assert len(results) == 1
+    result = results.iloc[0]
+    assert (result["away_abbr"], result["away_90"], result["home_90"], result["home_abbr"]) == ("COV", 1, 1, "LEE")
+    assert result["ml"]["side"] == "draw"
+    assert result["spread"] == {"side": "away", "line": 1.5, "odds": -180, "result": "win"}
+    assert result["total"] == {"side": "under", "line": 2.5, "odds": 125, "result": "win"}
+    daily = soccer.daily_summary(results).iloc[0]
+    assert (daily["et_date"], daily["games"], daily["home_wins"], daily["draws"], daily["away_wins"]) == (
+        "2026-11-28", 1, 0, 1, 0)
+    assert (daily["overs"], daily["unders"], daily["total_pushes"]) == (0, 1, 0)
     assert soccer._backfill_market_results(conn, "2026-11-28T18:00:00.000Z") == 0
 
 

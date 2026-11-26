@@ -773,6 +773,11 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <div class="soccer-filters" id="soccer-sort" role="group" aria-label="Sắp xếp"></div>
       <div class="soccer-list" id="soccer-list"></div>
     </div>
+    <div class="card soccer-report-card">
+      <div class="soccer-head"><h2>📅 Kết quả 90'</h2><span class="pill dim" id="soccer-result-count"></span></div>
+      <p class="note">Kết quả thị trường tại closing line · chưa phải record bet</p>
+      <div class="soccer-daily" id="soccer-daily"></div>
+    </div>
   </section>
 
   <section class="panel" id="tab-second-half">
@@ -2653,8 +2658,46 @@ const DATA = /*__DATA__*/null;
     }
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && currentTab() === "soccer") refreshSoccerLive(); });
+  function renderSoccerDaily() {
+    const S = window.ActionsSoccer, host = document.getElementById("soccer-daily");
+    if (!S || !host) return;
+    const rows = T("Soccer_Results"), daily = new Map(T("Soccer_Daily").map((r) => [r.et_date, r]));
+    const days = new Map();
+    for (const r of rows) {
+      if (!days.has(r.et_date)) days.set(r.et_date, []);
+      days.get(r.et_date).push(r);
+    }
+    document.getElementById("soccer-result-count").textContent = `${days.size} ngày · ${rows.length} trận`;
+    host.replaceChildren();
+    if (!rows.length) { host.append(el("div", { class: "empty", text: "Chưa có trận đã chấm" })); return; }
+    const side = (r, market) => {
+      const pick = r[market];
+      if (!pick) return null;
+      if (pick.side === "push") return el("span", { class: "soccer-result-pill push", text: market === "total" ? `T ${S.line(pick.line, false)}` : "Push" });
+      const label = pick.side === "home" ? r.home_abbr : pick.side === "away" ? r.away_abbr
+        : pick.side === "draw" ? "X" : pick.side === "over" ? "O" : "U";
+      const line = market === "ml" ? "" : ` ${S.line(pick.line, market === "spread")}`;
+      const half = pick.result === "half_win" ? " ½" : "";
+      return el("span", { class: `soccer-result-pill ${market}`, text: `${label}${line}${half}` });
+    };
+    let index = 0;
+    for (const [date, games] of days) {
+      const d = daily.get(date) || {}, totalPush = Number(d.total_pushes || 0);
+      const stats = `H ${num(d.home_wins || 0)} · X ${num(d.draws || 0)} · A ${num(d.away_wins || 0)}`
+        + `  |  O ${num(d.overs || 0)} · U ${num(d.unders || 0)}${totalPush ? ` · P ${totalPush}` : ""}`;
+      const gameRows = games.map((r) => el("div", { class: "soccer-result-game" },
+        el("span", { class: "soccer-result-match", text: `${r.away_abbr} ${r.away_90}–${r.home_90} ${r.home_abbr}` }),
+        el("small", { text: S.short(r.comp) }),
+        el("span", { class: "soccer-result-markets" }, side(r, "ml"), side(r, "spread"), side(r, "total"))));
+      host.append(el("details", { class: "soccer-day-result", ...(index++ === 0 ? { open: "" } : {}) },
+        el("summary", {}, el("span", { text: dayLabel(date) }), el("b", { text: `${games.length} trận` }),
+          el("small", { text: stats })),
+        el("div", { class: "soccer-result-games" }, ...gameRows)));
+    }
+  }
   function soccerTab() {
     renderSoccerLive();
+    renderSoccerDaily();
     if (Date.now() - soccerLive.at > 25000) refreshSoccerLive();
     const S = window.ActionsSoccer, rows = T("Soccer_Board"), host = document.getElementById("soccer-list");
     if (!S || !host) return;

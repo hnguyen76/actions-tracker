@@ -468,6 +468,64 @@ def board_table(conn, now: str) -> pd.DataFrame:
     return out.astype(object)
 
 
+# --- final 90-minute outcomes grouped for the daily Soccer report ---------------------------------------------
+RESULT_COLS = ["event_id", "comp", "comp_name", "start_time", "et_date", "day_group", "home_abbr", "away_abbr",
+               "home_90", "away_90", "ml", "spread", "total"]
+DAILY_COLS = ["et_date", "games", "home_wins", "draws", "away_wins", "overs", "unders", "total_pushes"]
+
+
+def _winning_side(rows: list[dict], market: str) -> dict | None:
+    market_rows = [r for r in rows if r["market"] == market]
+    winner = next((r for result in ("win", "half_win") for r in market_rows if r["result"] == result), None)
+    if winner:
+        return {"side": winner["side"], "line": winner["close_line"], "odds": winner["close_odds"],
+                "result": winner["result"]}
+    if market_rows and all(r["result"] == "push" for r in market_rows):
+        return {"side": "push", "line": market_rows[0]["close_line"], "odds": None, "result": "push"}
+    return None
+
+
+def results_table(conn) -> pd.DataFrame:
+    """One auditable row per final game for the daily UI; the database keeps all individual market sides."""
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='soccer_market_results'").fetchone()
+    if not exists:
+        return pd.DataFrame(columns=RESULT_COLS)
+    raw = [dict(r) for r in conn.execute(
+        "SELECT * FROM soccer_market_results ORDER BY start_time DESC, event_id, market, side")]
+    games = {}
+    for row in raw:
+        games.setdefault(row["event_id"], []).append(row)
+    output = []
+    for event_id, rows in games.items():
+        r = rows[0]
+        output.append({"event_id": event_id, "comp": r["comp"], "comp_name": COMPS.get(r["comp"], r["comp"]),
+                       "start_time": r["start_time"], "et_date": r["et_date"], "day_group": r["day_group"],
+                       "home_abbr": r["home_abbr"], "away_abbr": r["away_abbr"],
+                       "home_90": r["home_90"], "away_90": r["away_90"],
+                       "ml": _winning_side(rows, "ml"), "spread": _winning_side(rows, "spread"),
+                       "total": _winning_side(rows, "total")})
+    return pd.DataFrame(output, columns=RESULT_COLS).sort_values(
+        ["start_time", "event_id"], ascending=[False, True], kind="stable").astype(object)
+
+
+def daily_summary(results: pd.DataFrame) -> pd.DataFrame:
+    """Daily 90-minute outcome mix. This is deliberately not labelled as a betting W-L record."""
+    if results is None or results.empty:
+        return pd.DataFrame(columns=DAILY_COLS)
+    output = []
+    for et_date, group in results.groupby("et_date", sort=False):
+        ml = [r for r in group["ml"] if isinstance(r, dict)]
+        totals = [r for r in group["total"] if isinstance(r, dict)]
+        output.append({"et_date": et_date, "games": len(group),
+                       "home_wins": sum(r["side"] == "home" for r in ml),
+                       "draws": sum(r["side"] == "draw" for r in ml),
+                       "away_wins": sum(r["side"] == "away" for r in ml),
+                       "overs": sum(r["side"] == "over" for r in totals),
+                       "unders": sum(r["side"] == "under" for r in totals),
+                       "total_pushes": sum(r["side"] == "push" for r in totals)})
+    return pd.DataFrame(output, columns=DAILY_COLS).astype(object)
+
+
 # --- 1H lines, captured before kickoff: once a game is under way ESPN's pregame half props turn to leftovers ------
 HALF_SCHEMA = ("CREATE TABLE IF NOT EXISTS soccer_half_lines(event_id TEXT PRIMARY KEY, first_ml TEXT, first_total TEXT, "
                "captured_at TEXT)")
