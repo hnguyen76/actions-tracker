@@ -101,6 +101,48 @@ body {
 .logo-turkey-wattle { fill: var(--tg-3); }
 .logo-turkey-leg { fill: none; stroke: var(--tg-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .logo-caught-ball { opacity: 0; }
+.black-friday-mark, .christmas-hat { display: none; }
+.black-friday-mark rect { fill: #080808; stroke: #f7c948; stroke-width: 1; }
+.black-friday-mark text { fill: #f7c948; font: 900 8px system-ui, sans-serif; letter-spacing: 1.4px; text-anchor: middle; }
+.season-black-friday .brand-tag { display: none; }
+.season-black-friday .black-friday-mark { display: inline; }
+.season-black-friday .brand-word tspan { fill: #f7c948; }
+.season-black-friday .brand-mark { filter: drop-shadow(0 0 8px rgba(247, 201, 72, .22)); }
+.season-black-friday body { background:
+  radial-gradient(760px 260px at 18% -80px, rgba(247, 201, 72, .11), transparent 70%), var(--page); }
+.christmas-hat path { fill: #d72638; }
+.christmas-hat rect, .christmas-hat circle { fill: #fff; }
+.season-christmas .christmas-hat { display: inline; }
+.season-christmas .brand-word .b1, .season-christmas .brand-word .b3,
+.season-christmas .brand-word .b5, .season-christmas .brand-word .b7 { fill: #d72638; }
+.season-christmas .brand-word .b2, .season-christmas .brand-word .b4,
+.season-christmas .brand-word .b6 { fill: #16834b; }
+.season-christmas .logo-snow { display: inline; animation: logo-air-gust 11.5s -2.8s ease-in-out infinite; }
+
+/* Christmas quarterback completes one quiet lap around the viewport every 20 seconds. */
+.christmas-lap { display: none; position: fixed; top: 8px; left: 8px; width: 44px; height: 34px;
+  z-index: 60; pointer-events: none; will-change: transform; }
+.season-christmas .christmas-lap { display: block; animation: christmas-screen-lap 20s linear infinite; }
+.christmas-lap svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 4px rgba(0,0,0,.28)); }
+.christmas-leg, .christmas-arm { fill: none; stroke: #f7f7f7; stroke-width: 4; stroke-linecap: round; }
+.christmas-body, .christmas-helmet { fill: #d72638; stroke: #8d1020; stroke-width: 1; }
+.christmas-mask { fill: none; stroke: #f7f7f7; stroke-width: 1.6; stroke-linecap: round; }
+.christmas-football { fill: #8a4b2a; stroke: #fff; stroke-width: 1; }
+.season-christmas .christmas-player { transform-origin: center; animation: christmas-run-bob .48s ease-in-out infinite alternate; }
+.season-christmas .christmas-football { transform-box: fill-box; transform-origin: center;
+  animation: christmas-ball-spin 1.2s linear infinite; }
+@keyframes christmas-screen-lap {
+  0% { transform: translate(0, 0) rotate(0); }
+  24% { transform: translate(calc(100vw - 60px), 0) rotate(0); }
+  26% { transform: translate(calc(100vw - 60px), 0) rotate(90deg); }
+  49% { transform: translate(calc(100vw - 60px), calc(100vh - 58px)) rotate(90deg); }
+  51% { transform: translate(calc(100vw - 60px), calc(100vh - 58px)) rotate(180deg); }
+  74% { transform: translate(0, calc(100vh - 58px)) rotate(180deg); }
+  76% { transform: translate(0, calc(100vh - 58px)) rotate(270deg); }
+  99%, 100% { transform: translate(0, 0) rotate(270deg); }
+}
+@keyframes christmas-run-bob { to { transform: translateY(-2px) rotate(-2deg); } }
+@keyframes christmas-ball-spin { to { transform: rotate(360deg); } }
 
 /* A short Thanksgiving doodle every 24 s: throw, catch, then the turkey runs the ball out. */
 .season-thanksgiving .brand-static { animation: logo-static-cycle 24s ease-in-out infinite; }
@@ -124,12 +166,12 @@ body {
 .season-thanksgiving .logo-fall-e { animation: logo-leaf-e 12.5s -1.1s linear infinite; }
 .logo-snowflake { opacity: 0; transform-box: fill-box; transform-origin: center; will-change: transform, opacity; }
 .logo-snowflake circle { fill: #fff; stroke: color-mix(in srgb, var(--accent) 58%, #fff); stroke-width: .55; }
-.season-thanksgiving .logo-snow-a { animation: logo-snow-a 8.6s -1.8s linear infinite; }
-.season-thanksgiving .logo-snow-b { animation: logo-snow-b 10.4s -7.2s linear infinite; }
-.season-thanksgiving .logo-snow-c { animation: logo-snow-c 9.3s -4.5s linear infinite; }
-.season-thanksgiving .logo-snow-d { animation: logo-snow-d 11.8s -9.1s linear infinite; }
-.season-thanksgiving .logo-snow-e { animation: logo-snow-e 8.9s -6.3s linear infinite; }
-.season-thanksgiving .logo-snow-f { animation: logo-snow-f 10.9s -2.7s linear infinite; }
+.season-thanksgiving .logo-snow-a, .season-christmas .logo-snow-a { animation: logo-snow-a 8.6s -1.8s linear infinite; }
+.season-thanksgiving .logo-snow-b, .season-christmas .logo-snow-b { animation: logo-snow-b 10.4s -7.2s linear infinite; }
+.season-thanksgiving .logo-snow-c, .season-christmas .logo-snow-c { animation: logo-snow-c 9.3s -4.5s linear infinite; }
+.season-thanksgiving .logo-snow-d, .season-christmas .logo-snow-d { animation: logo-snow-d 11.8s -9.1s linear infinite; }
+.season-thanksgiving .logo-snow-e, .season-christmas .logo-snow-e { animation: logo-snow-e 8.9s -6.3s linear infinite; }
+.season-thanksgiving .logo-snow-f, .season-christmas .logo-snow-f { animation: logo-snow-f 10.9s -2.7s linear infinite; }
 @keyframes logo-static-cycle { 0%, 72%, 100% { opacity: 1; } 74%, 94% { opacity: 0; } }
 @keyframes logo-play-cycle { 0%, 72%, 96%, 100% { opacity: 0; } 74%, 94% { opacity: 1; } }
 @keyframes logo-qb-throw {
@@ -570,6 +612,8 @@ tr.playoff-bubble > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
   .season-thanksgiving .logo-turkey-runner, .season-thanksgiving .logo-caught-ball,
   .season-thanksgiving .logo-turkey-leg-a, .season-thanksgiving .logo-turkey-leg-b { animation: none; }
   .season-thanksgiving .logo-play, .season-thanksgiving .logo-fall, .season-thanksgiving .logo-snow { display: none; }
+  .season-christmas .christmas-lap { display: none; animation: none; }
+  .season-christmas .logo-snow, .season-christmas .logo-snowflake { animation: none; }
 }
 
 
