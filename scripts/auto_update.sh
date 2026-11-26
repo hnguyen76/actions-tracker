@@ -96,13 +96,16 @@ ensure_live_cron() {
     *) return ;;
   esac
   command -v crontab >/dev/null 2>&1 || return
-  if crontab -l 2>/dev/null | grep -Fq "3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live"; then
+  # Sat-Sun 06:00-08:59 too: European soccer kicks off from 06:30 ET and its 2H lines are locked at halftime
+  if crontab -l 2>/dev/null | grep -Fq "3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live" \
+     && crontab -l 2>/dev/null | grep -Fq "3-59/5 6-8 * * 0,6 bash $REPO/scripts/auto_update.sh live"; then
     return
   fi
   current_cron="$(crontab -l 2>/dev/null || true)"
   ( printf '%s\n' "$current_cron" | grep -v "auto_update.sh live" || true
-    echo "3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live >> $HOME/actions-auto.log 2>&1" ) | crontab -
-  echo "Da mo rong lich live score den 03:00; lan quet cuoi khoang 02:58."
+    echo "3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live >> $HOME/actions-auto.log 2>&1"
+    echo "3-59/5 6-8 * * 0,6 bash $REPO/scripts/auto_update.sh live >> $HOME/actions-auto.log 2>&1" ) | crontab -
+  echo "Lich live score: 09:00-03:00, them 06:00-09:00 Thu 7/CN (soccer)."
 }
 
 sync_main() {

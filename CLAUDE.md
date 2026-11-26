@@ -15,6 +15,8 @@ in English (spread, total, moneyline, favorite, underdog, fade).
   update run: DraftKings 1X2/spread/total, every line move (`soccer_line_history`), market-move signals ranked.
   Soccer bets grade on the 90-minute score. Action Network soccer pages are only saved (`page_samples`) until a
   copy with picks exists; then the pick parser and the method (Mon-Fri follow >= 2, Sat-Sun fade spread >= 5).
+  Soccer 2H (tracked only): the `live` run locks each game's first halftime lines (`soccer_second_half`: 1H lines
+  captured pregame, "Moneyline - Rest of Game", live total less 1H goals) and grades them on 90' at those prices.
 
 ## Hard rules
 - Never fetch actionnetwork.com from a cloud machine and never work around its bot block (no internal/app

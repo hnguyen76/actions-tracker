@@ -84,6 +84,9 @@ def test_live_score_schedule_runs_every_five_minutes_until_3am():
     assert '3-59/5 9-23 * * * $J live $L' not in setup
     assert '3-59/5 0-2,9-23 * * * bash $REPO/scripts/auto_update.sh live' in script
     assert 'ensure_live_cron' in script
+    # Sat-Sun mornings too: European soccer from 06:30 ET, its 2H lines are locked at halftime
+    assert '3-59/5 6-8 * * 0,6 $J live $L' in setup
+    assert '3-59/5 6-8 * * 0,6 bash $REPO/scripts/auto_update.sh live' in script
 
 
 def test_existing_termux_cron_is_replaced_with_late_alert_schedule(tmp_path):
@@ -130,4 +133,5 @@ exit 0
     assert installed.count("auto_update.sh alert") == 2
     assert "3-59/5 0-2,9-23 * * *" in installed
     assert "3-59/5 9-23 * * *" not in installed
-    assert installed.count("auto_update.sh live") == 1
+    assert installed.count("auto_update.sh live") == 2
+    assert "3-59/5 6-8 * * 0,6" in installed

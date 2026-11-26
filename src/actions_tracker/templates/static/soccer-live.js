@@ -124,6 +124,21 @@
     return out.ml || out.total ? out : null;
   }
 
+  // a 2H play the phone locked at halftime (Soccer_2H_Plays) during the 2H: the 2H score and where the play stands
+  // if the game ended now (the rest of game is 3-way: a level 2H loses; a total on the number is a push)
+  function lockedStatus(play, homeScore, awayScore) {
+    const h = finite(homeScore), a = finite(awayScore), h1 = finite(play && play.home_1h), a1 = finite(play && play.away_1h);
+    if ([h, a, h1, a1].some((v) => v === null)) return null;
+    const home = h - h1, away = a - a1;
+    let edge;
+    if (play.market === "ml") edge = play.pick_side === "home" ? home - away : away - home;
+    else {
+      const over = home + away - Number(play.line);
+      edge = play.pick_side === "over" ? over : -over;
+    }
+    return { home_2h: home, away_2h: away, now: edge > 0 ? "win" : edge < 0 || play.market === "ml" ? "loss" : "push" };
+  }
+
   const COMPS = ["eng.1", "uefa.champions", "uefa.europa", "esp.1", "ita.1", "ger.1", "fra.1", "usa.1"];
   const ODDS_POLL_MS = 60000;   // live odds and the 2H markets at halftime: at most once a minute per game
   const SCOREBOARD = (comp, d) => `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${comp}/scoreboard?dates=${d}`;
@@ -192,5 +207,5 @@
     return games.sort((a, b) => Date.parse(a.start_time) - Date.parse(b.start_time));
   }
 
-  root.ActionsSoccerLive = { halfMarkets, decide2H, parseEvent, parseLiveOdds, fetchLive, COMPS };
+  root.ActionsSoccerLive = { halfMarkets, decide2H, parseEvent, parseLiveOdds, fetchLive, lockedStatus, COMPS };
 })(globalThis);

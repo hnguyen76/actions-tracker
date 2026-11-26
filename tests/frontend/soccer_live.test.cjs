@@ -152,3 +152,14 @@ test('fetchLive never reads the leftover pregame half props: no captured 1H line
   assert.deepEqual(g.second_half, { side: null, total: null });
   assert.equal(urls.filter((u) => u.includes('propBets')).length, 1);          // the live props only
 });
+
+test('a locked 2H play during the 2H: the 2H score and where it stands now', () => {
+  const side = { market: 'ml', pick_side: 'home', home_1h: 0, away_1h: 1 };
+  assert.deepEqual(plain(api.lockedStatus(side, 2, 1)), { home_2h: 2, away_2h: 0, now: 'win' });
+  assert.equal(api.lockedStatus(side, 1, 2).now, 'loss');                    // 2H 1-1: the 3-way rest of game loses
+  const over = { market: 'total', pick_side: 'over', line: 1.5, home_1h: 1, away_1h: 0 };
+  assert.equal(api.lockedStatus(over, 2, 0).now, 'loss');                    // one 2H goal: under 1,5 so far
+  assert.equal(api.lockedStatus(over, 2, 1).now, 'win');
+  assert.equal(api.lockedStatus({ ...over, pick_side: 'under', line: 1 }, 2, 0).now, 'push');
+  assert.equal(api.lockedStatus(over, null, 0), null);
+});
