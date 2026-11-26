@@ -806,15 +806,29 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   </section>
 
   <section class="panel" id="tab-past">
+    <div class="card past-intro" id="past-overview-card">
+      <h2>Kèo đã qua — nhìn nhanh</h2>
+      <p class="note">Trong tuần tính kết quả khi <b>theo bên đông</b>. Cuối tuần tính kết quả khi <b>đánh ngược bên đông</b>. Các số bên dưới thay đổi theo bộ lọc đang chọn.</p>
+      <div class="past-overview" id="past-overview"></div>
+      <div class="past-buckets" id="past-buckets"></div>
+    </div>
     <div class="card" id="past-weekday-card">
-      <h2>Mon – Fri</h2>
-      <div class="table-scroll" id="past-chart-wk"></div>
-      <div class="table-scroll" id="past-table-wk"></div>
+      <h2>Mon–Fri · theo bên đông</h2>
+      <p class="note" id="past-summary-wk"></p>
+      <div class="past-recent" id="past-recent-wk"></div>
+      <details class="past-detail"><summary>Xem tất cả và biểu đồ</summary>
+        <div class="table-scroll" id="past-chart-wk"></div>
+        <div class="table-scroll" id="past-table-wk"></div>
+      </details>
     </div>
     <div class="card" id="past-weekend-card">
-      <h2>Sat – Sun</h2>
-      <div class="table-scroll" id="past-chart-we"></div>
-      <div class="table-scroll" id="past-table-we"></div>
+      <h2>Sat–Sun · đánh ngược bên đông</h2>
+      <p class="note" id="past-summary-we"></p>
+      <div class="past-recent" id="past-recent-we"></div>
+      <details class="past-detail"><summary>Xem tất cả và biểu đồ</summary>
+        <div class="table-scroll" id="past-chart-we"></div>
+        <div class="table-scroll" id="past-table-we"></div>
+      </details>
     </div>
   </section>
 
@@ -1901,9 +1915,11 @@ const DATA = /*__DATA__*/null;
     if (!saved) return el("div", { class: "detail-grid" },
       detailBlock("Thông tin trước trận", "Trận cũ này chưa có snapshot trước trận."));
     const d = saved.data || {}, board = (d.board || [])[0];
+    const result = r.method_result || r.side_result;
+    const action = r.day_group === "T7-CN" ? `Đánh ngược side đa số ${r.pick}` : `Theo side đa số ${r.pick}`;
     const comparison = board
-      ? `${r.pick} ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%) · kết quả: ${RESULT_LABEL[r.side_result] || r.side_result}`
-      : `Side đa số ${r.pick} · kết quả: ${RESULT_LABEL[r.side_result] || r.side_result}`;
+      ? `${action} · expert ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%) · kết quả: ${RESULT_LABEL[result] || result}`
+      : `${action} · kết quả: ${RESULT_LABEL[result] || result}`;
     return el("div", { class: "detail-grid" },
       detailBlock("So sánh trước trận → kết quả", comparison),
       detailBlock("Tín hiệu trước trận", archivedList(d.signals, (x) => `${x.tone || "•"} ${x.text || "–"}`)),
@@ -2674,20 +2690,61 @@ const DATA = /*__DATA__*/null;
       const cutoff = Date.now() - state.range * 86400000;
       rows = rows.filter((r) => new Date(r.start_time).getTime() >= cutoff);
     }
+    const methodResult = (r) => r.day_group === "T7-CN"
+      ? ({ win: "loss", loss: "win", push: "push" }[r.side_result] || r.side_result) : r.side_result;
+    const record = (part) => {
+      const results = part.map(methodResult), wins = results.filter((x) => x === "win").length;
+      const losses = results.filter((x) => x === "loss").length, pushes = results.filter((x) => x === "push").length;
+      return { wins, losses, pushes, n: wins + losses, pct: wins + losses ? wins / (wins + losses) : null };
+    };
+    const recordText = (s) => `${s.wins}-${s.losses}${s.pushes ? `-${s.pushes}` : ""} · ${pct(s.pct)}`;
+    const weekday = rows.filter((r) => r.day_group === "T2-6"), weekend = rows.filter((r) => r.day_group === "T7-CN");
+    const overviewItem = (title, action, part) => {
+      const s = record(part), tone = s.n ? (s.pct >= BREAKEVEN ? "go" : "hold") : "hold";
+      return el("article", { class: `past-overview-item ${tone}` }, el("span", { text: title }),
+        el("b", { text: action }), el("strong", { text: s.n ? recordText(s) : "Chưa có kèo" }));
+    };
+    document.getElementById("past-overview").replaceChildren(
+      overviewItem("Mon–Fri", "THEO BÊN ĐÔNG", weekday), overviewItem("Sat–Sun", "ĐÁNH NGƯỢC", weekend));
+    document.getElementById("past-buckets").replaceChildren(...BUCKETS.map((bucket) => {
+      const part = rows.filter((r) => r.bucket === bucket), s = record(part);
+      return el("article", { class: `past-bucket ${s.n && s.pct >= BREAKEVEN ? "good" : ""}` },
+        el("span", { text: `${bucket.replace("-", "–")}% expert cùng phía` }),
+        el("b", { text: s.n ? recordText(s) : "Chưa có dữ liệu" }),
+        el("small", { text: `${part.length} kèo theo cách Mon–Fri/Sat–Sun` }));
+    }));
+    const recent = (target, part, weekendMode) => {
+      const host = document.getElementById(target);
+      host.replaceChildren(...part.slice(0, 8).map((r) => {
+        const result = methodResult(r), action = weekendMode ? `Ngược ${r.pick}` : `Theo ${r.pick}`;
+        return el("article", { class: "past-recent-row" },
+          el("div", {}, el("b", { text: `${r.et_date} · ${leagueName(r.league)} · ${vs(r.match)}` }),
+            el("span", { text: `${MARKET_LABEL[r.market] || r.market} · ${action} · expert ${num(r.votes)}/${num(r.total_votes)}` })),
+          resultPill(result));
+      }));
+      if (!part.length) host.append(el("div", { class: "empty", text: EMPTY_TEXT }));
+    };
+    const wkRecord = record(weekday), weRecord = record(weekend);
+    document.getElementById("past-summary-wk").textContent = `Kết quả theo bên đông: ${wkRecord.n ? recordText(wkRecord) : "chưa có dữ liệu"}`;
+    document.getElementById("past-summary-we").textContent = `Kết quả đánh ngược bên đông: ${weRecord.n ? recordText(weRecord) : "chưa có dữ liệu"}`;
+    recent("past-recent-wk", weekday, false); recent("past-recent-we", weekend, true);
     const columns = [
       { label: "Ngày", value: (r) => r.et_date },
       { label: "Giải", value: (r) => leagueName(r.league) },
       { label: "Trận", value: (r) => r.match },
       { label: "Kèo", value: (r) => MARKET_LABEL[r.market] || r.market },
-      { label: "Side đa số", value: (r) => r.pick },
+      { label: "Cách tính", value: (r) => r.day_group === "T7-CN" ? `Ngược ${r.pick}` : `Theo ${r.pick}` },
       { label: "Expert", num: true, value: (r) => `${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)` },
       { label: "Nguồn line", value: (r) => r.market === "ml" ? "Moneyline" : r.line_source === "odds_api_close" ? "Thị trường" : "Proxy expert" },
-      { label: "Kết quả", value: (r) => resultPill(r.side_result), sort: (r) => r.side_result },
+      { label: "Kết quả cách này", value: (r) => resultPill(methodResult(r)), sort: methodResult },
     ];
     for (const [group, suffix] of [["T2-6", "wk"], ["T7-CN", "we"]]) {
       const part = rows.filter((r) => r.day_group === group);
-      lollipop(`past-chart-${suffix}`, part);
-      renderTable(`past-table-${suffix}`, part, columns, null, {
+      const displayRows = part.map((r) => ({ ...r, method_result: methodResult(r) }));
+      const methodRows = displayRows.map((r) => ({ ...r, side_result: r.method_result }));
+      lollipop(`past-chart-${suffix}`, methodRows, { label: (r) => `${group === "T7-CN" ? "Ngược" : "Theo"} ${r.pick} · ${r.match}`,
+        ariaLabel: group === "T7-CN" ? "Kết quả đánh ngược bên đông cuối tuần" : "Kết quả theo bên đông trong tuần" });
+      renderTable(`past-table-${suffix}`, displayRows, columns, null, {
         detail: pastSnapshotDetail, collapsibleDetail: true, detailKey: (r) => `${r.game_id}|${r.market}`,
       });
     }
@@ -3626,7 +3683,7 @@ const DATA = /*__DATA__*/null;
       right: r.result ? resultPill(r.result) : waitPill(),
       sub: `${leagueName(r.league)} · ${r.team} ${lineFmt(r.open_line)} → ${lineFmt(r.crossed_line)} · close ${lineFmt(r.close_line)}` }),
     "past-table-": (r) => ({ title: `${r.et_date} · ${leagueName(r.league)} · ${vs(r.match)}`,
-      right: resultPill(r.side_result), sub: `${MARKET_LABEL[r.market] || r.market} · ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`,
+      right: resultPill(r.method_result || r.side_result), sub: `${MARKET_LABEL[r.market] || r.market} · ${r.day_group === "T7-CN" ? "Ngược" : "Theo"} ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} (${num(r.majority_pct)}%)`,
       more: [moreBlock("Thông tin trước trận và kết quả", pastSnapshotDetail(r))] }),
     "decide-table-": (r) => { const b = boardOf(r) || {};
       return { title: `${fmtShort(r.start_time)} · ${vs(r.match)}`, right: el("b", { text: r.pick }),

@@ -285,3 +285,12 @@ def test_refresh_restores_the_active_tab_and_live_mode(tmp_path):
     assert 'localStorage.setItem("actions-nav-mode", mode)' in html
     assert 'mode === "inplay" ? "upcoming" : tab' in html
     assert "mobileNav(); restoreNavigation();" in html
+
+
+def test_past_tab_leads_with_plain_language_method_results(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert "Kèo đã qua — nhìn nhanh" in html
+    assert "Mon–Fri · theo bên đông" in html and "Sat–Sun · đánh ngược bên đông" in html
+    assert 'id="past-overview"' in html and 'id="past-buckets"' in html
+    assert "Kết quả cách này" in html and "Xem tất cả và biểu đồ" in html
+    assert 'r.day_group === "T7-CN"' in html and 'loss: "win"' in html
