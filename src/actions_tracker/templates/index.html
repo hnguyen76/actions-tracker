@@ -524,12 +524,26 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 </head>
 <body>
 <script>
-  // Thanksgiving dress for the logo: Nov 1 through the Sunday after Thanksgiving (4th Thursday of November), ET
+  // Holiday logo changes on Eastern Time without requiring a reload.
   (function () {
-    const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }).split("-").map(Number);
-    const [y, m, d] = ymd, firstDow = new Date(Date.UTC(y, 10, 1)).getUTCDay();
-    const thanksgiving = 1 + ((4 - firstDow + 7) % 7) + 21;
-    if (m === 11 && d >= 1 && d <= thanksgiving + 3) document.documentElement.classList.add("season-thanksgiving");
+    const holidayClass = (now) => {
+      const fields = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York",
+        year: "numeric", month: "numeric", day: "numeric" }).formatToParts(now)
+        .filter((x) => x.type !== "literal").map((x) => [x.type, Number(x.value)]));
+      const firstDow = new Date(Date.UTC(fields.year, 10, 1)).getUTCDay();
+      const thanksgiving = 1 + ((4 - firstDow + 7) % 7) + 21;
+      if (fields.month === 11 && fields.day === thanksgiving) return "season-thanksgiving";
+      if (fields.month === 11 && fields.day === thanksgiving + 1) return "season-black-friday";
+      if ((fields.month === 11 && fields.day > thanksgiving + 1) || fields.month === 12) return "season-christmas";
+      return "";
+    };
+    const applyHoliday = () => {
+      document.documentElement.classList.remove("season-thanksgiving", "season-black-friday", "season-christmas");
+      const name = holidayClass(new Date());
+      if (name) document.documentElement.classList.add(name);
+    };
+    applyHoliday();
+    setInterval(applyHoliday, 5000);
   })();
 </script>
 <header class="topbar">
@@ -585,6 +599,15 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
         </g>
         <text class="brand-word" x="54" y="31"><tspan class="b1">A</tspan><tspan class="b2">c</tspan><tspan class="b3">t</tspan><tspan class="b4">i</tspan><tspan class="b5">o</tspan><tspan class="b6">n</tspan><tspan class="b7">s</tspan></text>
         <text class="brand-tag" x="55" y="44.5" textLength="104" lengthAdjust="spacing">EXPERT TRACKER</text>
+        <g class="black-friday-mark">
+          <rect x="52" y="35" width="111" height="12" rx="5"/>
+          <text x="107.5" y="43.8">BLACK FRIDAY</text>
+        </g>
+        <g class="christmas-hat" transform="translate(18 1)">
+          <path d="M0 12C3 3 10-1 19 0l-5 13Z"/>
+          <rect x="-2" y="10" width="18" height="5" rx="2.5"/>
+          <circle cx="20" cy="1" r="3"/>
+        </g>
         </g>
         <g class="logo-play">
           <path class="logo-play-ground" d="M7 43.5H213"/>
@@ -646,6 +669,18 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </div>
   </div>
 </header>
+<div class="christmas-lap" aria-hidden="true">
+  <svg viewBox="0 0 58 42" focusable="false">
+    <g class="christmas-player">
+      <path class="christmas-leg" d="M25 27 17 38M31 27l9 10"/>
+      <path class="christmas-body" d="M21 13h14l3 17H18Z"/>
+      <circle class="christmas-helmet" cx="29" cy="8" r="7"/>
+      <path class="christmas-mask" d="M34 8h7v5h-5"/>
+      <path class="christmas-arm" d="M34 17 44 13"/>
+      <ellipse class="christmas-football" cx="49" cy="11" rx="6" ry="3.5" transform="rotate(-18 49 11)"/>
+    </g>
+  </svg>
+</div>
 <div class="wrap">
   <div hidden class="kpis" id="kpis"></div>
   <div class="stale" id="stale" hidden>Dữ liệu cũ hơn 24 giờ</div>

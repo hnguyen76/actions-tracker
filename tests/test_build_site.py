@@ -234,3 +234,15 @@ def test_expert_comment_urls_are_safe_clickable_links(tmp_path):
     assert '["https:", "http:"].includes(url.protocol)' in html
     assert 'target: "_blank", rel: "noopener noreferrer"' in html
     assert "linkifiedText(x.expert_note)" in html
+
+
+def test_holiday_logo_switches_on_eastern_dates_and_respects_reduced_motion(tmp_path):
+    out = build_site({}, [], tmp_path / "site", None, "t")
+    html = out.read_text("utf-8")
+    css = (out.parent / "dashboard.css").read_text("utf-8")
+    assert 'timeZone: "America/New_York"' in html
+    assert 'fields.day === thanksgiving + 1' in html and 'return "season-black-friday"' in html
+    assert 'return "season-christmas"' in html and "setInterval(applyHoliday, 5000)" in html
+    assert 'class="black-friday-mark"' in html and 'class="christmas-lap"' in html
+    assert "animation: christmas-screen-lap 20s linear infinite" in css
+    assert ".season-christmas .christmas-lap { display: none; animation: none; }" in css
