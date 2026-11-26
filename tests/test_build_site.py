@@ -294,3 +294,12 @@ def test_past_tab_leads_with_plain_language_method_results(tmp_path):
     assert 'id="past-overview"' in html and 'id="past-buckets"' in html
     assert "Kết quả cách này" in html and "Xem tất cả và biểu đồ" in html
     assert 'r.day_group === "T7-CN"' in html and 'loss: "win"' in html
+
+
+def test_rules_tab_leads_with_plain_language_status_cards(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert "Quy tắc — nhìn nhanh" in html
+    assert 'id="rules-overview"' in html and 'id="rules-cards"' in html
+    assert "Đang xanh" in html and "Đang đỏ" in html and "Kèo đang chờ" in html
+    assert 'id="mine-overview"' in html and 'id="mine-recent"' in html
+    assert "Xem bảng kỹ thuật" in html and "Xem toàn bộ kết quả" in html
