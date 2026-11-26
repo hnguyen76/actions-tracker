@@ -8,9 +8,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Actions">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <link rel="icon" href="icon-180.png">
 <title>Actions Expert Tracker</title>
 <link rel="stylesheet" href="scoreboard.css?v=__STATIC_V__">
@@ -20,10 +23,9 @@
 <script src="soccer.js?v=__STATIC_V__"></script>
 <script src="soccer-live.js?v=__STATIC_V__"></script>
 <script src="big-play.js?v=__STATIC_V__"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+        integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
 /* dark is the default; the toggle sets data-theme="light" */
 :root {
