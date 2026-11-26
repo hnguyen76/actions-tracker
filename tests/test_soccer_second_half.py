@@ -143,3 +143,17 @@ def test_the_live_command_locks_halftime_and_publishes_the_2h_record(tmp_path):
     assert live_scores(tmp_path / "a.db", tmp_path / "site", [], HT, soccer_get=Get({"events": [event()]})) == 0
     html = (tmp_path / "site" / "index.html").read_text("utf-8")
     assert '"Soccer_2H_Plays"' in html and '"Soccer_2H_Summary"' in html and '"SAB"' in html
+
+
+def test_competitions_no_longer_followed_are_not_polled_nor_shown(tmp_path):
+    conn = _setup(tmp_path)
+    old = soccer.parse_events({"events": [event("STATUS_SCHEDULED", "pre", 0, 0, eid="999")]}, "uefa.europa")[0]
+    old["odds"] = {"ml": {"home": {"open": 150, "close": 140}, "draw": {"open": 220, "close": 220},
+                          "away": {"open": 180, "close": 190}}}
+    soccer._store(conn, old, "2026-11-25T17:00:00.000Z")                     # stored before the league was dropped
+    get = Get({"events": [event()]})
+    soccer.live_poll(conn, HT, get)
+    assert not [u for u in get.urls if "uefa.europa" in u]
+    assert "999" not in set(soccer.board_table(conn, "2026-11-25T12:00:00.000Z").event_id)
+    conn.execute("UPDATE soccer_second_half SET comp = 'uefa.europa'")
+    assert soccer.second_half_table(conn).empty
