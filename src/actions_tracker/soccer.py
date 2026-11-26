@@ -21,6 +21,9 @@ from actions_tracker.config import TZ
 
 # Keep the soccer collector focused on the three competitions the owner follows.
 COMPS = {"eng.1": "Premier League", "esp.1": "La Liga", "usa.1": "MLS"}
+# games stored while other competitions were collected stay in the database (history) but are left out of the board,
+# the 1H lines, the live poll and the 2H plays
+_IN_COMPS = f"comp IN ({', '.join(repr(c) for c in COMPS)})"
 SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/soccer/{comp}/scoreboard?dates={d}"
 AFTER_90 = {"STATUS_FINAL_AET", "STATUS_FINAL_PEN"}     # decided in extra time or on penalties
 WEEKDAY_VOTES = 2                                       # Mon-Fri: experts on the majority side
@@ -433,7 +436,7 @@ def board_table(conn, now: str) -> pd.DataFrame:
     until = _iso(pd.Timestamp(now) + pd.Timedelta(days=BOARD_DAYS))
     games = [dict(r) for r in conn.execute(
         "SELECT * FROM soccer_games WHERE state = 'scheduled' AND start_time > ? AND start_time <= ? "
-        "AND odds_json IS NOT NULL ORDER BY start_time, event_id", (_iso(now), until))]
+        f"AND odds_json IS NOT NULL AND {_IN_COMPS} ORDER BY start_time, event_id", (_iso(now), until))]
     rows = []
     for g in games:
         opened, current = json.loads(g["open_json"] or "{}"), json.loads(g["odds_json"] or "{}")
@@ -627,7 +630,7 @@ def half_lines_table(conn, now: str) -> pd.DataFrame:
              "first_total": json.loads(r[2]) if r[2] else None, "captured_at": r[3]} for r in conn.execute(
         "SELECT h.event_id, h.first_ml, h.first_total, h.captured_at FROM soccer_half_lines h "
         "JOIN soccer_games g ON g.event_id = h.event_id WHERE g.start_time >= ? AND g.start_time <= ? "
-        "ORDER BY g.start_time", (lo, hi))]
+        f"AND g.{_IN_COMPS} ORDER BY g.start_time", (lo, hi))]
     return pd.DataFrame(rows, columns=HALF_COLS).astype(object)
 
 
@@ -716,7 +719,7 @@ def live_poll(conn, now: str, get) -> dict:
     t = pd.Timestamp(now)
     lo, hi = _iso(t - pd.Timedelta(hours=LIVE_WINDOW_H)), _iso(t + pd.Timedelta(minutes=5))
     rows = conn.execute("SELECT DISTINCT comp, start_time FROM soccer_games WHERE start_time >= ? AND start_time <= ? "
-                        "AND state != 'final'", (lo, hi)).fetchall()
+                        f"AND state != 'final' AND {_IN_COMPS}", (lo, hi)).fetchall()
     boards = sorted({(comp, pd.Timestamp(start).tz_convert(TZ).strftime("%Y%m%d")) for comp, start in rows})
     out = {"polled": 0, "live": 0, "final": 0, "halftime": 0, "changed": 0, "errors": 0}
     for comp, d in boards:
@@ -782,7 +785,8 @@ def second_half_table(conn) -> pd.DataFrame:
     out = []
     for r in map(dict, conn.execute(
             "SELECT s.*, g.state, g.home_90, g.away_90 FROM soccer_second_half s "
-            "LEFT JOIN soccer_games g ON g.event_id = s.event_id ORDER BY s.start_time DESC, s.event_id")):
+            f"LEFT JOIN soccer_games g ON g.event_id = s.event_id WHERE s.{_IN_COMPS} "
+            "ORDER BY s.start_time DESC, s.event_id")):
         if r["home_1h"] is None or r["away_1h"] is None:
             continue
         final = r["state"] == "final" and r["home_90"] is not None and r["away_90"] is not None
