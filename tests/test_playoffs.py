@@ -1,7 +1,8 @@
 import json
 
 from actions_tracker import db
-from actions_tracker.playoffs import (NFL_SIMS, _save, load_playoff_tables, ncaaf_projection, pregame_playoff_table,
+from actions_tracker.playoffs import (NFL_SIMS, PLAYOFF_CACHE_VERSION, _cache_supports_predictions, _save,
+                                      load_playoff_tables, ncaaf_projection, pregame_playoff_table,
                                       nfl_projection, parse_nba_standings, parse_ncaaf_standings,
                                       parse_nfl_standings)
 import pandas as pd
@@ -113,12 +114,29 @@ def test_cached_rows_survive_an_offline_site_rebuild(tmp_path):
     standing = {"league": "nfl", "team_id": "1", "team": "Bills", "abbr": "BUF", "logo": None,
                 "conference": "AFC", "division": "East", "record": "9-1", "conf_record": "6-1",
                 "wins": 9, "losses": 1, "ties": 0, "point_diff": 100, "seed": 1, "captured_at": NOW}
-    playoff = {**standing, "rank": None, "playoff_prob": .98, "picture": "field", "bid": "DIV", "model": "test"}
+    playoff = {**standing, "rank": None, "playoff_prob": .98, "picture": "field", "bid": "DIV", "model": "test",
+               "projected_seed": 1}
     _save(conn, "nfl", [standing], [playoff], NOW)
     tables = load_playoff_tables(conn)
     assert tables["NFL_Playoff"].iloc[0]["playoff_prob"] == .98
     payload = conn.execute("SELECT payload FROM playoff_cache WHERE league='nfl'").fetchone()[0]
     assert json.loads(payload)["standings"][0]["abbr"] == "BUF"
+    assert json.loads(payload)["schema_version"] == PLAYOFF_CACHE_VERSION
+
+
+def test_old_playoff_cache_is_invalidated_even_when_fresh(tmp_path):
+    conn = db.connect(tmp_path / "a.db")
+    old = json.dumps({"standings": [], "playoff": [{"seed": 1}]})
+    for league in ("nfl", "ncaaf", "nba"):
+        conn.execute("INSERT INTO playoff_cache(league,payload,captured_at) VALUES (?,?,?)", (league, old, NOW))
+    conn.commit()
+    assert not _cache_supports_predictions(conn)
+
+    nfl = [{"seed": 1, "projected_seed": 1}]
+    _save(conn, "nfl", [], nfl, NOW)
+    _save(conn, "ncaaf", [], [], NOW)
+    _save(conn, "nba", [], [], NOW)
+    assert _cache_supports_predictions(conn)
 
 
 def test_pregame_playoff_matches_aliases_and_keeps_unranked_ncaaf_standings():

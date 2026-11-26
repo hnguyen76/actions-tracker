@@ -21,6 +21,7 @@ import requests
 from actions_tracker.matching import normalize
 
 REFRESH_HOURS = 6
+PLAYOFF_CACHE_VERSION = 2
 NFL_SIMS = 5000
 NFL_STANDINGS = ("https://site.api.espn.com/apis/v2/sports/football/nfl/standings"
                  "?region=us&lang=en&contentorigin=espn&type=0&level=3")
@@ -309,7 +310,8 @@ def _record_pct(record: str | None) -> float:
 
 def _save(conn: sqlite3.Connection, league: str, standings: list[dict], playoff: list[dict], captured_at: str,
           source_at: str | None = None) -> None:
-    payload = json.dumps({"standings": standings, "playoff": playoff}, ensure_ascii=False, separators=(",", ":"))
+    payload = json.dumps({"schema_version": PLAYOFF_CACHE_VERSION, "standings": standings, "playoff": playoff},
+                         ensure_ascii=False, separators=(",", ":"))
     conn.execute("""INSERT INTO playoff_cache(league,payload,captured_at,source_at) VALUES (?,?,?,?)
                     ON CONFLICT(league) DO UPDATE SET payload=excluded.payload,
                     captured_at=excluded.captured_at,source_at=excluded.source_at""",
@@ -317,10 +319,27 @@ def _save(conn: sqlite3.Connection, league: str, standings: list[dict], playoff:
     conn.commit()
 
 
+def _cache_supports_predictions(conn: sqlite3.Connection) -> bool:
+    """Reject a fresh-but-old cache after the prediction payload changes shape."""
+    rows = conn.execute("SELECT league,payload FROM playoff_cache").fetchall()
+    payloads = {}
+    try:
+        payloads = {row["league"]: json.loads(row["payload"]) for row in rows}
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return False
+    if not {"nfl", "ncaaf", "nba"}.issubset(payloads):
+        return False
+    if any(payloads[league].get("schema_version") != PLAYOFF_CACHE_VERSION
+           for league in ("nfl", "ncaaf", "nba")):
+        return False
+    nfl = payloads["nfl"].get("playoff", [])
+    return bool(nfl) and all("projected_seed" in row for row in nfl)
+
+
 def refresh_playoff_picture(conn: sqlite3.Connection, now: str, get=requests.get, force: bool = False) -> int:
     cache = conn.execute("SELECT count(*), min(captured_at) FROM playoff_cache").fetchone()
     oldest = cache[1]
-    if (not force and cache[0] >= 3 and oldest
+    if (not force and cache[0] >= 3 and oldest and _cache_supports_predictions(conn)
             and pd.Timestamp(oldest) > pd.Timestamp(now) - pd.Timedelta(hours=REFRESH_HOURS)):
         return 0
     stamp = pd.Timestamp(now)
