@@ -19,10 +19,8 @@ import pandas as pd
 
 from actions_tracker.config import TZ
 
-COMPS = {
-    "eng.1": "Premier League", "uefa.champions": "Champions League", "uefa.europa": "Europa League",
-    "esp.1": "La Liga", "ita.1": "Serie A", "ger.1": "Bundesliga", "fra.1": "Ligue 1", "usa.1": "MLS",
-}
+# Keep the soccer collector focused on the three competitions the owner follows.
+COMPS = {"eng.1": "Premier League", "esp.1": "La Liga", "usa.1": "MLS"}
 SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/soccer/{comp}/scoreboard?dates={d}"
 AFTER_90 = {"STATUS_FINAL_AET", "STATUS_FINAL_PEN"}     # decided in extra time or on penalties
 WEEKDAY_VOTES = 2                                       # Mon-Fri: experts on the majority side

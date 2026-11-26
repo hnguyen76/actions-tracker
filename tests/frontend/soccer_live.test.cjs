@@ -97,7 +97,7 @@ test('fetchLive: live games with pregame and live lines; at halftime the half ma
     const fetcher = async (url) => {
       urls.push(url);
       let body = { events: [] };
-      if (url.includes('/uefa.champions/scoreboard')) body = { events: [event('in', status, home, away)] };
+      if (url.includes('/eng.1/scoreboard')) body = { events: [event('in', status, home, away)] };
       else if (url.includes('/odds?')) body = ODDS;
       else if (url.includes('propBets')) body = restOfGame(withTeams);
       return { ok: true, json: async () => JSON.parse(JSON.stringify(body)) };
@@ -122,7 +122,7 @@ test('fetchLive: live games with pregame and live lines; at halftime the half ma
 test('fetchLive: a 2H team price off the board shows no price, never the stale pregame 2H moneyline', async () => {
   const fetcher = async (url) => {
     let body = { events: [] };
-    if (url.includes('/uefa.champions/scoreboard')) body = { events: [{ id: '777', date: '2026-11-25T17:45Z', competitions: [{
+    if (url.includes('/eng.1/scoreboard')) body = { events: [{ id: '777', date: '2026-11-25T17:45Z', competitions: [{
       status: { displayClock: "45'+3'", period: 1, type: { state: 'in', name: 'STATUS_HALFTIME', shortDetail: 'HT' } },
       competitors: [{ homeAway: 'home', score: '0', team: { id: '494', abbreviation: 'SLP' } },
         { homeAway: 'away', score: '0', team: { id: '102', abbreviation: 'VIL' } }] }] }] };
@@ -140,7 +140,7 @@ test('fetchLive never reads the leftover pregame half props: no captured 1H line
   const fetcher = async (url) => {
     urls.push(url);
     let body = { events: [] };
-    if (url.includes('/uefa.champions/scoreboard')) body = { events: [{ id: '888', date: '2026-11-25T17:45Z', competitions: [{
+    if (url.includes('/eng.1/scoreboard')) body = { events: [{ id: '888', date: '2026-11-25T17:45Z', competitions: [{
       status: { displayClock: "45'+1'", period: 1, type: { state: 'in', name: 'STATUS_HALFTIME', shortDetail: 'HT' } },
       competitors: [{ homeAway: 'home', score: '0', team: { id: '494', abbreviation: 'SLP' } },
         { homeAway: 'away', score: '1', team: { id: '102', abbreviation: 'VIL' } }] }] }] };

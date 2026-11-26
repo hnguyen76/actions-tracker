@@ -27,7 +27,7 @@ def event(status="STATUS_HALFTIME", state="in", home=0, away=1, eid="401915300")
 
 
 class Get:
-    """ESPN: the Champions League scoreboard, the DraftKings odds list and the live props."""
+    """ESPN: a selected competition's scoreboard, the DraftKings odds list and the live props."""
     def __init__(self, board, odds=ODDS, props=REST):
         self.board, self.odds, self.props, self.urls = board, odds, props, []
 
@@ -39,7 +39,7 @@ class Get:
             body = copy.deepcopy(self.odds)
             for item in body["items"]:
                 item["propBets"] = {"$ref": url.split("?")[0] + "/" + item["provider"]["name"].replace(" ", "") + "/propBets"}
-        elif "/uefa.champions/" in url and "dates=20261125" in url:
+        elif "/eng.1/" in url and "dates=20261125" in url:
             body = self.board
         else:
             body = {"events": []}
@@ -56,7 +56,7 @@ def _setup(tmp_path, first_ml=None, first_total=None):
     conn = db.connect(tmp_path / "a.db")
     for schema in (soccer.GAMES_SCHEMA, soccer.LINES_SCHEMA, soccer.RESULTS_SCHEMA, soccer.HALF_SCHEMA):
         conn.execute(schema)
-    pre = soccer.parse_events({"events": [event("STATUS_SCHEDULED", "pre", 0, 0)]}, "uefa.champions")[0]
+    pre = soccer.parse_events({"events": [event("STATUS_SCHEDULED", "pre", 0, 0)]}, "eng.1")[0]
     soccer._store(conn, pre, "2026-11-25T17:00:00.000Z")                   # the update run saw it before kickoff
     conn.execute("INSERT INTO soccer_half_lines VALUES (?, ?, ?, ?)", (
         "401915300", json.dumps(first_ml or {"home": 300, "away": -120, "draw": 250}),

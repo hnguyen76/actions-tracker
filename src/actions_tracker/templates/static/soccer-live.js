@@ -139,7 +139,7 @@
     return { home_2h: home, away_2h: away, now: edge > 0 ? "win" : edge < 0 || play.market === "ml" ? "loss" : "push" };
   }
 
-  const COMPS = ["eng.1", "uefa.champions", "uefa.europa", "esp.1", "ita.1", "ger.1", "fra.1", "usa.1"];
+  const COMPS = ["eng.1", "esp.1", "usa.1"];
   const ODDS_POLL_MS = 60000;   // live odds and the 2H markets at halftime: at most once a minute per game
   const SCOREBOARD = (comp, d) => `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${comp}/scoreboard?dates=${d}`;
   const ODDS = (comp, id) => `https://sports.core.api.espn.com/v2/sports/soccer/leagues/${comp}/events/${id}/competitions/${id}/odds?lang=en&region=us&limit=100`;
@@ -169,7 +169,7 @@
     return entry.promise;
   }
 
-  // live games of the eight competitions: score, clock, pregame and live DraftKings odds, and at halftime the 2H plays
+  // live games of the selected competitions: score, clock, pregame and live DraftKings odds, and at halftime the 2H plays
   // halfLines: event_id -> {first_ml, first_total}, the 1H lines the phone captured before kickoff (Soccer_Half_Lines):
   // once a game is under way ESPN's pregame half props are leftovers, so they are never read here
   async function fetchLive(fetcher = root.fetch && root.fetch.bind(root), now = Date.now(), halfLines = new Map()) {
