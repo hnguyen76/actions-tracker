@@ -267,3 +267,12 @@ def test_expert_form_leads_with_plain_language_summary(tmp_path):
     assert "Mốc cần vượt là 52,4% để hòa vốn" in html
     assert "Tín hiệu lịch sử rõ" in html and "Có lợi, nhưng chưa chắc" in html
     assert "Xem biểu đồ và số liệu chi tiết" in html
+
+
+def test_consensus_leads_with_plain_language_actions(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'data-tab="consensus" aria-selected="false">Đám đông<' in html
+    assert "Đám đông có đáng theo không?" in html
+    assert 'id="consensus-verdict"' in html and 'id="consensus-guide"' in html
+    assert "THEO BÊN ĐÔNG" in html and "ĐÁNH NGƯỢC" in html and "TRÁNH" in html
+    assert "Xem số liệu chi tiết" in html

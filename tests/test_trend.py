@@ -31,10 +31,10 @@ def test_build_tables_empty_db_without_public(tmp_path):
                          "My_Method", "My_Method_Summary", "Decision_Method",
                       "My_Method_Season", "My_Method_Season_Summary",
                       "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells",
-                      "Scores", "Live_Games", "Soccer_Board", "Soccer_Half_Lines", "Soccer_Results", "Soccer_Daily", "Soccer_2H_Plays", "Soccer_2H_Summary", "Traffic_History", "Traffic_Hourly", "Traffic_Locations", "Traffic_Pages", "Traffic_Sections", "Second_Half", "Second_Half_Plays", "Second_Half_Summary",
+                      "Scores", "Live_Games", "Soccer_Board", "Soccer_Half_Lines", "Soccer_Results", "Soccer_Daily", "Soccer_2H_Plays", "Soccer_2H_Summary", "Traffic_History", "Traffic_Hourly", "Traffic_Locations", "Traffic_Pages", "Traffic_Sections", "Traffic_Daily", "Traffic_Weekly", "Traffic_Monthly", "Second_Half", "Second_Half_Plays", "Second_Half_Summary",
                       "Line_Movement", "Spread_Flips", "Trend_Radar", "Pick_Ratio_Matrix",
                       "Method_Equity", "Method_Equity_Summary", "Spread_Flip_Results", "Spread_Flip_Summary", "In_Play",
-                      "Pregame_Snapshots", "Pregame_Playoff", "NFL_Standings", "NFL_Playoff", "NCAAF_Standings", "NCAAF_Playoff"}
+                      "Pregame_Snapshots", "Pregame_Playoff", "NFL_Standings", "NFL_Playoff", "NCAAF_Standings", "NCAAF_Playoff", "NBA_Standings", "NBA_Playoff"}
     assert all(df.empty for name, df in t.items() if name not in {"Rule_Summary", "Data_Quality", "My_Method_Summary", "My_Method_Season_Summary",
                                                                   "My_Method_Sensitivity", "Forecast", "Forecast_Backtest", "Forecast_Cells"})
     assert len(t["My_Method_Summary"]) == 9 and (t["My_Method_Summary"].n == 0).all()
