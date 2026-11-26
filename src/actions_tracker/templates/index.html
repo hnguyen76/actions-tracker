@@ -709,20 +709,20 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </div>
     <nav class="tabs" role="tablist">
     <button role="tab" data-tab="upcoming" aria-selected="true">Kèo sắp tới</button>
-    <button role="tab" data-tab="second-half" aria-selected="false">2H</button>
+    <button role="tab" data-tab="second-half" aria-selected="false">Kèo 2H</button>
     <button role="tab" data-tab="rules" aria-selected="false">Quy tắc</button>
     <button role="tab" data-tab="past" aria-selected="false">Kèo đã qua</button>
-    <button role="tab" data-tab="playoff" aria-selected="false">Playoff</button>
-    <button role="tab" data-tab="traffic" aria-selected="false">Traffic</button>
-    <button role="tab" data-tab="soccer" aria-selected="false">Soccer</button>
-    <button role="tab" data-tab="season-chart" aria-selected="false">Biểu đồ cả mùa</button>
+    <button role="tab" data-tab="playoff" aria-selected="false">Bảng xếp hạng</button>
+    <button role="tab" data-tab="traffic" aria-selected="false">Lượt xem</button>
+    <button role="tab" data-tab="soccer" aria-selected="false">Bóng đá</button>
+    <button role="tab" data-tab="season-chart" aria-selected="false">Biểu đồ kèo</button>
     <button role="tab" data-tab="consensus" aria-selected="false">Đám đông</button>
-    <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
+    <button role="tab" data-tab="experts" aria-selected="false">Chuyên gia</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
-    <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
-    <button role="tab" data-tab="nba" aria-selected="false">NBA ≥ 7 picks</button>
-    <button role="tab" data-tab="season" aria-selected="false">Cách của bạn · cả mùa</button>
-    <button role="tab" data-tab="forecast" aria-selected="false">Dự báo</button>
+    <button role="tab" data-tab="history" aria-selected="false">Dữ liệu mùa</button>
+    <button role="tab" data-tab="nba" aria-selected="false">NBA nhiều picks</button>
+    <button role="tab" data-tab="season" aria-selected="false">Tổng kết mùa</button>
+    <button role="tab" data-tab="forecast" aria-selected="false">Dự báo thắng</button>
   </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
@@ -1143,6 +1143,23 @@ const DATA = /*__DATA__*/null;
     ["units_30", "hot", "Đang xanh (≥ +3u)"], ["units_30", "neutral", "Bình thường (−3u … +3u)"], ["units_30", "cold", "Đang đỏ (≤ −3u)"],
     ["streak", "hot_long", "Chuỗi thắng ≥ 3"], ["streak", "hot", "Chuỗi thắng 1–2"], ["streak", "cold", "Chuỗi thua 1–2"], ["streak", "cold_long", "Chuỗi thua ≥ 3"],
   ];
+  const TAB_HELP = {
+    upcoming: ["◎", "Kèo hôm nay", "Xem game nào được chọn và nên đặt bên nào.", "Ưu tiên ô Quyết định. Mở từng game để xem tín hiệu hỗ trợ; mục Bỏ qua không phải kèo đề xuất."],
+    "second-half": ["◫", "Kèo hiệp hai", "Chỉ đưa lựa chọn khi có điểm 1H và line 2H thật.", "Spread chọn phía ngược với đội thua ATS hiệp một; Total chọn ngược kết quả Over/Under hiệp một."],
+    rules: ["★", "Quy tắc", "Theo dõi các cách đánh đã được ghi trước giờ đá.", "Xanh/đỏ là kết quả live. Chưa đủ mẫu vẫn chỉ dùng để nghiên cứu, không coi là bảo đảm."],
+    past: ["↶", "Kèo đã qua", "Kiểm tra cách đánh gần đây thắng hay thua.", "Mon–Fri tính theo bên đông; Sat–Sun tính đánh ngược. Bộ lọc phía trên áp dụng cho toàn trang."],
+    playoff: ["♛", "Bảng xếp hạng & Playoff", "Xem vị trí hiện tại và khả năng vào playoff.", "Seed là vị trí hiện tại; phần trăm là dự báo cuối mùa. NBA nằm cuối cho tới khi postseason bắt đầu."],
+    traffic: ["▥", "Lượt xem site", "Xem người dùng, nội dung được mở nhiều và tình trạng site.", "Unique không đếm lặp cùng trình duyệt trong ngày. City chỉ là vị trí gần đúng và không hiển thị IP."],
+    soccer: ["⚽", "Bóng đá", "Xem line, biến động giá và kết quả MLS, LaLiga, Premier League.", "Hạng #1 là game có biến động thị trường mạnh nhất; đây là tín hiệu line, chưa phải lệnh đặt tự động."],
+    "season-chart": ["⌁", "Biểu đồ từng kèo", "Nhìn toàn bộ kèo theo tuần bằng màu thắng và thua.", "Chấm màu thể hiện kết quả; vị trí ngang là tỷ lệ expert cùng phía. Dùng bộ chọn tuần để thu hẹp."],
+    consensus: ["◉", "Đám đông", "Kiểm tra lúc nào nên theo hoặc đánh ngược số đông expert.", "Theo nhãn xanh ở từng nhóm tỷ lệ. Chờ thêm nghĩa là số mẫu còn ít; Tránh nghĩa là cả hai phía chưa có lời."],
+    experts: ["♙", "Chuyên gia", "Xem phong độ expert có lặp lại ở pick kế tiếp hay không.", "Ưu tiên nhóm đủ mẫu và vượt 52,4%. Nhấn một expert để xem riêng lịch sử và thói quen chọn side."],
+    trend: ["∿", "Xu hướng", "Tìm tín hiệu đang tốt lên hoặc xấu đi trong bảy ngày gần nhất.", "ROI dương là có lời; drawdown là mức giảm từ đỉnh. Radar dùng để phát hiện thay đổi, không tự chọn kèo."],
+    history: ["▤", "Dữ liệu cả mùa", "So sánh tỷ lệ expert và kết quả từ đầu mùa.", "Theo = cùng side đa số; Ngược = phía còn lại. Chọn tuần ở bảng cuối để xem từng game."],
+    nba: ["●", "NBA nhiều picks", "Tách riêng game NBA được nhiều expert chú ý.", "Bảng đầu chỉ giữ game có ít nhất 7 picks. Bảng cuối vẫn liệt kê tất cả game có picks để đối chiếu."],
+    season: ["♜", "Tổng kết cách của bạn", "Đánh giá cách Mon–Fri theo đông, Sat–Sun đánh ngược từ tuần 1.", "Xem KPI trước, sau đó độ nhạy số picks. Bảng từng kèo chỉ dùng khi cần kiểm tra chi tiết."],
+    forecast: ["⌁", "Dự báo xác suất", "Ước tính khả năng thắng dựa trên các tình huống cũ giống nhau.", "Chỉ đáng chú ý khi backtest vượt 52,4% và có đủ mẫu. Phần trăm là ước tính, không phải odds sportsbook."],
+  };
   const SERIES = [
     { key: "consensus_60plus", name: "Consensus ≥60%", color: "--s1" },
     { key: "top10_experts", name: "Top 10 expert", color: "--s2" },
@@ -4082,8 +4099,21 @@ const DATA = /*__DATA__*/null;
     }));
   }
 
+  function addTabGuides() {
+    for (const [tab, [icon, title, purpose, reading]] of Object.entries(TAB_HELP)) {
+      const panel = document.getElementById("tab-" + tab);
+      if (!panel || panel.querySelector(":scope > .tab-guide")) continue;
+      const guide = el("details", { class: "tab-guide" },
+        el("summary", {}, el("span", { class: "tab-guide-icon", text: icon }),
+          el("span", { class: "tab-guide-copy" }, el("b", { text: title }), el("span", { text: purpose })),
+          el("span", { class: "tab-guide-more", text: "Cách đọc" })),
+        el("p", { text: reading }));
+      panel.prepend(guide);
+    }
+  }
+
   if (window.Chart) { Chart.defaults.font.family = "Inter, system-ui, sans-serif"; Chart.defaults.font.size = 13; }
-  theme(); donate(); header(); filters(); tabs(); mobileNav(); restoreNavigation();
+  theme(); donate(); header(); filters(); addTabGuides(); tabs(); mobileNav(); restoreNavigation();
   // "EXPERT TRACKER" spans exactly the width of "Actions", whatever font the phone ends up using
   const fitTagline = () => {
     const word = document.querySelector(".brand-word"), tagline = document.querySelector(".brand-tag");
