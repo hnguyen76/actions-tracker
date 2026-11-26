@@ -219,10 +219,12 @@ def test_every_colour_the_charts_read_is_defined(tmp_path):
     assert used and not used - defined, sorted(used - defined)
 
 
-def test_soccer_tab_sits_beside_past_and_ships_its_helpers(tmp_path):
+def test_playoff_and_traffic_sit_before_soccer_and_soccer_ships_its_helpers(tmp_path):
     out = build_site({}, [], tmp_path / "site", None, "t")
     html = out.read_text("utf-8")
-    assert html.index('data-tab="past"') < html.index('data-tab="soccer"') < html.index('data-tab="season-chart"')
+    assert (html.index('data-tab="past"') < html.index('data-tab="playoff"')
+            < html.index('data-tab="traffic"') < html.index('data-tab="soccer"')
+            < html.index('data-tab="season-chart"'))
     assert 'id="tab-soccer"' in html and 'T("Soccer_Board")' in html and "soccer.js?v=" in html
     assert 'id="soccer-daily"' in html and 'T("Soccer_Results")' in html and 'T("Soccer_Daily")' in html
     assert (tmp_path / "site" / "soccer.js").exists()
@@ -246,3 +248,12 @@ def test_holiday_logo_switches_on_eastern_dates_and_respects_reduced_motion(tmp_
     assert 'class="black-friday-mark"' in html and 'class="christmas-lap"' in html
     assert "animation: christmas-screen-lap 20s linear infinite" in css
     assert ".season-christmas .christmas-lap { display: none; animation: none; }" in css
+
+
+def test_city_analytics_never_publishes_raw_ip_and_tracks_distinct_periods(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'fetch("https://ipwho.is/"' in html
+    assert "geo.ip" not in html and "geo-city-" in html
+    assert "unique-visitor-${day}" in html and "active-hour-${key}" in html
+    assert "Analytics không cookie · chỉ lưu city gần đúng · không lưu IP" in html
+    assert 'id="traffic-daily"' in html and 'id="traffic-weekly"' in html and 'id="traffic-monthly"' in html
