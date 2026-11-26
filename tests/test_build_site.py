@@ -258,3 +258,12 @@ def test_city_analytics_never_publishes_raw_ip_and_tracks_distinct_periods(tmp_p
     assert "unique-visitor-${day}" in html and "active-hour-${key}" in html
     assert "Analytics không cookie · chỉ lưu city gần đúng · không lưu IP" in html
     assert 'id="traffic-daily"' in html and 'id="traffic-weekly"' in html and 'id="traffic-monthly"' in html
+
+
+def test_expert_form_leads_with_plain_language_summary(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert "Phong độ expert có giúp pick kế tiếp thắng không?" in html
+    assert 'id="form-summary"' in html
+    assert "Mốc cần vượt là 52,4% để hòa vốn" in html
+    assert "Tín hiệu lịch sử rõ" in html and "Có lợi, nhưng chưa chắc" in html
+    assert "Xem biểu đồ và số liệu chi tiết" in html
