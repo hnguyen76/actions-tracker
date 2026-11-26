@@ -276,3 +276,12 @@ def test_consensus_leads_with_plain_language_actions(tmp_path):
     assert 'id="consensus-verdict"' in html and 'id="consensus-guide"' in html
     assert "THEO BÊN ĐÔNG" in html and "ĐÁNH NGƯỢC" in html and "TRÁNH" in html
     assert "Xem số liệu chi tiết" in html
+
+
+def test_refresh_restores_the_active_tab_and_live_mode(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'localStorage.setItem("actions-active-tab", tab)' in html
+    assert 'localStorage.getItem("actions-active-tab")' in html
+    assert 'localStorage.setItem("actions-nav-mode", mode)' in html
+    assert 'mode === "inplay" ? "upcoming" : tab' in html
+    assert "mobileNav(); restoreNavigation();" in html
