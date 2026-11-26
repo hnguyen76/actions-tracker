@@ -121,53 +121,102 @@ def collect(conn, root: Path, now: str, get=requests.get, post=requests.post) ->
         health_status = 0
     health_ms = round((time.monotonic() - started) * 1000)
     warnings = []
-    if current >= 20 and current >= max(20, baseline * 5):
-        warnings.append(f"traffic tăng bất thường {current} lượt/giờ (mức thường {baseline:g})")
     if health_status != 200:
         warnings.append(f"site HTTP {health_status or 'lỗi'}")
     elif health_ms >= 8000:
         warnings.append(f"site phản hồi chậm {health_ms / 1000:.1f}s")
-    pages = _top(hits.get("hits"), events=False)
-    sections = _top(hits.get("hits"), events=True)
-    places = _top(locations.get("stats"))
+    hit_rows = hits.get("hits") or []
+    city_rows = [x for x in hit_rows if str(x.get("path") or "").startswith("geo-city-")]
+    unique_rows = [x for x in hit_rows if str(x.get("path") or "").startswith("unique-visitor-")]
+    active_rows = [x for x in hit_rows if str(x.get("path") or "").startswith("active-hour-")]
+    local = moment.astimezone(ET)
+    local_day = local.strftime("%Y-%m-%d")
+    unique_today = [int(x.get("count") or 0) for x in unique_rows
+                    if str(x.get("path") or "") == f"unique-visitor-{local_day}"]
+    active_hourly = [0] * 24
+    for item in active_rows:
+        path = str(item.get("path") or "")
+        prefix = f"active-hour-{local_day}-"
+        if not path.startswith(prefix):
+            continue
+        try:
+            index = int(path[len(prefix):])
+        except ValueError:
+            continue
+        if 0 <= index < 24:
+            active_hourly[index] = max(active_hourly[index], int(item.get("count") or 0))
+    if any(active_hourly):
+        hourly = active_hourly
+        current = hourly[local.hour]
+        prior = hourly[:local.hour]
+        baseline = statistics.median(prior) if prior else 0
+    if current >= 20 and current >= max(20, baseline * 5):
+        warnings.append(f"traffic tăng bất thường {current} người/giờ (mức thường {baseline:g})")
+    pages = _top(hit_rows, events=False)
+    internal_rows = city_rows + unique_rows + active_rows
+    sections = _top([x for x in hit_rows if x not in internal_rows], events=True)
+    # Browser-side city events contain only an approximate city label; no IP is sent to this app or stored.
+    places = _top(city_rows, events=True) or _top(locations.get("stats"))
     alert = " · ".join(warnings)
+    pageviews = max(0, int(total.get("total") or 0) - int(total.get("total_events") or 0))
+    unique_visitors = max(unique_today, default=pageviews)
     conn.execute(SCHEMA)
     conn.execute("INSERT OR REPLACE INTO traffic_snapshots VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (
-        hour.isoformat(), moment.isoformat(), int(total.get("total") or 0), int(total.get("total_events") or 0),
+        hour.isoformat(), moment.isoformat(), unique_visitors, int(total.get("total_events") or 0),
         current, health_ms, health_status, alert, json.dumps(hourly), json.dumps(pages, ensure_ascii=False),
         json.dumps(sections, ensure_ascii=False), json.dumps(places, ensure_ascii=False)))
     conn.commit()
     token_tg, chat = alerts.load_telegram(root)
     if token_tg and chat:
         top = sections[0]["name"] if sections else (pages[0]["name"] if pages else "chưa có")
-        local = moment.astimezone(ET)
         text = (f"📊 TRAFFIC {local:%H:%M ET}\n"
-                f"👥 Hôm nay: {int(total.get('total') or 0)} · giờ này: {current}\n"
+                f"👥 Unique hôm nay: {unique_visitors} · active trong giờ: {current}\n"
                 f"🔥 Xem nhiều: {top}\n"
                 f"🌎 {', '.join(f'{x['name']} {x['count']}' for x in places[:3]) or 'chưa có vị trí'}\n"
                 f"🛡 Site: HTTP {health_status or 'lỗi'} · {health_ms}ms")
         if alert:
             text += f"\n🚨 CẢNH BÁO: {alert}"
         alerts.send_telegram(token_tg, chat, text, post=post)
-    return {"visitors": int(total.get("total") or 0), "current_hour": current, "alert": alert}
+    return {"visitors": unique_visitors, "current_hour": current, "alert": alert}
 
 
 def tables(conn) -> dict[str, pd.DataFrame]:
+    empty_tables = {"Traffic_History": pd.DataFrame(), "Traffic_Hourly": pd.DataFrame(),
+                    "Traffic_Pages": pd.DataFrame(), "Traffic_Sections": pd.DataFrame(),
+                    "Traffic_Locations": pd.DataFrame(), "Traffic_Daily": pd.DataFrame(),
+                    "Traffic_Weekly": pd.DataFrame(), "Traffic_Monthly": pd.DataFrame()}
     exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='traffic_snapshots'").fetchone()
     if not exists:
-        empty = pd.DataFrame()
-        return {"Traffic_History": empty, "Traffic_Hourly": empty, "Traffic_Pages": empty,
-                "Traffic_Sections": empty, "Traffic_Locations": empty}
-    rows = [dict(x) for x in conn.execute("SELECT * FROM traffic_snapshots ORDER BY hour_utc DESC LIMIT 72")]
+        return empty_tables
+    rows = [dict(x) for x in conn.execute("SELECT * FROM traffic_snapshots ORDER BY hour_utc DESC")]
     if not rows:
-        empty = pd.DataFrame()
-        return {"Traffic_History": empty, "Traffic_Hourly": empty, "Traffic_Pages": empty,
-                "Traffic_Sections": empty, "Traffic_Locations": empty}
+        return empty_tables
     latest = rows[0]
     def unpack(key):
         return pd.DataFrame(json.loads(latest[key] or "[]"))
     history = pd.DataFrame([{k: r[k] for k in ("hour_utc", "captured_at", "visitors", "events", "current_hour",
-                                                        "health_ms", "health_status", "alert")} for r in rows])
+                                                        "health_ms", "health_status", "alert")} for r in rows[:72]])
     hourly = pd.DataFrame([{"hour": f"{i:02d}:00", "count": n} for i, n in enumerate(json.loads(latest["hourly_json"]))])
+    by_day: dict[str, int] = {}
+    for row in rows:
+        try:
+            date = datetime.fromisoformat(str(row["captured_at"]).replace("Z", "+00:00")).astimezone(ET).date()
+        except (TypeError, ValueError):
+            continue
+        key = date.isoformat()
+        by_day[key] = max(by_day.get(key, 0), int(row["visitors"] or 0))
+    daily_rows = [{"period": day, "visitors": count} for day, count in sorted(by_day.items(), reverse=True)]
+    by_week: dict[str, int] = {}
+    by_month: dict[str, int] = {}
+    for day, count in by_day.items():
+        date = datetime.strptime(day, "%Y-%m-%d").date()
+        week = (date - timedelta(days=date.weekday())).isoformat()
+        month = date.strftime("%Y-%m")
+        by_week[week] = by_week.get(week, 0) + count
+        by_month[month] = by_month.get(month, 0) + count
+    weekly = [{"period": key, "visitors": value} for key, value in sorted(by_week.items(), reverse=True)]
+    monthly = [{"period": key, "visitors": value} for key, value in sorted(by_month.items(), reverse=True)]
     return {"Traffic_History": history, "Traffic_Hourly": hourly, "Traffic_Pages": unpack("pages_json"),
-            "Traffic_Sections": unpack("sections_json"), "Traffic_Locations": unpack("locations_json")}
+            "Traffic_Sections": unpack("sections_json"), "Traffic_Locations": unpack("locations_json"),
+            "Traffic_Daily": pd.DataFrame(daily_rows), "Traffic_Weekly": pd.DataFrame(weekly),
+            "Traffic_Monthly": pd.DataFrame(monthly)}
