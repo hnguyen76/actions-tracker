@@ -716,7 +716,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button role="tab" data-tab="traffic" aria-selected="false">Traffic</button>
     <button role="tab" data-tab="soccer" aria-selected="false">Soccer</button>
     <button role="tab" data-tab="season-chart" aria-selected="false">Biểu đồ cả mùa</button>
-    <button role="tab" data-tab="consensus" aria-selected="false">Consensus</button>
+    <button role="tab" data-tab="consensus" aria-selected="false">Đám đông</button>
     <button role="tab" data-tab="experts" aria-selected="false">Experts</button>
     <button role="tab" data-tab="trend" aria-selected="false">Xu hướng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử mùa</button>
@@ -873,14 +873,17 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
   </section>
 
   <section class="panel" id="tab-consensus">
-    <div class="card">
-      <h2>Win% của side đa số theo mức đồng thuận</h2>
-      <div class="chart-box"><canvas id="consensus-chart" aria-label="Biểu đồ win% consensus"></canvas></div>
+    <div class="card consensus-intro">
+      <h2>Đám đông có đáng theo không?</h2>
+      <p class="note">Ví dụ <b>75–90%</b> nghĩa là phần lớn expert chọn cùng một bên. Trang này dùng các kèo đã chấm để trả lời: nên <b>theo bên đông</b>, <b>đánh ngược</b>, hay <b>tránh</b>.</p>
+      <div class="verdict" id="consensus-verdict"></div>
+      <div class="consensus-guide" id="consensus-guide"></div>
     </div>
-    <div class="card">
-      <h2>Đánh theo và đánh ngược consensus</h2>
+    <details class="card consensus-detail">
+      <summary>Xem số liệu chi tiết</summary>
+      <p class="note">Hòa vốn ở khoảng 52,4%. ROI dương nghĩa là có lời nếu mỗi kèo đặt 1 unit ở odds chuẩn.</p>
       <div class="table-scroll" id="consensus-table"></div>
-    </div>
+    </details>
   </section>
 
   <section class="panel" id="tab-experts">
@@ -2311,36 +2314,42 @@ const DATA = /*__DATA__*/null;
 
   function consensusTab() {
     const rows = byFilter(T("Consensus"));
-    const byBucket = Object.fromEntries(rows.map((r) => [r.bucket, r]));
-    const ctx = document.getElementById("consensus-chart");
-    if (charts.consensus) charts.consensus.destroy();
-    const s1 = css("--s1");
-    const opts = baseOptions();
-    opts.plugins.refline = { display: state.market !== "ml" };
-    opts.plugins.tooltip.callbacks = {
-      title: (items) => "Đồng thuận " + items[0].label + "%",
-      label: (item) => {
-        const r = byBucket[BUCKETS[item.dataIndex]];
-        return r ? [`Win% ${pct(r.win_pct)} · n=${r.n}`, `W-L-P ${r.wins}-${r.losses}-${r.pushes}`, `ROI theo ${signed(r.roi)} · ngược ${signed(r.fade_roi)}`] : EMPTY_TEXT;
-      },
+    const ordered = rows.slice().sort((a, b) => BUCKETS.indexOf(a.bucket) - BUCKETS.indexOf(b.bucket));
+    const bucketName = { "50-60": "Chia đều", "60-75": "Nghiêng nhẹ", "75-90": "Đồng thuận rõ", "90-100": "Gần như tuyệt đối" };
+    const advice = (r) => {
+      const follow = Number(r.roi), fade = Number(r.fade_roi);
+      if (r.low_sample) return { action: "CHỜ THÊM", tone: "hold", reason: `Mới có ${num(r.n)} kèo, chưa đủ mẫu` };
+      if (Math.max(follow, fade) <= 0) return { action: "TRÁNH", tone: "hold", reason: "Cả theo và ngược đều chưa có lời" };
+      if (follow >= fade) return { action: "THEO BÊN ĐÔNG", tone: "go", reason: `${num(r.wins)}-${num(r.losses)} · ROI ${signed(r.roi)}` };
+      return { action: "ĐÁNH NGƯỢC", tone: "fade", reason: `${num(r.losses)}-${num(r.wins)} · ROI ${signed(r.fade_roi)}` };
     };
-    charts.consensus = new Chart(ctx, {
-      type: "line",
-      data: { labels: BUCKETS, datasets: [{
-        label: "Win% side đa số",
-        data: BUCKETS.map((b) => (byBucket[b] && byBucket[b].win_pct !== null ? byBucket[b].win_pct * 100 : null)),
-        ci: BUCKETS.map((b) => byBucket[b] ? [byBucket[b].ci_low * 100, byBucket[b].ci_high * 100] : null),
-        showLine: false, pointRadius: 7, pointHoverRadius: 9,
-        pointBackgroundColor: BUCKETS.map((b) => (byBucket[b] && byBucket[b].low_sample ? css("--surface") : s1)),
-        pointBorderColor: s1, pointBorderWidth: 2,
-      }] },
-      options: opts, plugins: [refLinePlugin, ciWhiskerPlugin],
-    });
+    const ranked = ordered.filter((r) => !r.low_sample).map((r) => ({ r, a: advice(r), edge: Math.max(Number(r.roi), Number(r.fade_roi)) }))
+      .filter((x) => x.edge > 0).sort((a, b) => b.edge - a.edge);
+    const best = ranked[0];
+    const verdict = document.getElementById("consensus-verdict");
+    verdict.className = `verdict ${best ? "go" : "hold"}`;
+    verdict.replaceChildren(el("div", { class: "verdict-main", text: best
+      ? `Dễ dùng nhất: ${best.r.bucket}% expert cùng phía → ${best.a.action.toLowerCase()}`
+      : "Chưa có nhóm nào đủ dữ liệu và có lời" }),
+      el("div", { class: "note", text: best ? best.a.reason : "Không nên dùng Consensus làm tín hiệu riêng lúc này." }));
+    document.getElementById("consensus-guide").replaceChildren(...ordered.map((r) => {
+      const a = advice(r), follow = Number(r.roi), fade = Number(r.fade_roi);
+      return el("article", { class: `consensus-card ${a.tone}` },
+        el("div", { class: "consensus-card-head" },
+          el("div", {}, el("b", { text: `${r.bucket}%` }), el("span", { text: bucketName[r.bucket] || "Đồng thuận" })),
+          el("span", { class: `pill ${a.tone === "go" ? "win" : a.tone === "fade" ? "info" : "dim"}`, text: a.action })),
+        el("p", { text: a.reason }),
+        el("div", { class: "consensus-compare" },
+          el("span", { class: follow > fade ? "chosen" : "" }, el("small", { text: "Theo" }), el("b", { text: signed(r.roi) })),
+          el("span", { class: fade > follow ? "chosen" : "" }, el("small", { text: "Ngược" }), el("b", { text: signed(r.fade_roi) }))));
+    }));
     renderTable("consensus-table", rows.slice().sort((a, b) => BUCKETS.indexOf(a.bucket) - BUCKETS.indexOf(b.bucket)), [
-      { label: "Đồng thuận", value: (r) => r.bucket + "%" },
-      ...recordCols,
-      { label: "Win% đánh ngược", num: true, value: (r) => pct(r.fade_win_pct) },
-      { label: "ROI đánh ngược", num: true, value: (r) => signed(r.fade_roi), cls: (r) => roiCls(r.fade_roi) },
+      { label: "% expert cùng phía", value: (r) => r.bucket + "%" },
+      { label: "Số kèo", num: true, value: sampleCell, sort: (r) => r.n },
+      { label: "Theo bên đông", value: (r) => `${num(r.wins)}-${num(r.losses)} · ${pct(r.win_pct)}` },
+      { label: "ROI theo", num: true, value: (r) => signed(r.roi), cls: (r) => roiCls(r.roi) },
+      { label: "Đánh ngược", value: (r) => `${num(r.losses)}-${num(r.wins)} · ${pct(r.fade_win_pct)}` },
+      { label: "ROI ngược", num: true, value: (r) => signed(r.fade_roi), cls: (r) => roiCls(r.fade_roi) },
     ]);
   }
 
