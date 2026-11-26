@@ -51,7 +51,8 @@ def test_live_score_assets_are_published_with_dashboard(tmp_path):
 def test_second_half_tab_sits_after_upcoming_and_uses_espn_odds(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert html.index('data-tab="upcoming"') < html.index('data-tab="second-half"') < html.index('data-tab="rules"')
-    assert html.index('data-go="upcoming"') < html.index('data-go="second-half"') < html.index('data-go="inplay"')
+    assert html.index('data-go="upcoming"') < html.index('data-go="second-half"') < html.index('data-go="past"')
+    assert 'data-go="inplay"' not in html
     assert 'id="second-half-list"' in html
     assert 'id="second-half-day-summary"' in html and 'id="second-half-all-summary"' in html
     assert 'id="second-half-chart"' in html and 'Win% cộng dồn' in html
