@@ -105,7 +105,7 @@ def test_weekday_signal_shows_this_weeks_graded_similar_pick_bucket_only():
     got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "🟢", "Tuần này T2–T6 · pick tương đương 75–90%: 3 trận · 2 thắng · 1 thua")
+        "🟢", "Tuần này Mon–Fri · pick tương đương 75–90%: 3 trận · 2 thắng · 1 thua")
 
 
 def test_weekend_signal_uses_prior_graded_weekend_method_plays_only():
@@ -125,7 +125,7 @@ def test_weekend_signal_uses_prior_graded_weekend_method_plays_only():
     got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=weekend)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "⚪", "Cuối tuần này T7–CN · pick tương đương 75–90%: 2 trận · 1 thắng · 1 thua")
+        "⚪", "Cuối tuần này Sat–Sun · pick tương đương 75–90%: 2 trận · 1 thắng · 1 thua")
 
 
 def test_weekday_signal_is_red_when_the_similar_pick_group_is_losing():
@@ -144,7 +144,7 @@ def test_weekday_signal_is_red_when_the_similar_pick_group_is_losing():
     got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=plays)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "🔴", "Tuần này T2–T6 · pick tương đương 90–100%: 3 trận · 1 thắng · 2 thua")
+        "🔴", "Tuần này Mon–Fri · pick tương đương 90–100%: 3 trận · 1 thắng · 2 thua")
 
 
 def test_history_signal_keeps_pick_count_separate_and_follows_on_weekdays():
@@ -164,7 +164,7 @@ def test_history_signal_keeps_pick_count_separate_and_follows_on_weekdays():
                   history_plays=history)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "🔴", "Lịch sử mùa NFL/NCAAF (T2–T6 · follow, pick_count) · 60–75%: 3 trận · 1 thắng · 2 thua")
+        "🔴", "Lịch sử mùa NFL/NCAAF (Mon–Fri · follow, pick_count) · 60–75%: 3 trận · 1 thắng · 2 thua")
 
 
 def test_history_signal_fades_spread_on_weekends():
@@ -188,7 +188,7 @@ def test_history_signal_fades_spread_on_weekends():
                   history_plays=history)
     [row] = got.to_dict("records")
     assert (row["tone"], row["text"]) == (
-        "🟢", "Lịch sử mùa NFL/NCAAF (T7–CN · fade spread, pick_count) · 75–90%: "
+        "🟢", "Lịch sử mùa NFL/NCAAF (Sat–Sun · fade spread, pick_count) · 75–90%: "
              "4 trận · 2 thắng · 1 thua · 1 hòa")
 
 

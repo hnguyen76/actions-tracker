@@ -733,7 +733,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 
   <section class="panel" id="tab-rules">
     <div class="card mine">
-      <h2>Cách của bạn — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
+      <h2>Cách của bạn — Mon–Fri theo đám đông, Sat–Sun đánh ngược</h2>
       <div class="table-scroll" id="mine-summary"></div>
       <h3 class="decide-sub">Các kèo theo cách này</h3>
       <div class="table-scroll" id="mine-plays"></div>
@@ -754,12 +754,12 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
 
   <section class="panel" id="tab-past">
     <div class="card" id="past-weekday-card">
-      <h2>Thứ 2 – Thứ 6</h2>
+      <h2>Mon – Fri</h2>
       <div class="table-scroll" id="past-chart-wk"></div>
       <div class="table-scroll" id="past-table-wk"></div>
     </div>
     <div class="card" id="past-weekend-card">
-      <h2>Thứ 7 – Chủ nhật</h2>
+      <h2>Sat – Sun</h2>
       <div class="table-scroll" id="past-chart-we"></div>
       <div class="table-scroll" id="past-table-we"></div>
     </div>
@@ -833,8 +833,8 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <div class="card">
       <h2>Expert đang xanh thì pick tiếp theo có hay thua?</h2>
       <div class="grid2">
-        <div><p class="note"><b>Thứ 2–6</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
-        <div><p class="note"><b>Thứ 7–CN</b></p><div class="table-scroll" id="form-chart-we"></div></div>
+        <div><p class="note"><b>Mon–Fri</b></p><div class="table-scroll" id="form-chart-wk"></div></div>
+        <div><p class="note"><b>Sat–Sun</b></p><div class="table-scroll" id="form-chart-we"></div></div>
       </div>
       <div class="table-scroll" id="form-table"></div>
     </div>
@@ -859,7 +859,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </div>
     <div class="card">
       <h2>◫ Tỷ lệ picks</h2>
-      <p class="note">Kết quả “Cách của bạn” theo đúng tỷ lệ expert, tách Thứ 2–6 và Thứ 7–CN.</p>
+      <p class="note">Kết quả “Cách của bạn” theo đúng tỷ lệ expert, tách Mon–Fri và Sat–Sun.</p>
       <div class="table-scroll" id="ratio-matrix"></div>
     </div>
     <div class="card">
@@ -920,7 +920,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <h2>Cách của bạn áp vào cả mùa — tuần 1 đến nay</h2>
     </div>
     <div class="card">
-      <h2>NFL — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
+      <h2>NFL — Mon–Fri theo đám đông, Sat–Sun đánh ngược</h2>
       <div class="kpi-mini" id="season-kpi-nfl"></div>
       <h3 class="decide-sub">Độ nhạy theo số picks</h3>
       <div class="table-scroll" id="season-sens-nfl"></div>
@@ -930,7 +930,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <div class="table-scroll" id="season-plays-nfl"></div>
     </div>
     <div class="card">
-      <h2>NCAAF — Thứ 2–6 theo đám đông, Thứ 7–CN đánh ngược</h2>
+      <h2>NCAAF — Mon–Fri theo đám đông, Sat–Sun đánh ngược</h2>
       <div class="kpi-mini" id="season-kpi-ncaaf"></div>
       <h3 class="decide-sub">Độ nhạy theo số picks</h3>
       <div class="table-scroll" id="season-sens-ncaaf"></div>
@@ -1051,7 +1051,7 @@ const DATA = /*__DATA__*/null;
   const fmtTime = (iso) => {
     if (!iso) return "–";
     const d = new Date(iso);
-    return isNaN(d) ? String(iso) : d.toLocaleString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return isNaN(d) ? String(iso) : d.toLocaleString("en-GB", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
   const sideName = (r) => r.side === "home" ? (r.home_abbr || "Đội nhà") : r.side === "away" ? (r.away_abbr || "Đội khách") : LABEL[r.side] || r.side;
 
@@ -1335,7 +1335,7 @@ const DATA = /*__DATA__*/null;
     const group = el("div", { class: "news-ticker-group" });
     for (const { item, game } of items) {
       const start = Date.parse(game.start_time), live = start <= now;
-      const when = live ? "LIVE" : new Date(start).toLocaleTimeString("vi-VN", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      const when = live ? "LIVE" : new Date(start).toLocaleTimeString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
       const away = game.away_abbr || game.away_name || "", home = game.home_abbr || game.home_name || "";
       const match = away && home ? `${away} @ ${home}` : leagueName(item.league);
       const href = safeNewsUrl(item.url);
@@ -1842,7 +1842,7 @@ const DATA = /*__DATA__*/null;
   }).format(d));
   const dayLabel = (ymd) => {
     const today = etDate(Date.now()), tomorrow = etDate(Date.now() + 86400000);
-    const d = new Date(ymd + "T12:00:00Z").toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
+    const d = new Date(ymd + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
     return ymd === today ? `Hôm nay (${d})` : ymd === tomorrow ? `Ngày mai (${d})` : d;
   };
 
@@ -2317,8 +2317,8 @@ const DATA = /*__DATA__*/null;
     renderTable("form-table", table, [
       { label: "Phong độ lúc pick", value: (x) => x.label },
       { label: "Tất cả ngày", num: true, value: (x) => cell(x.dim, x.b, "ALL") },
-      { label: "Thứ 2–6", num: true, value: (x) => cell(x.dim, x.b, "T2-6") },
-      { label: "Thứ 7–CN", num: true, value: (x) => cell(x.dim, x.b, "T7-CN") },
+      { label: "Mon–Fri", num: true, value: (x) => cell(x.dim, x.b, "T2-6") },
+      { label: "Sat–Sun", num: true, value: (x) => cell(x.dim, x.b, "T7-CN") },
       { label: "CI 95% (tất cả)", num: true, value: (x) => `${pct(x.all.ci_low)} – ${pct(x.all.ci_high)}` },
       { label: "ROI (tất cả)", num: true, value: (x) => signed(x.all.roi), cls: (x) => roiCls(x.all.roi) },
     ]);
@@ -2372,7 +2372,7 @@ const DATA = /*__DATA__*/null;
     radarNote.textContent = period ? `${period.current_start} – ${period.as_of} so với ${period.prior_start} – ${period.prior_end} · chỉ dữ liệu đã chấm` : "Chưa có hai giai đoạn để so sánh.";
     const trendMark = (r) => ({ up: "↗ Tăng", down: "↘ Giảm", flat: "→ Ngang", new: "● Mới", gone: "○ Hết" })[r.trend] || r.trend;
     renderTable("trend-radar", radar.slice().sort((a, b) => (b.current_n || 0) - (a.current_n || 0)), [
-      { label: "Nhóm", value: (r) => r.day_group === "ALL" ? "Tất cả ngày" : r.day_group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN" },
+      { label: "Nhóm", value: (r) => r.day_group === "ALL" ? "Tất cả ngày" : r.day_group === "T2-6" ? "Mon–Fri" : "Sat–Sun" },
       { label: "7 ngày", num: true, value: (r) => `${num(r.current_wins)}-${num(r.current_losses)}-${num(r.current_pushes)}`, sort: (r) => r.current_n },
       { label: "Win%", num: true, value: (r) => pct(r.current_win_pct), cls: (r) => roiCls(r.current_win_pct - BREAKEVEN), sort: (r) => r.current_win_pct },
       { label: "ROI", num: true, value: (r) => signed(r.current_roi), cls: (r) => roiCls(r.current_roi), sort: (r) => r.current_roi },
@@ -2383,7 +2383,7 @@ const DATA = /*__DATA__*/null;
     const ratios = T("Pick_Ratio_Matrix").filter((r) => r.league === state.league && r.market === state.market);
     renderTable("ratio-matrix", ratios, [
       { label: "Tỷ lệ", value: (r) => r.ratio, sort: (r) => r.votes / r.total_votes },
-      { label: "Ngày", value: (r) => r.day_group === "T2-6" ? "T2–6" : "T7–CN" },
+      { label: "Ngày", value: (r) => r.day_group === "T2-6" ? "Mon–Fri" : "Sat–Sun" },
       { label: "Cách", value: (r) => r.method === "follow" ? "Theo" : "Ngược" },
       { label: "n", num: true, value: sampleCell, sort: (r) => r.n },
       { label: "W-L-P", num: true, value: (r) => `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}` },
@@ -2949,11 +2949,11 @@ const DATA = /*__DATA__*/null;
           seasonChartState.page[pageKey] = Math.min(seasonChartState.page[pageKey] || 0, Math.max(0, pages - 1));
           const page = seasonChartState.page[pageKey], first = page * pageSize;
           const pager = el("div", { class: "pager season-chart-pager", id: `season-chart-pager-${pageKey}` });
-          sectionNode.append(el("h4", { class: "decide-sub", text: group === "T2-6" ? "Thứ 2 – Thứ 6" : "Thứ 7 – Chủ nhật" }),
+          sectionNode.append(el("h4", { class: "decide-sub", text: group === "T2-6" ? "Mon – Fri" : "Sat – Sun" }),
             el("div", { class: "table-scroll", id: `season-chart-${pageKey}` }), pager);
           lollipop(`season-chart-${pageKey}`, part.slice(first, first + pageSize), {
             label, summaryRows: part, wide: true,
-            ariaLabel: `Tuần ${w}, ${section.name}, ${group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN"}: % picks của side đa số và kết quả`,
+            ariaLabel: `Tuần ${w}, ${section.name}, ${group === "T2-6" ? "Mon–Fri" : "Sat–Sun"}: % picks của side đa số và kết quả`,
           });
           if (!part.length) continue;
           const prev = el("button", { class: "btn", type: "button", text: "‹ Trước", "aria-label": `Trang trước tuần ${w} ${section.name} ${group}` });
@@ -2973,7 +2973,7 @@ const DATA = /*__DATA__*/null;
     }
   }
 
-  const GROUP_LABEL = { "T2-6": "Thứ 2–6", "T7-CN": "Thứ 7–CN", ALL: "Cả tuần" };
+  const GROUP_LABEL = { "T2-6": "Mon–Fri", "T7-CN": "Sat–Sun", ALL: "Cả tuần" };
   const DECISION = { collecting: ["Đang ghi", "info"], pass: ["Đạt", "win"], fail: ["Bỏ", "loss"], watch: ["Theo dõi tiếp", "dim"] };
 
   let scoreMap = null;
@@ -3004,7 +3004,7 @@ const DATA = /*__DATA__*/null;
     if (!fresh || stored && (stored.graded || Date.parse(stored.updated_at) > Date.parse(fresh.updated_at))) return stored;
     return fresh;
   };
-  const DG_LABEL = { "T2-6": "Thứ 2–6 · theo đám đông", "T7-CN": "Thứ 7–CN · đánh ngược", ALL: "Cả tuần" };
+  const DG_LABEL = { "T2-6": "Mon–Fri · theo đám đông", "T7-CN": "Sat–Sun · đánh ngược", ALL: "Cả tuần" };
   function mineCard() {
     const lg = (r) => state.league === "ALL" || r.league === state.league || r.league === "ALL";
     const sum = T("My_Method_Summary").filter((r) => (state.league === "ALL" ? true : r.league === state.league));
@@ -3022,7 +3022,7 @@ const DATA = /*__DATA__*/null;
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Trận", value: (r) => `${leagueName(r.league)} · ${r.match}` },
       { label: "Đám đông", value: (r) => `${r.crowd} ${r.votes}/${r.total_votes}`, sort: (r) => r.votes / r.total_votes },
-      { label: "Cách đánh", value: (r) => (r.method === "follow" ? "Theo (T2–6)" : "Ngược (T7–CN)") },
+      { label: "Cách đánh", value: (r) => (r.method === "follow" ? "Theo (Mon–Fri)" : "Ngược (Sat–Sun)") },
       { label: "Đặt bên", value: (r) => el("b", { text: r.pick + fmtLine(r.line) }) },
       { label: "Kết quả", value: (r) => (r.status === "graded" ? resultPill(r.result) : el("span", { class: "pill info", text: "Chờ" })), sort: (r) => r.result || "" },
       SCORE_COL,
@@ -3093,8 +3093,8 @@ const DATA = /*__DATA__*/null;
     const all = (b) => find(b, "ALL");
     renderTable("hist-summary", ["ALL", ...BUCKETS].filter((b) => all(b)), [
       { label: "% picks cùng side", value: (b) => (b === "ALL" ? "Tất cả" : b + "%") },
-      { label: "Thứ 2–6", num: true, value: (b) => wlp(find(b, "T2-6")), sort: (b) => (find(b, "T2-6") || {}).win_pct },
-      { label: "Thứ 7–CN", num: true, value: (b) => wlp(find(b, "T7-CN")), sort: (b) => (find(b, "T7-CN") || {}).win_pct },
+      { label: "Mon–Fri", num: true, value: (b) => wlp(find(b, "T2-6")), sort: (b) => (find(b, "T2-6") || {}).win_pct },
+      { label: "Sat–Sun", num: true, value: (b) => wlp(find(b, "T7-CN")), sort: (b) => (find(b, "T7-CN") || {}).win_pct },
       { label: "Cả tuần", num: true, value: (b) => wlp(all(b)), sort: (b) => all(b).win_pct },
       { label: "ROI theo", num: true, value: (b) => signed(all(b).roi), cls: (b) => roiCls(all(b).roi), sort: (b) => all(b).roi },
       { label: "Đánh ngược win%", num: true, value: (b) => pct(all(b).fade_win_pct), sort: (b) => all(b).fade_win_pct },
@@ -3118,8 +3118,8 @@ const DATA = /*__DATA__*/null;
     renderTable("hist-weekly", weekRows, [
       { label: "Giải", value: (w) => leagueName(w.league) },
       { label: "Tuần", num: true, value: (w) => num(w.week), sort: (w) => w.week },
-      { label: "Thứ 2–6", num: true, value: (w) => wlp(w.wk), sort: (w) => w.wk.win_pct },
-      { label: "Thứ 7–CN", num: true, value: (w) => wlp(w.we), sort: (w) => w.we.win_pct },
+      { label: "Mon–Fri", num: true, value: (w) => wlp(w.wk), sort: (w) => w.wk.win_pct },
+      { label: "Sat–Sun", num: true, value: (w) => wlp(w.we), sort: (w) => w.we.win_pct },
       { label: "Cả tuần", num: true, value: (w) => wlp(w.all), sort: (w) => w.all.win_pct },
     ]);
 
@@ -3195,7 +3195,7 @@ const DATA = /*__DATA__*/null;
     const wl = (r) => (r && r.n + r.pushes ? `${num(r.wins)}-${num(r.losses)}-${num(r.pushes)}` : "–");
     const cell = (r) => (r && r.n + r.pushes ? `${wl(r)} · ${pct(r.win_pct)}` : "–");
     const fmtLine = (v) => (v === null || v === undefined ? "" : " " + (v > 0 ? "+" : "") + String(v).replace(".", ","));
-    const DG = { "T2-6": "Thứ 2–6 · theo", "T7-CN": "Thứ 7–CN · ngược", ALL: "Cả tuần" };
+    const DG = { "T2-6": "Mon–Fri · theo", "T7-CN": "Sat–Sun · ngược", ALL: "Cả tuần" };
     for (const lg of ["nfl", "ncaaf"]) {
       const get = (week, dg) => S.find((r) => r.league === lg && String(r.week) === String(week) && r.day_group === dg);
       document.getElementById("season-kpi-" + lg).replaceChildren(...["ALL", "T2-6", "T7-CN"].map((dg) => {
@@ -3213,23 +3213,23 @@ const DATA = /*__DATA__*/null;
       renderTable("season-sens-" + lg, sensRows, [
         { label: "Số picks", value: (r) => (r.ct === "ALL" ? `≥ ${r.k} picks` : ""), cls: (r) => (r.ct === "ALL" ? "strong" : ""), sort: (r) => r.k },
         { label: "Đám đông", value: (r) => CT[r.ct], cls: (r) => (r.ct === "ALL" ? "strong" : ""), sort: (r) => r.ct },
-        { label: "Thứ 2–6 · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
-        { label: "Thứ 7–CN · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
+        { label: "Mon–Fri · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
+        { label: "Sat–Sun · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
         { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },
         { label: "ROI", num: true, value: (r) => (r.c && r.c.n ? signed(r.c.roi) : "–"), cls: (r) => roiCls(r.c && r.c.roi), sort: (r) => (r.c ? r.c.roi : 0) },
       ]);
       const weeks = [...new Set(S.filter((r) => r.league === lg && r.week !== "ALL").map((r) => Number(r.week)))].sort((a, b) => b - a);
       renderTable("season-weeks-" + lg, weeks.map((w) => ({ week: w, a: get(w, "T2-6"), b: get(w, "T7-CN"), c: get(w, "ALL") })), [
         { label: "Tuần", value: (r) => "Tuần " + r.week, sort: (r) => r.week },
-        { label: "Thứ 2–6 · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
-        { label: "Thứ 7–CN · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
+        { label: "Mon–Fri · theo", num: true, value: (r) => cell(r.a), sort: (r) => (r.a && r.a.n ? r.a.win_pct : -1) },
+        { label: "Sat–Sun · ngược", num: true, value: (r) => cell(r.b), sort: (r) => (r.b && r.b.n ? r.b.win_pct : -1) },
         { label: "Cả tuần", num: true, value: (r) => cell(r.c), cls: (r) => (r.c && r.c.n ? (r.c.win_pct >= 0.5238 ? "pos" : "neg") : ""), sort: (r) => (r.c && r.c.n ? r.c.win_pct : -1) },
         { label: "Units", num: true, value: (r) => (r.c && r.c.n ? (r.c.units > 0 ? "+" : "") + num(r.c.units, 2) : "–"), cls: (r) => roiCls(r.c && r.c.units), sort: (r) => (r.c ? r.c.units : 0) },
       ]);
       renderTable("season-plays-" + lg, P.filter((r) => r.league === lg), [
         { label: "Tuần", value: (r) => (r.week === null || r.week === undefined ? "–" : r.week), sort: (r) => Number(r.week) || 0 },
         { label: "Ngày", value: (r) => r.et_date },
-        { label: "Nhóm", value: (r) => (r.day_group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN") },
+        { label: "Nhóm", value: (r) => (r.day_group === "T2-6" ? "Mon–Fri" : "Sat–Sun") },
         { label: "Trận", value: (r) => r.match.replace("@", " @ ") },
         { label: "Tỉ số", value: (r) => r.score || "–" },
         { label: "Đám đông", value: (r) => `${r.crowd} ${r.votes}/${r.total_votes}`, sort: (r) => r.votes / r.total_votes },
@@ -3280,7 +3280,7 @@ const DATA = /*__DATA__*/null;
     const CT = { unanimous: "Đồng thuận", mixed: "Không đồng thuận" };
     renderTable("fc-cells", T("Forecast_Cells").filter((r) => state.league === "ALL" || r.league === state.league), [
       { label: "Giải", value: (r) => leagueName(r.league) },
-      { label: "Nhóm ngày", value: (r) => (r.day_group === "T2-6" ? "Thứ 2–6 · theo" : "Thứ 7–CN · ngược") },
+      { label: "Nhóm ngày", value: (r) => (r.day_group === "T2-6" ? "Mon–Fri · theo" : "Sat–Sun · ngược") },
       { label: "Đám đông", value: (r) => CT[r.crowd_type] || r.crowd_type },
       { label: "Picks", value: (r) => r.bucket },
       { label: "Quá khứ", num: true, value: (r) => `${num(r.wins)}-${num(r.losses)} · ${pct(r.raw_pct)}`, cls: (r) => (r.n < 20 ? "muted" : ""), sort: (r) => r.raw_pct },
@@ -3352,7 +3352,7 @@ const DATA = /*__DATA__*/null;
   // ---------- phone layout: compact rows, bottom bar, filter toggle, live refresh ----------
   const PHONE = window.matchMedia("(max-width: 600px)");
   const isPhone = () => PHONE.matches;
-  const DAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const fmtShort = (iso) => {
     if (!iso) return "–";
     const d = new Date(iso);
@@ -3387,10 +3387,10 @@ const DATA = /*__DATA__*/null;
       moreBlock("Chuyên gia chọn winner", expertsFor(r), "Chưa có chuyên gia nào chọn winner cho trận này.")] : [],
   });
   const COMPACT = {
-    "trend-radar": (r) => ({ title: r.day_group === "ALL" ? "Tất cả ngày" : r.day_group === "T2-6" ? "Thứ 2–6" : "Thứ 7–CN",
+    "trend-radar": (r) => ({ title: r.day_group === "ALL" ? "Tất cả ngày" : r.day_group === "T2-6" ? "Mon–Fri" : "Sat–Sun",
       right: el("b", { class: roiCls(r.delta_roi), text: ({ up: "↗", down: "↘", flat: "→", new: "●", gone: "○" })[r.trend] || "" }),
       sub: `${r.current_wins}-${r.current_losses}-${r.current_pushes} · ${pct(r.current_win_pct)} · ROI ${signed(r.current_roi)}` }),
-    "ratio-matrix": (r) => ({ title: `${r.ratio} · ${r.day_group === "T2-6" ? "T2–6 theo" : "T7–CN ngược"}`,
+    "ratio-matrix": (r) => ({ title: `${r.ratio} · ${r.day_group === "T2-6" ? "Mon–Fri theo" : "Sat–Sun ngược"}`,
       right: el("b", { class: roiCls(r.roi), text: pct(r.win_pct) }),
       sub: `${r.wins}-${r.losses}-${r.pushes} · n=${r.n} · ROI ${signed(r.roi)}` }),
     "spread-flip-results": (r) => ({ title: `${String(r.et_date || "").slice(5).replace("-", "/")} · ${r.away_abbr} @ ${r.home_abbr}`,

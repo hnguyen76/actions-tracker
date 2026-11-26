@@ -166,7 +166,7 @@ def test_daygroup_rule_follows_on_weekdays_and_fades_on_weekends(tmp_path):
     assert set(got) == {1, 4}
     assert (got[1]["bet_side"], got[1]["line"]) == ("away", 4.0)
     assert (got[4]["bet_side"], got[4]["line"]) == ("away", -2.5)
-    assert "Thứ 7–CN" in got[1]["basis"] and "Thứ 2–6" in got[4]["basis"]
+    assert "Sat–Sun" in got[1]["basis"] and "Mon–Fri" in got[4]["basis"]
 
 
 def test_nfl_heavy_rule_needs_ten_experts_on_one_side(tmp_path):
