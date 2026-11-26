@@ -4,6 +4,7 @@
 #   auto_update.sh alert    every 5 min:  Telegram message ~15 min before kickoff (collects first when due)
 #   auto_update.sh live     every 5 min:  ESPN live scores + finals (light)
 #   auto_update.sh news     every 15 min overnight: ESPN breaking + Yahoo Sports, then rebuild
+#   auto_update.sh traffic  hourly: cookieless traffic summary + health/anomaly alert to Telegram
 #   auto_update.sh sync     every 5 min, 24/7: pull code, rebuild locally and publish only when HEAD changed
 # Collection jobs: pull -> run -> commit data/actions.db (only when it changed) -> push -> publish the site.
 # Commits are tagged "(phone <mode>)" so the PC tasks step aside while the phone is active.
@@ -15,8 +16,9 @@ case "$MODE" in
   alert)  CMD="alert" ;;
   live)   CMD="live" ;;
   news)   CMD="news" ;;
+  traffic) CMD="traffic" ;;
   sync)   CMD="" ;;
-  *) echo "che do khong hop le: $MODE (update | alert | live | news | sync)"; exit 2 ;;
+  *) echo "che do khong hop le: $MODE (update | alert | live | news | traffic | sync)"; exit 2 ;;
 esac
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
@@ -72,6 +74,20 @@ ensure_news_cron() {
   ( crontab -l 2>/dev/null || true
     echo "7-52/15 0-10,23 * * * bash $REPO/scripts/auto_update.sh news >> $HOME/actions-auto.log 2>&1" ) | crontab -
   echo "Da them lich tin ESPN/Yahoo xuyen dem moi 15 phut."
+}
+
+ensure_traffic_cron() {
+  case "${PREFIX:-}" in
+    *com.termux*) ;;
+    *) return ;;
+  esac
+  command -v crontab >/dev/null 2>&1 || return
+  if crontab -l 2>/dev/null | grep -Fq "auto_update.sh traffic"; then
+    return
+  fi
+  ( crontab -l 2>/dev/null || true
+    echo "12 * * * * bash $REPO/scripts/auto_update.sh traffic >> $HOME/actions-auto.log 2>&1" ) | crontab -
+  echo "Đã thêm báo cáo traffic Telegram mỗi giờ."
 }
 
 ensure_alert_cron() {
@@ -152,6 +168,7 @@ collect_and_commit() {
 
 ensure_sync_cron
 ensure_news_cron
+ensure_traffic_cron
 ensure_alert_cron
 ensure_live_cron
 sync_main

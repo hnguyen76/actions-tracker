@@ -136,6 +136,8 @@ def build_tables(conn: sqlite3.Connection, now: str, history_dir: Path | None = 
         "History_Weekly": history_weekly(hp),
     }
     tables.update(load_playoff_tables(conn))
+    from actions_tracker.traffic import tables as traffic_tables
+    tables.update(traffic_tables(conn))
     from actions_tracker.analysis.signals import expert_sides, include_live_decisions, signals
     from actions_tracker.game_context import context_tables
     ctx, opening = context_tables(conn)

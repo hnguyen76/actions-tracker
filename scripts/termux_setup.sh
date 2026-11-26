@@ -53,6 +53,7 @@ L=">> $HOME/actions-auto.log 2>&1"
 ( crontab -l 2>/dev/null | grep -v auto_update.sh || true
   echo "2-59/5 * * * * $J sync $L"
   echo "7-52/15 0-10,23 * * * $J news $L"
+  echo "12 * * * * $J traffic $L"
   echo "*/15 11-22 * * * $J update $L"
   echo "0 23 * * * $J update $L"
   echo "*/15 9-10 * * 0 $J update $L"

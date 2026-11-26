@@ -29,6 +29,7 @@ def test_embeds_json_and_copies_xlsx(tmp_path):
     assert 'name="referrer" content="no-referrer"' in html and "Content-Security-Policy" in html
     assert "chart.umd.min.js" in html and 'integrity="sha384-' in html
     assert "fonts.googleapis.com" not in html and "fonts.gstatic.com" not in html
+    assert 'data-goatcounter="https://hieumercer.goatcounter.com/count"' in html
     assert (tmp_path / "site" / "robots.txt").read_text("utf-8") == "User-agent: *\nDisallow: /\n"
 
 
