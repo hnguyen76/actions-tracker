@@ -27,6 +27,8 @@
         integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
+  .traffic-chart{height:150px;display:flex;align-items:flex-end;gap:4px;padding:18px 4px 0;border-bottom:1px solid var(--border-strong)}
+  .traffic-chart span{flex:1;min-height:3px;border-radius:5px 5px 1px 1px;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 45%,transparent));box-shadow:0 0 10px color-mix(in srgb,var(--accent) 30%,transparent)}
 /* dark is the default; the toggle sets data-theme="light" */
 :root {
   color-scheme: dark;
@@ -672,6 +674,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button role="tab" data-tab="season" aria-selected="false">Cách của bạn · cả mùa</button>
     <button role="tab" data-tab="forecast" aria-selected="false">Dự báo</button>
     <button role="tab" data-tab="playoff" aria-selected="false">Playoff</button>
+    <button role="tab" data-tab="traffic" aria-selected="false">Traffic</button>
   </nav>
   <div class="filters">
     <label>Giải<select id="f-league"></select></label>
@@ -989,6 +992,15 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     </div>
   </section>
 
+  <section class="panel" id="tab-traffic">
+    <div class="card"><h2>📊 Traffic hôm nay</h2><div class="kpis" id="traffic-kpis"></div><div id="traffic-bars"></div></div>
+    <div class="grid2">
+      <div class="card"><h2>🔥 Mục xem nhiều</h2><div class="table-scroll" id="traffic-sections"></div></div>
+      <div class="card"><h2>🌎 Vị trí</h2><div class="table-scroll" id="traffic-locations"></div></div>
+    </div>
+    <div class="card"><h2>🛡 Health &amp; cảnh báo</h2><div class="table-scroll" id="traffic-history"></div></div>
+  </section>
+
   <nav class="bottombar" id="bottombar" aria-label="Điều hướng">
     <button type="button" data-go="upcoming" aria-label="Kèo" title="Kèo" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
     <button type="button" data-go="second-half" aria-label="Kèo hiệp hai" title="Kèo hiệp hai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM12 5v14"/><path d="M7.5 9.5h2v2h-2zM14.5 12.5h2v2h-2z"/></svg></button>
@@ -1005,6 +1017,7 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
     <button type="button" data-go="season-chart" aria-label="Biểu đồ cả mùa" title="Biểu đồ cả mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16M8 17v-5M12 17V7M16 17v-8M20 17V5"/></svg></button>
     <button type="button" data-go="season" aria-label="Cách của bạn cả mùa" title="Cách của bạn cả mùa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v4a4 4 0 0 1-8 0V4ZM8 6H4v1a5 5 0 0 0 5 5M16 6h4v1a5 5 0 0 1-5 5M12 12v5M8 20h8M9 17h6"/></svg></button>
     <button type="button" data-go="playoff" aria-label="Bảng xếp hạng và playoff" title="Bảng xếp hạng và playoff"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v3a4 4 0 0 1-8 0V4ZM8 6H4v1a5 5 0 0 0 5 5M16 6h4v1a5 5 0 0 1-5 5M12 11v6M8 20h8M9 17h6"/></svg></button>
+    <button type="button" data-go="traffic" aria-label="Thống kê truy cập" title="Thống kê truy cập"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/><path d="M3 7l6-4 6 6 6-5"/></svg></button>
   </nav>
 
   <footer class="donate-footer">
@@ -3402,6 +3415,28 @@ const DATA = /*__DATA__*/null;
     draw();
   }
 
+  function trafficTab() {
+    const history = T("Traffic_History"), latest = history[0] || {};
+    const kpi = (label, value, tone = "") => el("div", { class: "k " + tone }, el("div", { class: "t", text: label }),
+      el("div", { class: "v", text: value }), el("div", { class: "s", text: "" }));
+    document.getElementById("traffic-kpis").replaceChildren(
+      kpi("Hôm nay", num(latest.visitors || 0)), kpi("Giờ này", num(latest.current_hour || 0)),
+      kpi("Site", latest.health_status ? `HTTP ${latest.health_status}` : "–", latest.health_status === 200 ? "pos" : "neg"),
+      kpi("Phản hồi", latest.health_ms === undefined ? "–" : `${num(latest.health_ms)}ms`, Number(latest.health_ms) < 8000 ? "pos" : "neg"));
+    const hourly = T("Traffic_Hourly"), max = Math.max(1, ...hourly.map((r) => Number(r.count) || 0));
+    document.getElementById("traffic-bars").replaceChildren(el("div", { class: "traffic-chart" }, ...hourly.map((r) =>
+      el("span", { title: `${r.hour} · ${r.count}`, style: `height:${Math.max(3, Math.round((Number(r.count) || 0) / max * 100))}%` }))));
+    const ranked = ["Traffic_Sections", "Traffic_Pages"].flatMap((name) => T(name));
+    renderTable("traffic-sections", ranked, [{ label: "Mục", value: (r) => r.name || r.path },
+      { label: "Lượt", num: true, value: (r) => num(r.count), sort: (r) => r.count }]);
+    renderTable("traffic-locations", T("Traffic_Locations"), [{ label: "Vị trí", value: (r) => r.name },
+      { label: "Lượt", num: true, value: (r) => num(r.count), sort: (r) => r.count }]);
+    renderTable("traffic-history", history, [{ label: "Giờ", value: (r) => fmtTime(r.hour_utc) },
+      { label: "Hôm nay", num: true, value: (r) => num(r.visitors) }, { label: "Trong giờ", num: true, value: (r) => num(r.current_hour) },
+      { label: "Site", value: (r) => `HTTP ${r.health_status || "–"} · ${num(r.health_ms)}ms` },
+      { label: "Cảnh báo", value: (r) => r.alert || "✓" }], null, { pageSize: 24 });
+  }
+
   // ---------- phone layout: compact rows, bottom bar, filter toggle, live refresh ----------
   const PHONE = window.matchMedia("(max-width: 600px)");
   const isPhone = () => PHONE.matches;
@@ -3744,7 +3779,7 @@ const DATA = /*__DATA__*/null;
     const views = { upcoming: upcomingTab, rules: rulesTab, past: pastTab, soccer: soccerTab, "second-half": secondHalfTab,
       "season-chart": seasonChartTab, consensus: consensusTab,
       experts: expertsTab, trend: trendTab, history: historyTab, nba: nbaTab, season: seasonTab,
-      forecast: forecastTab, playoff: playoffTab };
+      forecast: forecastTab, playoff: playoffTab, traffic: trafficTab };
     (views[active ? active.dataset.tab : "upcoming"] || upcomingTab)();
   }
 
@@ -3755,6 +3790,9 @@ const DATA = /*__DATA__*/null;
       document.querySelectorAll("section.panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + b.dataset.tab));
       // the time-range filter only applies to Upcoming and Trend; hide it elsewhere so all-time numbers are not misread
       document.getElementById("range-wrap").hidden = !["upcoming", "past", "trend"].includes(b.dataset.tab);
+      if (window.goatcounter && typeof window.goatcounter.count === "function") {
+        window.goatcounter.count({ path: "tab-" + b.dataset.tab, title: b.textContent.trim(), event: true });
+      }
       render();
     }));
   }
@@ -3774,5 +3812,6 @@ const DATA = /*__DATA__*/null;
   refreshLiveScores();
 })();
 </script>
+<script data-goatcounter="https://hieumercer.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

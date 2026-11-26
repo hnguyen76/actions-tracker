@@ -555,6 +555,9 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--report", default="reports/actions_report.xlsx")
     a.add_argument("--site", default="site")
     sub.add_parser("telegram-setup", help="find the chat id after you pressed Start in the bot, send a test message")
+    sub.add_parser("traffic-setup", help="securely save the GoatCounter API token on this device")
+    tr = sub.add_parser("traffic", help="save hourly traffic stats and send the Telegram summary")
+    tr.add_argument("--db", default="data/actions.db")
     sub.add_parser("wagerhub-setup", help="securely configure the read-only WagerHub history collector")
     sub.add_parser("wagerhub-collect", help="read settled WagerHub history into a local, gitignored report")
     lv = sub.add_parser("live", help="update live scores of games in progress (ESPN only) and rebuild the dashboard")
@@ -572,6 +575,23 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "telegram-setup":
         return telegram_setup(Path.cwd())
+    if args.cmd == "traffic-setup":
+        from actions_tracker.traffic import setup
+        return setup(Path.cwd())
+    if args.cmd == "traffic":
+        from actions_tracker import alerts
+        from actions_tracker.traffic import TrafficError, collect
+        conn = db.connect(Path(args.db))
+        try:
+            try:
+                result = collect(conn, Path.cwd(), utc_now())
+                print(f"Traffic hôm nay: {result['visitors']}; giờ này: {result['current_hour']}.")
+                return 0
+            except (TrafficError, requests.RequestException, alerts.TelegramError) as e:
+                print(f"LOI traffic: {e}")
+                return 6
+        finally:
+            conn.close()
     if args.cmd == "wagerhub-setup":
         from actions_tracker.wagerhub import setup
         return setup(Path.cwd())
