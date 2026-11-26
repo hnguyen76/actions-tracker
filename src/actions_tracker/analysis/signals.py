@@ -272,12 +272,55 @@ def _green_consensus_signal(play, history: pd.DataFrame | None) -> tuple[str, st
                   f" · Win {rate * 100:.1f}% · ROI {roi * 100:+.1f}%")
 
 
+def _trend_radar_signal(play, radar: pd.DataFrame | None) -> tuple[str, str] | None:
+    """Explain the matching rolling seven-day method trend for a selected play."""
+    if play is None or radar is None or radar.empty:
+        return None
+    rows = radar[(radar["league"] == getattr(play, "league", None))
+                 & (radar["market"] == getattr(play, "market", None))
+                 & (radar["day_group"] == getattr(play, "day_group", None))]
+    if rows.empty:
+        return None
+    r = rows.iloc[0]
+    raw_n = pd.to_numeric(r.get("current_n"), errors="coerce")
+    n = int(raw_n) if pd.notna(raw_n) else 0
+    if not n:
+        return None
+    wins = int(r.get("current_wins") or 0)
+    losses = int(r.get("current_losses") or 0)
+    pushes = int(r.get("current_pushes") or 0)
+    roi = pd.to_numeric(r.get("current_roi"), errors="coerce")
+    prior_roi = pd.to_numeric(r.get("prior_roi"), errors="coerce")
+    delta = pd.to_numeric(r.get("delta_roi"), errors="coerce")
+    trend = str(r.get("trend") or "")
+    if trend == "up" and pd.notna(roi) and roi > 0:
+        tone, verdict = "🟢", "đang tăng và có lời → hỗ trợ pick"
+    elif trend == "down" and pd.notna(roi) and roi < 0:
+        tone, verdict = "🔴", "đang giảm và đang lỗ → cảnh báo"
+    elif trend == "new":
+        tone, verdict = "⚪", "tín hiệu mới, chưa có 7 ngày trước để so"
+    elif trend == "up":
+        tone, verdict = "⚪", "đang hồi phục nhưng ROI vẫn chưa dương"
+    elif trend == "down":
+        tone, verdict = "⚪", "đang chậm lại nhưng ROI hiện tại vẫn còn dương"
+    else:
+        tone, verdict = "⚪", "chưa thay đổi rõ"
+    group = "Mon–Fri" if r.get("day_group") == "T2-6" else "Sat–Sun"
+    push_text = f"-{pushes}" if pushes else ""
+    before = f" · 7 ngày trước ROI {prior_roi * 100:+.1f}%" if pd.notna(prior_roi) else ""
+    change = f" · đổi {delta * 100:+.1f} điểm ROI" if pd.notna(delta) else ""
+    freshness = f" · đến {r.get('as_of')}" if r.get("as_of") else ""
+    return tone, (f"TREND RADAR · {group} {wins}-{losses}{push_text} · ROI {roi * 100:+.1f}%"
+                  f"{before}{change}{freshness} · {verdict}")
+
+
 def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame, opening: pd.DataFrame,
             context: pd.DataFrame, public: pd.DataFrame, expert_sides: pd.DataFrame,
             forecast: pd.DataFrame, method_plays: pd.DataFrame | None = None,
             history_plays: pd.DataFrame | None = None, playoff: pd.DataFrame | None = None,
             expert_form_history: pd.DataFrame | None = None,
-            consensus_history: pd.DataFrame | None = None) -> pd.DataFrame:
+            consensus_history: pd.DataFrame | None = None,
+            trend_radar_history: pd.DataFrame | None = None) -> pd.DataFrame:
     if decisions is None or decisions.empty:
         return pd.DataFrame(columns=SIGNAL_COLS)
     g_by = {int(r.id): r for r in games.itertuples()} if len(games) else {}
@@ -301,6 +344,9 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
         consensus_signal = _green_consensus_signal(play, consensus_history)
         if consensus_signal:
             out.append(consensus_signal)
+        radar_signal = _trend_radar_signal(play, trend_radar_history)
+        if radar_signal:
+            out.append(radar_signal)
         # 6. same situation over the season (user's method plays only): the cover forecast, shown first
         f = fc.get(gid)
         if market == "spread" and f is not None and _fc_side(f) == side:
@@ -378,7 +424,7 @@ def signals(decisions: pd.DataFrame, games: pd.DataFrame, current: pd.DataFrame,
             out.append((tone, f"{what[0].upper() + what[1:]}: vé {p.tickets_pct:g}% · tiền {p.money_pct:g}%"))
         rows += [{"game_id": gid, "market": market, "side": side, "order": i, "tone": t, "text": s,
                   "highlight": s.startswith(("CẦU THỦ CHỦ CHỐT", "PLAYOFF NÓNG", "EXPERT THEO NGÀY",
-                                             "ĐÁM ĐÔNG ĐANG XANH"))}
+                                             "ĐÁM ĐÔNG ĐANG XANH", "TREND RADAR"))}
                  for i, (t, s) in enumerate(out)]
     return pd.DataFrame(rows, columns=SIGNAL_COLS)
 

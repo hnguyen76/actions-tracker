@@ -311,6 +311,28 @@ def test_profitable_consensus_bucket_is_highlighted_only_when_play_follows_crowd
     assert green.iloc[0].highlight
 
 
+def test_trend_radar_signal_explains_support_and_warning_for_the_matching_pick_group():
+    decisions = _df([dict(game_id=1, market="spread", bet_side="home"),
+                     dict(game_id=2, market="total", bet_side="under")], ["game_id", "market", "bet_side"])
+    method = pd.DataFrame([
+        dict(game_id=1, league="nfl", market="spread", day_group="T2-6"),
+        dict(game_id=2, league="ncaaf", market="total", day_group="T7-CN"),
+    ])
+    radar = pd.DataFrame([
+        dict(league="nfl", market="spread", day_group="T2-6", current_n=7, current_wins=5,
+             current_losses=2, current_pushes=0, current_roi=.30, prior_roi=-.10, delta_roi=.40, trend="up",
+             as_of="2026-11-25"),
+        dict(league="ncaaf", market="total", day_group="T7-CN", current_n=5, current_wins=1,
+             current_losses=4, current_pushes=0, current_roi=-.62, prior_roi=.05, delta_roi=-.67, trend="down"),
+    ])
+    got = signals(decisions, **_NO, forecast=pd.DataFrame(), method_plays=method, trend_radar_history=radar)
+    rows = got[got.text.str.startswith("TREND RADAR")].set_index("game_id")
+    assert rows.loc[1].tone == "🟢" and "5-2 · ROI +30.0%" in rows.loc[1].text
+    assert "đổi +40.0 điểm ROI · đến 2026-11-25 · đang tăng và có lời → hỗ trợ pick" in rows.loc[1].text
+    assert rows.loc[2].tone == "🔴" and "đang giảm và đang lỗ → cảnh báo" in rows.loc[2].text
+    assert rows.highlight.all()
+
+
 def test_live_plays_remain_signal_inputs_after_kickoff():
     upcoming = pd.DataFrame([dict(game_id=1, market="spread", bet_side="home")])
     live = pd.DataFrame([
