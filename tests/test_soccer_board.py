@@ -95,6 +95,55 @@ def test_board_ranks_upcoming_games_by_market_move_with_history(tmp_path):
     assert soccer.board_table(conn, "2026-11-28T15:30:00.000Z").empty   # kicked off: off the board
 
 
+def test_final_game_freezes_every_closing_market_side_for_later_analysis(tmp_path):
+    conn = db.connect(tmp_path / "a.db")
+    conn.execute(soccer.GAMES_SCHEMA)
+    conn.execute(soccer.LINES_SCHEMA)
+    conn.execute(soccer.RESULTS_SCHEMA)
+    game = next(e for e in soccer.parse_events(EPL, "eng.1") if e["event_id"] == "401879227")
+    soccer._store(conn, game, NOW)                                      # saves the last pregame close
+    final = {**game, "state": "final", "status": "STATUS_FULL_TIME", "score_90": (2, 1),
+             "home_score": 2, "away_score": 1}
+    soccer._store(conn, final, "2026-11-28T17:00:00.000Z")
+
+    rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM soccer_market_results WHERE event_id = '401879227' ORDER BY market, side")]
+    assert len(rows) == 7                                               # 1X2 + two spread + two total sides
+    by_side = {(r["market"], r["side"]): r for r in rows}
+    assert by_side[("ml", "home")]["result"] == "win"
+    assert by_side[("ml", "home")]["profit_u"] == pytest.approx(100 / 210, abs=1e-4)
+    assert by_side[("ml", "draw")]["result"] == "loss"
+    assert (by_side[("spread", "home")]["close_line"], by_side[("spread", "home")]["result"]) == (-1.5, "loss")
+    assert (by_side[("spread", "away")]["close_line"], by_side[("spread", "away")]["result"]) == (1.5, "win")
+    assert by_side[("total", "over")]["result"] == "win" and by_side[("total", "under")]["result"] == "loss"
+    assert {r["day_group"] for r in rows} == {"T7-CN"}
+    assert {r["close_seen_at"] for r in rows} == {NOW}
+
+    # ESPN may correct a score later: the closing line stays frozen, while score and grade become accurate.
+    soccer._store(conn, {**final, "score_90": (2, 2), "home_score": 2, "away_score": 2},
+                  "2026-11-28T18:00:00.000Z")
+    saved = conn.execute("SELECT home_90, away_90, close_line, close_seen_at, result FROM soccer_market_results "
+                         "WHERE event_id = '401879227' AND market = 'ml' AND side = 'home'").fetchone()
+    assert tuple(saved) == (2, 2, None, NOW, "loss")
+
+
+def test_existing_final_games_are_backfilled_without_refetching_espn(tmp_path):
+    conn = db.connect(tmp_path / "a.db")
+    conn.execute(soccer.GAMES_SCHEMA)
+    conn.execute(soccer.LINES_SCHEMA)
+    conn.execute(soccer.RESULTS_SCHEMA)
+    game = next(e for e in soccer.parse_events(EPL, "eng.1") if e["event_id"] == "401879227")
+    soccer._store(conn, game, NOW)
+    conn.execute("UPDATE soccer_games SET state='final', status='STATUS_FULL_TIME', home_score=1, away_score=1, "
+                 "home_90=1, away_90=1 WHERE event_id='401879227'")
+    assert soccer._backfill_market_results(conn, "2026-11-28T17:00:00.000Z") == 1
+    assert conn.execute("SELECT COUNT(*) FROM soccer_market_results WHERE event_id='401879227'").fetchone()[0] == 7
+    draw = conn.execute("SELECT result FROM soccer_market_results WHERE event_id='401879227' "
+                        "AND market='ml' AND side='draw'").fetchone()[0]
+    assert draw == "win"
+    assert soccer._backfill_market_results(conn, "2026-11-28T18:00:00.000Z") == 0
+
+
 def test_a_total_moved_to_another_line_is_compared_at_the_same_line():
     # DraftKings moved the main total 3,5 -> 2,5: compare the over at 2,5 implied by the 3,5 prices (Poisson goals)
     game = {"home_abbr": "SLP", "away_abbr": "VIL"}
