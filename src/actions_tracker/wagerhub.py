@@ -28,7 +28,7 @@ PRIVATE_DIR = Path("data/private")
 HISTORY_FILE = "wagerhub_history.json"
 DISCOVERY_FILE = "wagerhub_discovery.json"
 LIVE_FILE = "wagerhub_live.json"
-ALLOWED_HOSTS = {"wagerhub888.com", "www.wagerhub888.com", "classic.wagerhub888.com"}
+ALLOWED_HOSTS = {"wagerhub888.com", "www.wagerhub888.com", "classic.wagerhub888.com", "live.viggames.com"}
 TIMEOUT = 25
 
 # The collector follows only read-oriented pages.  These words are checked against
@@ -163,7 +163,7 @@ def _safe_url(url: str) -> str:
     # The book may move an authenticated session to a regional/mobile subdomain.
     # Accept only the registrable WagerHub domain and its real subdomains; a name
     # such as wagerhub888.com.example.org still fails this boundary check.
-    same_site = host == "wagerhub888.com" or host.endswith(".wagerhub888.com")
+    same_site = host == "wagerhub888.com" or host.endswith(".wagerhub888.com") or host == "live.viggames.com"
     if parts.scheme.lower() != "https" or not same_site:
         label = host or "không rõ host"
         raise WagerHubSafetyError(f"Đã chặn link ngoài WagerHub ({label}).")

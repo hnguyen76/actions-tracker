@@ -54,6 +54,8 @@ def test_only_same_site_read_pages_are_allowed():
         == "https://classic.wagerhub888.com/reports/History.aspx?days=7"
     assert wagerhub._safe_url("https://mobile.wagerhub888.com/reports/History.aspx") \
         == "https://mobile.wagerhub888.com/reports/History.aspx"
+    assert wagerhub._safe_url("https://live.viggames.com/sports/live") \
+        == "https://live.viggames.com/sports/live"
     for url in [
         "http://classic.wagerhub888.com/reports/History.aspx",
         "https://example.com/history",
