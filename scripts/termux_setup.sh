@@ -79,3 +79,4 @@ echo "Xong. Nho: Cai dat > Pin > Gioi han su dung nen > 'Ung dung khong bao gio 
 echo "Xem nhat ky: tail -n 40 ~/actions-auto.log"
 echo "WagerHub chi-doc (tuy chon): cd $REPO && PYTHONPATH=src python -m actions_tracker wagerhub-setup"
 echo "WCSports chi-doc (tuy chon): cd $REPO && PYTHONPATH=src python -m actions_tracker wcsports-setup"
+echo "SBOBET live soccer chi-doc (tuy chon): cd $REPO && PYTHONPATH=src python -m actions_tracker sbobet-setup"

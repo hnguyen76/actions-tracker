@@ -102,6 +102,22 @@ Nếu giao diện tài khoản dùng tên trang/cột khác, lần setup vẫn l
 (chỉ đường dẫn không có query string và tên cột, không chứa password/cookie) để hoàn thiện parser. Không tự thêm
 collector vào cron trước khi lần chạy tay đầu tiên đăng nhập và đọc đúng bảng.
 
+### SBOBET — live soccer riêng tư trên S21
+
+SBOBET thường yêu cầu CAPTCHA và phiên đăng nhập động, nên collector không lưu password và không vượt CAPTCHA.
+Sau khi chủ tài khoản đăng nhập hợp lệ, lệnh setup nhận Cookie header của phiên, kiểm tra trang betting rồi lưu
+cục bộ tại `.sbobet_session.json` với quyền `600`. Collector chỉ dùng GET, chặn bet slip, đặt cược và nạp/rút tiền;
+kết quả nằm trong `data/private/sbobet_live.json` và không được đưa lên GitHub.
+
+```bash
+cd ~/actions-tracker
+git pull
+PYTHONPATH=src python -m actions_tracker sbobet-setup
+PYTHONPATH=src python -m actions_tracker sbobet-collect
+```
+
+Khi phiên hết hạn hoặc SBOBET yêu cầu CAPTCHA, collector dừng và yêu cầu tạo lại phiên thay vì tự động vượt qua.
+
 ## Chạy tay / phát triển
 
 ```bash
