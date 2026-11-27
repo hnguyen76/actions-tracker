@@ -560,6 +560,9 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("--db", default="data/actions.db")
     sub.add_parser("wagerhub-setup", help="securely configure the read-only WagerHub history collector")
     sub.add_parser("wagerhub-collect", help="read settled WagerHub history into a local, gitignored report")
+    sub.add_parser("wcsports-setup", help="securely configure the read-only WCSports collector")
+    sub.add_parser("wcsports-collect", help="read WCSports live tables into a local gitignored report")
+    sub.add_parser("bookscan", help="run configured read-only WagerHub/WCSports collectors")
     lv = sub.add_parser("live", help="update live scores of games in progress (ESPN only) and rebuild the dashboard")
     lv.add_argument("--leagues", default=",".join(k for k, on in LEAGUES.items() if on))
     lv.add_argument("--db", default="data/actions.db")
@@ -598,6 +601,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "wagerhub-collect":
         from actions_tracker.wagerhub import collect
         return collect(Path.cwd())
+    if args.cmd == "wcsports-setup":
+        from actions_tracker.wcsports import setup
+        return setup(Path.cwd())
+    if args.cmd == "wcsports-collect":
+        from actions_tracker.wcsports import collect
+        return collect(Path.cwd())
+    if args.cmd == "bookscan":
+        codes = []
+        if (Path.cwd() / ".wagerhub_credentials.json").is_file():
+            from actions_tracker.wagerhub import collect as wagerhub_collect
+            codes.append(wagerhub_collect(Path.cwd()))
+        if (Path.cwd() / ".wcsports_credentials.json").is_file():
+            from actions_tracker.wcsports import collect as wcsports_collect
+            codes.append(wcsports_collect(Path.cwd()))
+        if not codes:
+            print("Chưa setup WagerHub/WCSports; bỏ qua bookscan.")
+        return max(codes, default=0)
     if args.cmd == "build":
         return rebuild_site(Path(args.db), Path(args.site), utc_now())
     if args.cmd == "live":

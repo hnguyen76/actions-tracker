@@ -27,6 +27,7 @@ CREDENTIAL_FILE = ".wagerhub_credentials.json"
 PRIVATE_DIR = Path("data/private")
 HISTORY_FILE = "wagerhub_history.json"
 DISCOVERY_FILE = "wagerhub_discovery.json"
+LIVE_FILE = "wagerhub_live.json"
 ALLOWED_HOSTS = {"wagerhub888.com", "www.wagerhub888.com", "classic.wagerhub888.com"}
 TIMEOUT = 25
 
@@ -37,7 +38,8 @@ _BLOCKED = (
     "cashier", "deposit", "withdraw", "payout", "transferfund", "delete", "cancelwager",
 )
 _HISTORY = ("history", "settled", "graded", "transaction", "statement", "account activity", "my wagers")
-_NAVIGATION = _HISTORY + ("menu", "home", "main", "account", "report", "frame")
+_NAVIGATION = _HISTORY + ("menu", "home", "main", "account", "report", "frame", "live", "in play", "in-play",
+                          "score", "odds", "sports", "football", "basketball")
 _HEADER_HINTS = (
     "date", "time", "ticket", "sport", "league", "event", "description", "wager", "type",
     "risk", "to win", "status", "result", "win loss", "net", "amount",
@@ -207,6 +209,32 @@ def parse_history_tables(html: str, source: str = "") -> tuple[list[dict[str, st
     return records, headers_seen
 
 
+def parse_live_tables(html: str, source: str = "") -> tuple[list[dict[str, str]], list[list[str]]]:
+    """Extract score/odds tables without following or submitting market controls."""
+    parser = _TableParser()
+    parser.feed(html or "")
+    records, headers_seen = [], []
+    hints = ("team", "event", "match", "score", "spread", "handicap", "total", "odds", "moneyline", "line")
+    for table in parser.tables:
+        header_index = None
+        for index, row in enumerate(table[:8]):
+            cleaned = [_clean_header(cell) for cell in row]
+            if len(cleaned) >= 2 and sum(any(hint in cell for hint in hints) for cell in cleaned) >= 2:
+                header_index = index
+                break
+        if header_index is None:
+            continue
+        headers = table[header_index]
+        headers_seen.append(headers)
+        for row in table[header_index + 1:]:
+            if len(row) < 2 or not any(row):
+                continue
+            padded = row + [""] * max(0, len(headers) - len(row))
+            records.append({**{headers[i] or f"column_{i + 1}": padded[i] for i in range(len(headers))},
+                            "_source": source})
+    return records, headers_seen
+
+
 def _field(record: dict[str, str], names: tuple[str, ...]) -> str | None:
     fields = [(_clean_header(key), value) for key, value in record.items() if not key.startswith("_")]
     for name in names:
@@ -361,6 +389,7 @@ class WagerHubClient:
         visited: list[str] = []
         headers: list[list[str]] = []
         records: list[dict[str, str]] = []
+        live_records: list[dict[str, str]] = []
         while queue and len(seen) < max_pages:
             url, supplied, depth, label = queue.pop(0)
             try:
@@ -379,6 +408,10 @@ class WagerHubClient:
             if _looks_history(label + " " + safe) or page_records:
                 records.extend(page_records)
                 headers.extend(page_headers)
+            page_live, live_headers = parse_live_tables(supplied, _display_path(safe))
+            if page_live:
+                live_records.extend(page_live)
+                headers.extend(live_headers)
             if depth >= 3:
                 continue
             parser = _LinkParser(safe)
@@ -415,8 +448,12 @@ class WagerHubClient:
         if unique:
             _write_private(private / HISTORY_FILE,
                            {"updated_at": now, "source": "WagerHub", "summary": summary, "records": unique})
+        if live_records:
+            _write_private(private / LIVE_FILE,
+                           {"updated_at": now, "source": "WagerHub", "records": live_records})
         return {"summary": summary, "discovery": discovery, "history_path": private / HISTORY_FILE,
-                "discovery_path": private / DISCOVERY_FILE}
+                "discovery_path": private / DISCOVERY_FILE, "live_path": private / LIVE_FILE,
+                "live_records": len(live_records)}
 
 
 def _summary_line(summary: dict) -> str:

@@ -10,6 +10,7 @@ __pycache__/
 .therundown_api_key
 .apify_token
 .wagerhub_credentials.json
+.wcsports_credentials.json
 .goatcounter_api_token
 data/private/
 # generated locally on every run; the website is published to the gh-pages branch

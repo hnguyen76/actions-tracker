@@ -74,6 +74,15 @@ def test_history_table_and_summary_are_normalized():
     }
 
 
+def test_live_score_and_odds_tables_are_kept_separately():
+    rows, headers = wagerhub.parse_live_tables(
+        "<table><tr><th>Match</th><th>Score</th><th>Spread</th><th>Total</th></tr>"
+        "<tr><td>DEN @ PIT</td><td>7-3</td><td>DEN -3.5</td><td>36.5</td></tr></table>", "/live")
+    assert headers == [["Match", "Score", "Spread", "Total"]]
+    assert rows == [{"Match": "DEN @ PIT", "Score": "7-3", "Spread": "DEN -3.5",
+                     "Total": "36.5", "_source": "/live"}]
+
+
 def test_total_payout_is_not_mistaken_for_net_profit():
     rows, _ = wagerhub.parse_history_tables(
         "<table><tr><th>Ticket</th><th>Risk</th><th>Payout</th><th>Status</th></tr>"
