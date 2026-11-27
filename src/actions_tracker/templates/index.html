@@ -1371,7 +1371,7 @@ const DATA = /*__DATA__*/null;
   // headline numbers for the current league/market filter
   function kpis() {
     const box = document.getElementById("kpis");
-    const up = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
+    const up = rawFilter(T("Upcoming")).filter(inRangeAhead);
     const past = rawFilter(T("Past_Plays"));
     const k = (x) => past.filter((r) => r.side_result === x).length;
     const w = k("win"), l = k("loss"), pu = k("push");
@@ -1379,13 +1379,13 @@ const DATA = /*__DATA__*/null;
     const experts = new Set(picks.map((r) => r.expert_id)).size;
     const rules = rawFilter(T("Rule_Summary"));
     const passed = rules.filter((r) => r.decision === "pass").length;
-    const paper = rawFilter(T("Decisions")).filter((r) => r.action === "paper" && inRangeAhead(r.start_time)).length;
+    const paper = rawFilter(T("Decisions")).filter((r) => r.action === "paper" && inRangeAhead(r)).length;
     const units = past.reduce((sum, r) => sum + betProfit(r.side_result, r.side_odds), 0);
     const roi = w + l ? units / (w + l) : null;
     const tile = (label, value, hint) => el("div", { class: "kpi" }, el("div", { class: "label", text: label }),
       el("div", { class: "value", text: value }), el("div", { class: "hint", text: hint }));
     box.replaceChildren(
-      tile("Kèo đa số sắp tới", num(up.length), `${num(rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)).length)} kèo có picks`),
+      tile("Kèo đa số sắp tới", num(up.length), `${num(rawFilter(T("Upcoming_Board")).filter(inRangeAhead).length)} kèo có picks`),
       tile("Consensus đã chấm (live)", w + l ? pct(w / (w + l)) : "–", `${w}-${l}-${pu} · ROI ${signed(roi)}`),
       tile("Picks đã thu", num(picks.length), `${num(experts)} expert`),
       tile("Quy tắc đã xác nhận", `${passed}/${rules.length}`, `${paper} kèo paper sắp tới`),
@@ -1539,10 +1539,17 @@ const DATA = /*__DATA__*/null;
     fr.addEventListener("change", () => { state.range = Number(fr.value); render(); });
   }
 
-  function inRangeAhead(iso) {
-    const t = new Date(iso).getTime();
-    if (isNaN(t) || t <= Date.now()) return false; // already started (page may be hours old)
-    return !state.range || t <= Date.now() + state.range * 86400000;
+  function inRangeAhead(row) {
+    const iso = row && typeof row === "object" ? row.start_time : row;
+    const t = new Date(iso).getTime(), now = Date.now();
+    if (isNaN(t)) return false;
+    const score = row && typeof row === "object"
+      ? T("Scores").find((s) => Number(s.game_id) === Number(row.game_id)) : null;
+    if (score && ["live", "final"].includes(score.state)) return false;
+    // Scheduled kickoff can be delayed. Keep the pick visible until ESPN confirms live,
+    // with a short fallback window when the score feed itself is late.
+    if (t <= now && now >= t + 30 * 60000) return false;
+    return !state.range || t <= now + state.range * 86400000;
   }
 
   // "47,5% (n=131)" + a "chưa đủ mẫu" badge under MIN_SAMPLE (20) so a 100% of 2 plays is not misread
@@ -2003,8 +2010,8 @@ const DATA = /*__DATA__*/null;
 
   // game-day decision: what to bet, how much, and why — for one US/Eastern date at a time
   function decideCard() {
-    const all = rawFilter(T("Decisions")).filter((r) => inRangeAhead(r.start_time));
-    const board = rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time));
+    const all = rawFilter(T("Decisions")).filter(inRangeAhead);
+    const board = rawFilter(T("Upcoming_Board")).filter(inRangeAhead);
     const days = [...new Set([...all.map((r) => r.et_date), ...board.map((r) => etDate(r.start_time))])].sort();
     const today = etDate(Date.now());
     if (!days.includes(state.day)) state.day = days.includes(today) ? today : days[0] || null;
@@ -2247,7 +2254,7 @@ const DATA = /*__DATA__*/null;
     decideCard();
     inPlayCard();
     spreadFlipCard();
-    renderTable("board-table", rawFilter(T("Upcoming_Board")).filter((r) => inRangeAhead(r.start_time)), [
+    renderTable("board-table", rawFilter(T("Upcoming_Board")).filter(inRangeAhead), [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Giải", value: (r) => leagueName(r.league) },
       { label: "Trận", value: (r) => `${r.away_abbr || "?"} @ ${r.home_abbr || "?"}` },
@@ -2256,7 +2263,7 @@ const DATA = /*__DATA__*/null;
       { label: "Bên 2", value: (r) => boardSide(r, "b") },
       { label: "Expert", num: true, value: (r) => num(r.total_votes), sort: (r) => r.total_votes },
     ], null, HOT);
-    const rows = rawFilter(T("Upcoming")).filter((r) => inRangeAhead(r.start_time));
+    const rows = rawFilter(T("Upcoming")).filter(inRangeAhead);
     renderTable("upcoming-table", rows, [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time) },
       { label: "Giải", value: (r) => leagueName(r.league) },

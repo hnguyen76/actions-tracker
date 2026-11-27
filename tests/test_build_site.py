@@ -185,6 +185,8 @@ def test_global_live_summary_shows_every_live_game_and_each_bet_status(tmp_path)
     assert 'renderLiveSummary(liveInPlayRows())' in html
     assert 'return "Lost"' in html
     assert 'total > line' in html
+    assert 't + 30 * 60000' in html
+    assert '["live", "final"].includes(score.state)' in html
     assert 'if (preserveViewport && Math.abs(heightDelta) > 0.5)' in html
 
 
