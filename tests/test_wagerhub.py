@@ -52,9 +52,12 @@ class Session:
 def test_only_same_site_read_pages_are_allowed():
     assert wagerhub._safe_url("https://classic.wagerhub888.com/reports/History.aspx?days=7") \
         == "https://classic.wagerhub888.com/reports/History.aspx?days=7"
+    assert wagerhub._safe_url("https://mobile.wagerhub888.com/reports/History.aspx") \
+        == "https://mobile.wagerhub888.com/reports/History.aspx"
     for url in [
         "http://classic.wagerhub888.com/reports/History.aspx",
         "https://example.com/history",
+        "https://wagerhub888.com.example.com/history",
         "https://classic.wagerhub888.com/wager/ConfirmWager.aspx?WT=0",
         "https://classic.wagerhub888.com/cashier/withdraw.aspx",
         "https://classic.wagerhub888.com/account/transferfund.aspx",

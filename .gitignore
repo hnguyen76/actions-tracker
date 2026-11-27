@@ -11,6 +11,7 @@ __pycache__/
 .apify_token
 .wagerhub_credentials.json
 .wcsports_credentials.json
+.sbobet_session.json
 .goatcounter_api_token
 data/private/
 # generated locally on every run; the website is published to the gh-pages branch
