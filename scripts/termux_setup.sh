@@ -60,7 +60,8 @@ L=">> $HOME/actions-auto.log 2>&1"
   echo "1-59/5 11-23 * * * $J alert $L"
   echo "1-59/5 9-10 * * 0 $J alert $L"
   echo "3-59/5 0-2,9-23 * * * $J live $L"
-  echo "3-59/5 6-8 * * 0,6 $J live $L" ) | crontab -
+  echo "3-59/5 6-8 * * 0,6 $J live $L"
+  echo "4-59/5 * * * * $J bookscan $L" ) | crontab -
 # shellcheck disable=SC1091
 source "$PREFIX/etc/profile.d/start-services.sh" 2>/dev/null || true
 sv-enable crond || echo "Neu bao loi: dong Termux, mo lai, roi chay: sv-enable crond"
@@ -77,3 +78,4 @@ crontab -l
 echo "Xong. Nho: Cai dat > Pin > Gioi han su dung nen > 'Ung dung khong bao gio ngu' > them Termux."
 echo "Xem nhat ky: tail -n 40 ~/actions-auto.log"
 echo "WagerHub chi-doc (tuy chon): cd $REPO && PYTHONPATH=src python -m actions_tracker wagerhub-setup"
+echo "WCSports chi-doc (tuy chon): cd $REPO && PYTHONPATH=src python -m actions_tracker wcsports-setup"

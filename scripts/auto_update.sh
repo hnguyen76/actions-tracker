@@ -5,6 +5,7 @@
 #   auto_update.sh live     every 5 min:  ESPN live scores + finals (light)
 #   auto_update.sh news     every 15 min overnight: ESPN breaking + Yahoo Sports, then rebuild
 #   auto_update.sh traffic  hourly: cookieless traffic summary + health/anomaly alert to Telegram
+#   auto_update.sh bookscan every 5 min: private read-only WagerHub/WCSports scan
 #   auto_update.sh sync     every 5 min, 24/7: pull code, rebuild locally and publish only when HEAD changed
 # Collection jobs: pull -> run -> commit data/actions.db (only when it changed) -> push -> publish the site.
 # Commits are tagged "(phone <mode>)" so the PC tasks step aside while the phone is active.
@@ -17,8 +18,9 @@ case "$MODE" in
   live)   CMD="live" ;;
   news)   CMD="news" ;;
   traffic) CMD="traffic" ;;
+  bookscan) CMD="bookscan" ;;
   sync)   CMD="" ;;
-  *) echo "che do khong hop le: $MODE (update | alert | live | news | traffic | sync)"; exit 2 ;;
+  *) echo "che do khong hop le: $MODE (update | alert | live | news | traffic | bookscan | sync)"; exit 2 ;;
 esac
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
@@ -124,6 +126,15 @@ ensure_live_cron() {
   echo "Lich live score: 09:00-03:00, them 06:00-09:00 Thu 7/CN (soccer)."
 }
 
+ensure_bookscan_cron() {
+  case "${PREFIX:-}" in *com.termux*) ;; *) return ;; esac
+  command -v crontab >/dev/null 2>&1 || return
+  if crontab -l 2>/dev/null | grep -Fq "auto_update.sh bookscan"; then return; fi
+  ( crontab -l 2>/dev/null || true
+    echo "4-59/5 * * * * bash $REPO/scripts/auto_update.sh bookscan >> $HOME/actions-auto.log 2>&1" ) | crontab -
+  echo "Đã thêm bookscan chỉ-đọc mỗi 5 phút."
+}
+
 sync_main() {
   # take the latest data from GitHub; if our unpushed data conflicts (the PC pushed meanwhile),
   # drop ours - the next collection re-reads everything that is still on Action Network / ESPN
@@ -160,6 +171,7 @@ collect_and_commit() {
   # shellcheck disable=SC2086
   "$PY" -m actions_tracker $CMD
   echo "$MODE ma thoat: $?"
+  if [ "$MODE" = bookscan ]; then return; fi
   git add data/actions.db
   if ! git diff --cached --quiet; then
     git commit -q -m "data: update $stamp (phone $MODE)" && COMMITTED=1
@@ -171,6 +183,7 @@ ensure_news_cron
 ensure_traffic_cron
 ensure_alert_cron
 ensure_live_cron
+ensure_bookscan_cron
 sync_main
 
 # The overnight job never collects or commits data. It only republishes when a new main HEAD has arrived.
