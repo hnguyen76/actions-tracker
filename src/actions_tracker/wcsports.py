@@ -19,8 +19,12 @@ CREDENTIAL_FILE = ".wcsports_credentials.json"
 PRIVATE_DIR = Path("data/private")
 DISCOVERY_FILE = "wcsports_discovery.json"
 LIVE_FILE = "wcsports_live.json"
+API_FILE = "wcsports_api.json"
 ALLOWED_HOSTS = {"wcsports1.com", "www.wcsports1.com"}
 TIMEOUT = 25
+SCOREBOARD_URL = "https://wcsports1.com/player-api/api/scoreboard"
+SPORTS_AVAILABLE_URL = "https://wcsports1.com/player-api/api/wager/sportsavailablebyplayeronleague/false"
+READ_API_URLS = {SCOREBOARD_URL.lower(), SPORTS_AVAILABLE_URL.lower()}
 _BLOCKED = ("placebet", "submitbet", "wager", "ticket", "betslip", "bet-slip", "confirm", "cashier", "deposit", "withdraw",
             "payout", "transfer", "delete", "cancel")
 _READ_HINTS = ("home", "main", "menu", "sport", "live", "inplay", "in-play", "score", "odds", "football",
@@ -44,9 +48,21 @@ def _safe_url(url: str) -> str:
     if parts.scheme.lower() != "https" or (parts.hostname or "").lower() not in ALLOWED_HOSTS:
         raise WCSportsSafetyError("Đã chặn link ngoài WCSports.")
     target = f"{parts.path}?{parts.query}".lower()
-    if any(word in target for word in _BLOCKED):
+    if any(word in target for word in _BLOCKED) and urlunsplit(("https", parts.netloc, parts.path or "/", parts.query, "")).lower() not in READ_API_URLS:
         raise WCSportsSafetyError("Đã chặn trang có thể thay đổi cược hoặc tiền.")
     return urlunsplit(("https", parts.netloc, parts.path or "/", parts.query, ""))
+
+
+def _json_shape(value, depth: int = 0):
+    """Return keys/types only, never account values, for safe API discovery."""
+    if depth >= 4:
+        return type(value).__name__
+    if isinstance(value, dict):
+        return {str(key): _json_shape(item, depth + 1) for key, item in list(value.items())[:40]}
+    if isinstance(value, list):
+        return {"type": "list", "count": len(value),
+                "item": _json_shape(value[0], depth + 1) if value else None}
+    return type(value).__name__
 
 
 def save_credentials(root: Path, username: str, password: str) -> Path:
@@ -148,14 +164,25 @@ class WCSportsClient:
                     continue
                 if next_url not in seen:
                     queue.append((next_url, None, depth + 1))
+        api_payloads, api_shapes = {}, {}
+        for name, url in (("scoreboard", SCOREBOARD_URL), ("sports_available", SPORTS_AVAILABLE_URL)):
+            try:
+                response = self._get(url)
+                payload = response.json()
+                api_payloads[name] = payload
+                api_shapes[name] = _json_shape(payload)
+            except (requests.RequestException, ValueError, WCSportsError) as error:
+                api_shapes[name] = {"error": type(error).__name__}
         now = datetime.now(timezone.utc).isoformat()
         private = Path(root) / PRIVATE_DIR
         discovery = {"updated_at": now, "visited_paths": sorted(set(visited)), "table_headers": headers,
-                     "records_found": len(records)}
+                     "records_found": len(records), "api_shapes": api_shapes}
         _write_private(private / DISCOVERY_FILE, discovery)
+        if api_payloads:
+            _write_private(private / API_FILE, {"updated_at": now, "source": "WCSports", "payloads": api_payloads})
         if records:
             _write_private(private / LIVE_FILE, {"updated_at": now, "source": "WCSports", "records": records})
-        return {"records": len(records), "discovery_path": private / DISCOVERY_FILE,
+        return {"records": len(records), "api_sources": len(api_payloads), "discovery_path": private / DISCOVERY_FILE,
                 "live_path": private / LIVE_FILE}
 
 
@@ -174,7 +201,7 @@ def setup(root: Path, input_fn: Callable[[str], str] = input,
         print(f"LỖI WCSports: {error}")
         return 8
     print(f"Đã lưu cục bộ: {path.name} (chmod 600, gitignored).")
-    print(f"WCSports live: {result['records']} dòng; discovery: {result['discovery_path']}")
+    print(f"WCSports live: {result['records']} dòng HTML; API: {result['api_sources']}/2; discovery: {result['discovery_path']}")
     return 0
 
 
@@ -187,5 +214,5 @@ def collect(root: Path, client_factory: Callable[[], WCSportsClient] = WCSportsC
     except WCSportsError as error:
         print(f"LỖI WCSports: {error}")
         return 8
-    print(f"WCSports live: {result['records']} dòng.")
+    print(f"WCSports live: {result['records']} dòng HTML; API: {result['api_sources']}/2.")
     return 0
