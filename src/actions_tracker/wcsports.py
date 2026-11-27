@@ -121,14 +121,21 @@ class WCSportsClient:
     def _get(self, url: str) -> requests.Response:
         safe = _safe_url(url)
         try:
-            response = self.session.get(safe, timeout=TIMEOUT, allow_redirects=True)
-            response.raise_for_status()
+            api_headers = None
+            if safe.lower() in READ_API_URLS:
+                api_headers = {"Accept": "application/json, text/plain, */*",
+                               "Referer": "https://wcsports1.com/v2/index.html",
+                               "X-Requested-With": "XMLHttpRequest"}
+            response = self.session.get(safe, headers=api_headers, timeout=TIMEOUT, allow_redirects=True)
             _safe_url(response.url)
+            if response.status_code >= 400:
+                parts = urlsplit(response.url)
+                raise WCSportsError(f"HTTP {response.status_code} tại {(parts.hostname or 'unknown')}{parts.path}")
             return response
         except WCSportsSafetyError:
             raise
         except requests.RequestException as error:
-            raise WCSportsError("Không đọc được trang WCSports.") from error
+            raise WCSportsError(f"Lỗi mạng {type(error).__name__} khi đọc WCSports.") from error
 
     def collect(self, root: Path, max_pages: int = 30) -> dict:
         if not self.home_url or self.home_html is None:
@@ -172,7 +179,8 @@ class WCSportsClient:
                 api_payloads[name] = payload
                 api_shapes[name] = _json_shape(payload)
             except (requests.RequestException, ValueError, WCSportsError) as error:
-                api_shapes[name] = {"error": type(error).__name__}
+                detail = str(error) if isinstance(error, WCSportsError) else type(error).__name__
+                api_shapes[name] = {"error": detail[:200]}
         now = datetime.now(timezone.utc).isoformat()
         private = Path(root) / PRIVATE_DIR
         discovery = {"updated_at": now, "visited_paths": sorted(set(visited)), "table_headers": headers,
