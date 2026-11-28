@@ -117,6 +117,29 @@ def test_push_only_summary_has_no_division_or_format_error():
     assert "win n/a" in wagerhub._summary_line(summary)
 
 
+def test_statistics_group_by_period_and_market():
+    rows = [
+        {"Date": "11/17/2026", "Ticket": "1", "Wager": "Under 220.5", "Status": "Win", "Risk": "$100", "Net": "$90"},
+        {"Date": "11/18/2026", "Ticket": "2", "Wager": "LAL -3.5", "Status": "Loss", "Risk": "$100", "Net": "-$100"},
+    ]
+    report = wagerhub.statistical_report(rows, wagerhub.datetime(2026, 11, 28, tzinfo=wagerhub.timezone.utc))
+    assert report["overall"]["wins"] == 1
+    assert report["month"]["2026-11"]["losses"] == 1
+    assert report["market"]["total"]["wins"] == 1
+    assert report["market"]["spread"]["losses"] == 1
+
+
+def test_history_merge_updates_ticket_without_losing_old_rows(tmp_path):
+    private = tmp_path / "data/private"
+    private.mkdir(parents=True)
+    (private / wagerhub.HISTORY_FILE).write_text(json.dumps({"records": [
+        {"Ticket": "1", "Status": "Pending"}, {"Ticket": "2", "Status": "Win"}
+    ]}), "utf-8")
+    merged = wagerhub._merge_history(tmp_path, [{"Ticket": "1", "Status": "Loss"}])
+    by_ticket = {row["Ticket"]: row for row in merged}
+    assert by_ticket == {"1": {"Ticket": "1", "Status": "Loss"}, "2": {"Ticket": "2", "Status": "Win"}}
+
+
 def test_login_discovers_history_but_never_requests_confirm_page(tmp_path):
     session = Session()
     client = wagerhub.WagerHubClient(session)

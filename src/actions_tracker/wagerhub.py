@@ -8,6 +8,7 @@ sent.  Credentials and collected rows stay in gitignored, owner-only files.
 from __future__ import annotations
 
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -26,6 +27,8 @@ LOGIN_URL = "https://classic.wagerhub888.com/login.aspx"
 CREDENTIAL_FILE = ".wagerhub_credentials.json"
 PRIVATE_DIR = Path("data/private")
 HISTORY_FILE = "wagerhub_history.json"
+STATS_FILE = "wagerhub_stats.json"
+STATS_HISTORY_FILE = "wagerhub_stats_history.json"
 DISCOVERY_FILE = "wagerhub_discovery.json"
 LIVE_FILE = "wagerhub_live.json"
 ALLOWED_HOSTS = {"wagerhub888.com", "www.wagerhub888.com", "classic.wagerhub888.com", "live.viggames.com"}
@@ -296,6 +299,91 @@ def summarize(records: list[dict[str, str]]) -> dict[str, float | int | None]:
     }
 
 
+def _record_key(record: dict[str, str]) -> str:
+    ticket = _field(record, ("ticket", "transaction id", "wager id", "confirmation"))
+    if ticket:
+        return "ticket:" + ticket.strip().lower()
+    stable = {key: value for key, value in record.items() if key != "_source"}
+    raw = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return "row:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _merge_history(root: Path, current: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep settled tickets across scans; current rows replace older versions of the same ticket."""
+    path = Path(root) / PRIVATE_DIR / HISTORY_FILE
+    previous: list[dict[str, str]] = []
+    if path.is_file():
+        try:
+            value = json.loads(path.read_text("utf-8"))
+            previous = [row for row in value.get("records", []) if isinstance(row, dict)]
+        except (OSError, ValueError, TypeError):
+            previous = []
+    merged = {_record_key(row): row for row in previous}
+    merged.update({_record_key(row): row for row in current})
+    return list(merged.values())
+
+
+def _record_date(record: dict[str, str], now: datetime) -> datetime | None:
+    value = (_field(record, ("date", "settled date", "graded date", "time", "placed")) or "").strip()
+    value = re.sub(r"\s+", " ", value)
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m/%d", "%m-%d-%Y", "%b %d %Y", "%b %d"):
+        try:
+            parsed = datetime.strptime(value.split(" ")[0] if fmt in {"%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%m/%d", "%m-%d-%Y"} else value, fmt)
+            if "%Y" not in fmt and "%y" not in fmt:
+                parsed = parsed.replace(year=now.year)
+                if parsed.date() > now.date():
+                    parsed = parsed.replace(year=now.year - 1)
+            return parsed
+        except ValueError:
+            continue
+    return None
+
+
+def _market(record: dict[str, str]) -> str:
+    explicit = (_field(record, ("market", "type", "bet type")) or "").lower()
+    wager = (_field(record, ("wager", "description", "selection", "play")) or "").lower()
+    text = explicit + " " + wager
+    if re.search(r"\b(over|under|total|o/u)\b", text):
+        return "total"
+    if re.search(r"\b(moneyline|money line|ml)\b", text):
+        return "moneyline"
+    return "spread"
+
+
+def statistical_report(records: list[dict[str, str]], now: datetime) -> dict:
+    groups: dict[str, dict[str, list[dict[str, str]]]] = {
+        "day": {}, "week": {}, "month": {}, "market": {}, "sport": {}}
+    for record in records:
+        date = _record_date(record, now)
+        if date:
+            iso = date.isocalendar()
+            keys = {"day": date.strftime("%Y-%m-%d"), "week": f"{iso.year}-W{iso.week:02d}",
+                    "month": date.strftime("%Y-%m")}
+            for name, key in keys.items():
+                groups[name].setdefault(key, []).append(record)
+        groups["market"].setdefault(_market(record), []).append(record)
+        sport = (_field(record, ("sport", "league")) or "Unknown").strip() or "Unknown"
+        groups["sport"].setdefault(sport, []).append(record)
+    output = {name: {key: summarize(rows) for key, rows in sorted(values.items())}
+              for name, values in groups.items()}
+    output["overall"] = summarize(records)
+    return output
+
+
+def _write_stat_history(private: Path, now: datetime, summary: dict) -> None:
+    path = private / STATS_HISTORY_FILE
+    snapshots = []
+    if path.is_file():
+        try:
+            snapshots = json.loads(path.read_text("utf-8")).get("snapshots", [])
+        except (OSError, ValueError, TypeError):
+            snapshots = []
+    day = now.strftime("%Y-%m-%d")
+    snapshots = [item for item in snapshots if item.get("date") != day]
+    snapshots.append({"date": day, "summary": summary})
+    _write_private(path, {"updated_at": now.isoformat(), "snapshots": snapshots[-400:]})
+
+
 def _write_private(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
@@ -444,15 +532,21 @@ class WagerHubClient:
                     continue
                 ticket_fingerprints.add(fingerprint)
             unique.append(record)
-        now = datetime.now(timezone.utc).isoformat()
-        summary = summarize(unique)
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
         private = Path(root) / PRIVATE_DIR
+        accumulated = _merge_history(root, unique)
+        summary = summarize(accumulated)
+        stats = statistical_report(accumulated, now_dt)
         discovery = {"updated_at": now, "visited_paths": sorted(set(visited)), "table_headers": headers,
                      "records_found": len(unique)}
         _write_private(private / DISCOVERY_FILE, discovery)
-        if unique:
+        if accumulated:
             _write_private(private / HISTORY_FILE,
-                           {"updated_at": now, "source": "WagerHub", "summary": summary, "records": unique})
+                           {"updated_at": now, "source": "WagerHub", "summary": summary, "records": accumulated})
+            _write_private(private / STATS_FILE,
+                           {"updated_at": now, "source": "WagerHub", "statistics": stats})
+            _write_stat_history(private, now_dt, summary)
         if live_records:
             _write_private(private / LIVE_FILE,
                            {"updated_at": now, "source": "WagerHub", "records": live_records})
