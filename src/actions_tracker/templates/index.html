@@ -759,6 +759,12 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <p class="note">ESPN · line đầu S21 thấy → hiện tại</p>
       <div class="table-scroll" id="spread-flip-table"></div>
     </div>
+    <div class="card" id="prime-games-card" hidden>
+      <h2>Prime game · khung giờ nhiều người xem</h2>
+      <p class="note" id="prime-games-note">NFL: cửa sổ quốc gia chiều/tối · NCAAF: tối Fri–Sat · NBA: từ 8 PM ET. Lịch sử dùng đúng cách Mon–Fri theo, Sat–Sun ngược.</p>
+      <div class="past-overview" id="prime-games-overview"></div>
+      <div class="table-scroll" id="prime-games-table"></div>
+    </div>
     <div class="card">
       <h2>Kèo sắp tới — side đa số expert đang chọn</h2>
       <div class="table-scroll" id="upcoming-table"></div>
@@ -2248,6 +2254,7 @@ const DATA = /*__DATA__*/null;
     decideCard();
     inPlayCard();
     spreadFlipCard();
+    primeGamesCard();
     renderTable("board-table", rawFilter(T("Upcoming_Board")).filter(inRangeAhead), [
       { label: "Giờ đá", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
       { label: "Giải", value: (r) => leagueName(r.league) },
@@ -2272,6 +2279,55 @@ const DATA = /*__DATA__*/null;
     ], null, withHot({ detail: lineMovementDetail, collapsibleDetail: true,
       detailKey: (r) => `line|${r.game_id}|${r.market}` }));
     todayResultsCard();
+  }
+
+  function primeSlot(r) {
+    if (!r.start_time) return null;
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York",
+      weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(r.start_time))
+      .filter((p) => p.type !== "literal").map((p) => [p.type, p.value]));
+    const hour = Number(parts.hour) + Number(parts.minute || 0) / 60, day = parts.weekday;
+    if (r.league === "nfl" && day === "Sun" && hour >= 16) return hour >= 19 ? "Sunday Night" : "Sunday national window";
+    if (r.league === "nfl" && ["Mon", "Thu"].includes(day) && hour >= 19) return `${day} Night`;
+    if (r.league === "ncaaf" && ["Fri", "Sat"].includes(day) && hour >= 18) return `${day} prime time`;
+    if (r.league === "nba" && hour >= 20) return "NBA prime time";
+    return null;
+  }
+
+  function primeMethodResult(r) {
+    if (r.day_group !== "T7-CN") return r.side_result;
+    return r.side_result === "win" ? "loss" : r.side_result === "loss" ? "win" : r.side_result;
+  }
+
+  function primeGamesCard() {
+    const card = document.getElementById("prime-games-card");
+    const upcoming = rawFilter(T("Upcoming")).filter(inRangeAhead).filter((r) => primeSlot(r));
+    card.hidden = !upcoming.length;
+    if (!upcoming.length) return;
+    const past = rawFilter(T("Past_Plays")).filter((r) => primeSlot(r));
+    const rows = upcoming.map((r) => {
+      const history = past.filter((p) => p.league === r.league && p.market === r.market
+        && Number(p.votes) === Number(r.votes) && Number(p.total_votes) === Number(r.total_votes));
+      const results = history.map(primeMethodResult);
+      const wins = results.filter((x) => x === "win").length, losses = results.filter((x) => x === "loss").length;
+      const pushes = results.filter((x) => x === "push").length, decided = wins + losses;
+      return { ...r, prime_slot: primeSlot(r), prime_n: results.length, prime_wins: wins, prime_losses: losses,
+        prime_pushes: pushes, prime_win_pct: decided ? wins / decided : null };
+    });
+    const samples = rows.reduce((n, r) => n + r.prime_n, 0);
+    document.getElementById("prime-games-overview").replaceChildren(
+      tile("Prime games sắp tới", num(new Set(rows.map((r) => r.game_id)).size), `${num(rows.length)} kèo expert`),
+      tile("Mẫu lịch sử cùng tỷ lệ", num(samples), "Cùng giải · market · tỷ lệ picks"));
+    renderTable("prime-games-table", rows, [
+      { label: "Giờ ET", value: (r) => fmtTime(r.start_time), sort: (r) => r.start_time },
+      { label: "Khung prime", value: (r) => r.prime_slot },
+      { label: "Trận", value: (r) => `${r.away_abbr || "?"} @ ${r.home_abbr || "?"}` },
+      { label: "Kèo", value: (r) => `${MARKET_LABEL[r.market] || r.market} · ${sideName(r)}` },
+      { label: "Expert", value: (r) => `${num(r.votes)}/${num(r.total_votes)}` },
+      { label: "Lịch sử prime cùng tỷ lệ", num: true, value: (r) => r.prime_n
+        ? `${r.prime_wins}-${r.prime_losses}-${r.prime_pushes} · ${pct(r.prime_win_pct)}` : "Chưa có mẫu",
+        cls: (r) => r.prime_win_pct == null ? "" : roiCls(r.prime_win_pct - BREAKEVEN), sort: (r) => r.prime_win_pct },
+    ]);
   }
 
   const lineFmt = (value) => value === null || value === undefined ? "–"
