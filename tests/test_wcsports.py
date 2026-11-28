@@ -11,8 +11,9 @@ LIVE_HTML = ("<table><tr><th>Match</th><th>Score</th><th>Handicap</th><th>Total<
 
 
 class Response:
-    def __init__(self, url, text, status=200):
+    def __init__(self, url, text, status=200, history=None, headers=None):
         self.url, self.text, self.status_code = url, text, status
+        self.history, self.headers = history or [], headers or {}
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -40,13 +41,19 @@ class Session:
             return Response(url, '[{"sport":"Football","leagueCount":2}]')
         raise AssertionError(url)
 
-    def post(self, url, data, **kwargs):
+    def post(self, url, data=None, json=None, **kwargs):
         self.calls.append(("POST", url))
-        assert data["customerid"] == "owner" and data["password"] == "secret"
-        return Response("https://wcsports1.com/home",
-                        '<script>window.token="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvd25lciJ9.signature1234567890"</script>'
-                        '<a href="/sports/live">Live Scores</a><a href="/cashier/withdraw">Cashier</a>'
-                        '<a href="/betslip/submit">Bet Slip</a>')
+        if url == wcsports.LOGIN_URL:
+            assert data["customerid"] == "owner" and data["password"] == "secret"
+            redirect = Response(url, "", 302,
+                                headers={"Location": "https://wcsports1.com/v2/?token=one-time-handoff-token"})
+            return Response("https://wcsports1.com/v2/index.html",
+                            '<a href="/sports/live">Live Scores</a><a href="/cashier/withdraw">Cashier</a>'
+                            '<a href="/betslip/submit">Bet Slip</a>', history=[redirect])
+        if url == wcsports.TOKEN_LOGIN_URL:
+            assert json == {"token": "one-time-handoff-token", "version": "1.3.47"}
+            return Response(url, '{"accessToken":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvd25lciJ9.signature1234567890"}')
+        raise AssertionError(url)
 
 
 def test_only_same_site_read_pages_are_allowed():
@@ -65,7 +72,7 @@ def test_login_and_collect_are_read_only_and_private(tmp_path):
     assert result["records"] == 1
     assert result["api_sources"] == 2
     assert session.headers["Authorization"].startswith("Bearer eyJ")
-    assert [method for method, _ in session.calls].count("POST") == 1
+    assert [method for method, _ in session.calls].count("POST") == 2
     assert not any("cashier" in url or "betslip" in url for _, url in session.calls)
     live = json.loads((tmp_path / "data/private/wcsports_live.json").read_text("utf-8"))
     assert live["records"][0]["Score"] == "10-7"
