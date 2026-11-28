@@ -298,6 +298,8 @@ def test_past_tab_leads_with_plain_language_method_results(tmp_path):
     assert "Kết quả cách này" in html and "Xem tất cả và biểu đồ" in html
     assert 'r.day_group === "T7-CN"' in html and 'loss: "win"' in html
     assert '${num(r.votes)}/${num(r.total_votes)} · ${r.match}' in html
+    assert 'id="past-cluster-wk"' in html and 'id="past-cluster-we"' in html
+    assert "function ratioCluster(target, rows)" in html and 'ratioCluster(`past-cluster-${suffix}`, methodRows)' in html
 
 
 def test_rules_tab_leads_with_plain_language_status_cards(tmp_path):
