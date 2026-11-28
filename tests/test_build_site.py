@@ -250,9 +250,8 @@ def test_holiday_logo_switches_on_eastern_dates_and_respects_reduced_motion(tmp_
     assert 'timeZone: "America/New_York"' in html
     assert 'fields.day === thanksgiving + 1' in html and 'return "season-black-friday"' in html
     assert 'return "season-christmas"' in html and "setInterval(applyHoliday, 5000)" in html
-    assert 'class="black-friday-mark"' in html and 'class="christmas-lap"' in html
-    assert "animation: christmas-screen-lap 20s linear infinite" in css
-    assert ".season-christmas .christmas-lap { display: none; animation: none; }" in css
+    assert 'class="black-friday-mark"' in html and 'class="christmas-lap"' not in html
+    assert "christmas-screen-lap" not in css
 
 
 def test_city_analytics_never_publishes_raw_ip_and_tracks_distinct_periods(tmp_path):
