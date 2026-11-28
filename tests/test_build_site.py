@@ -297,6 +297,7 @@ def test_past_tab_leads_with_plain_language_method_results(tmp_path):
     assert 'id="past-overview"' in html and 'id="past-buckets"' in html
     assert "Kết quả cách này" in html and "Xem tất cả và biểu đồ" in html
     assert 'r.day_group === "T7-CN"' in html and 'loss: "win"' in html
+    assert '${num(r.votes)}/${num(r.total_votes)} · ${r.match}' in html
 
 
 def test_rules_tab_leads_with_plain_language_status_cards(tmp_path):
