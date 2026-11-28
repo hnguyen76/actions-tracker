@@ -24,7 +24,7 @@ class Response:
 
 class Session:
     def __init__(self):
-        self.headers, self.calls = {}, []
+        self.headers, self.cookies, self.calls, self.api_headers = {}, [], [], []
 
     def get(self, url, **kwargs):
         self.calls.append(("GET", url))
@@ -33,8 +33,10 @@ class Session:
         if url.endswith("/sports/live"):
             return Response(url, LIVE_HTML)
         if url == wcsports.SCOREBOARD_URL:
+            self.api_headers.append(kwargs.get("headers"))
             return Response(url, '{"games":[{"id":1,"score":"10-7"}]}')
         if url == wcsports.SPORTS_AVAILABLE_URL:
+            self.api_headers.append(kwargs.get("headers"))
             return Response(url, '[{"sport":"Football","leagueCount":2}]')
         raise AssertionError(url)
 
@@ -42,6 +44,7 @@ class Session:
         self.calls.append(("POST", url))
         assert data["customerid"] == "owner" and data["password"] == "secret"
         return Response("https://wcsports1.com/home",
+                        '<script>window.token="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvd25lciJ9.signature1234567890"</script>'
                         '<a href="/sports/live">Live Scores</a><a href="/cashier/withdraw">Cashier</a>'
                         '<a href="/betslip/submit">Bet Slip</a>')
 
@@ -61,6 +64,7 @@ def test_login_and_collect_are_read_only_and_private(tmp_path):
     result = client.collect(tmp_path)
     assert result["records"] == 1
     assert result["api_sources"] == 2
+    assert session.headers["Authorization"].startswith("Bearer eyJ")
     assert [method for method, _ in session.calls].count("POST") == 1
     assert not any("cashier" in url or "betslip" in url for _, url in session.calls)
     live = json.loads((tmp_path / "data/private/wcsports_live.json").read_text("utf-8"))
