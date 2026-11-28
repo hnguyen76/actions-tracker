@@ -88,6 +88,23 @@ def test_live_score_and_odds_tables_are_kept_separately():
                      "Total": "36.5", "_source": "/live"}]
 
 
+def test_first_and_second_half_lines_are_normalized_and_snapshotted(tmp_path):
+    rows = [
+        {"Match": "DEN @ PIT", "Market": "1st Half Spread", "Selection": "DEN", "Line": "-1.5", "Odds": "-110"},
+        {"Match": "LAL @ BOS", "Market": "2H Total", "Selection": "Over", "Total": "112.5", "Odds": "-105",
+         "_source": "halftime /live"},
+    ]
+    normalized = wagerhub.normalize_period_lines(rows, "2026-11-28T00:00:00+00:00")
+    assert [(row["period"], row["phase"], row["market"]) for row in normalized] == [
+        ("1H", "pregame", "spread"), ("2H", "halftime", "total")]
+    private = tmp_path / "data/private"
+    wagerhub._write_period_lines(private, "2026-11-28T00:00:00+00:00", normalized)
+    wagerhub._write_period_lines(private, "2026-11-28T00:05:00+00:00", normalized)
+    history = json.loads((private / wagerhub.PERIOD_LINE_HISTORY_FILE).read_text("utf-8"))
+    assert len(history["snapshots"]) == 2  # unchanged odds are not duplicated on the second scan
+    assert stat.S_IMODE((private / wagerhub.PERIOD_LINES_FILE).stat().st_mode) == 0o600
+
+
 def test_total_payout_is_not_mistaken_for_net_profit():
     rows, _ = wagerhub.parse_history_tables(
         "<table><tr><th>Ticket</th><th>Risk</th><th>Payout</th><th>Status</th></tr>"
@@ -115,6 +132,29 @@ def test_push_only_summary_has_no_division_or_format_error():
     summary = wagerhub.summarize([{"Status": "Push", "Risk": "$100", "Net": "$0"}])
     assert summary["win_pct"] is None
     assert "win n/a" in wagerhub._summary_line(summary)
+
+
+def test_statistics_group_by_period_and_market():
+    rows = [
+        {"Date": "11/17/2026", "Ticket": "1", "Wager": "Under 220.5", "Status": "Win", "Risk": "$100", "Net": "$90"},
+        {"Date": "11/18/2026", "Ticket": "2", "Wager": "LAL -3.5", "Status": "Loss", "Risk": "$100", "Net": "-$100"},
+    ]
+    report = wagerhub.statistical_report(rows, wagerhub.datetime(2026, 11, 28, tzinfo=wagerhub.timezone.utc))
+    assert report["overall"]["wins"] == 1
+    assert report["month"]["2026-11"]["losses"] == 1
+    assert report["market"]["total"]["wins"] == 1
+    assert report["market"]["spread"]["losses"] == 1
+
+
+def test_history_merge_updates_ticket_without_losing_old_rows(tmp_path):
+    private = tmp_path / "data/private"
+    private.mkdir(parents=True)
+    (private / wagerhub.HISTORY_FILE).write_text(json.dumps({"records": [
+        {"Ticket": "1", "Status": "Pending"}, {"Ticket": "2", "Status": "Win"}
+    ]}), "utf-8")
+    merged = wagerhub._merge_history(tmp_path, [{"Ticket": "1", "Status": "Loss"}])
+    by_ticket = {row["Ticket"]: row for row in merged}
+    assert by_ticket == {"1": {"Ticket": "1", "Status": "Loss"}, "2": {"Ticket": "2", "Status": "Win"}}
 
 
 def test_login_discovers_history_but_never_requests_confirm_page(tmp_path):
