@@ -31,6 +31,8 @@ STATS_FILE = "wagerhub_stats.json"
 STATS_HISTORY_FILE = "wagerhub_stats_history.json"
 DISCOVERY_FILE = "wagerhub_discovery.json"
 LIVE_FILE = "wagerhub_live.json"
+PERIOD_LINES_FILE = "wagerhub_period_lines.json"
+PERIOD_LINE_HISTORY_FILE = "wagerhub_period_line_history.json"
 ALLOWED_HOSTS = {"wagerhub888.com", "www.wagerhub888.com", "classic.wagerhub888.com", "live.viggames.com"}
 TIMEOUT = 25
 
@@ -42,7 +44,8 @@ _BLOCKED = (
 )
 _HISTORY = ("history", "settled", "graded", "transaction", "statement", "account activity", "my wagers")
 _NAVIGATION = _HISTORY + ("menu", "home", "main", "account", "report", "frame", "live", "in play", "in-play",
-                          "score", "odds", "sports", "football", "basketball")
+                          "score", "odds", "sports", "football", "basketball", "1h", "2h", "1st half",
+                          "2nd half", "first half", "second half", "halftime")
 _HEADER_HINTS = (
     "date", "time", "ticket", "sport", "league", "event", "description", "wager", "type",
     "risk", "to win", "status", "result", "win loss", "net", "amount",
@@ -241,6 +244,70 @@ def parse_live_tables(html: str, source: str = "") -> tuple[list[dict[str, str]]
             records.append({**{headers[i] or f"column_{i + 1}": padded[i] for i in range(len(headers))},
                             "_source": source})
     return records, headers_seen
+
+
+def normalize_period_lines(records: list[dict[str, str]], captured_at: str) -> list[dict]:
+    """Normalize read-only 1H/2H rows while retaining their private raw source row."""
+    output = []
+    for record in records:
+        text = " ".join(str(value) for value in record.values()).lower()
+        if re.search(r"\b(1h|1st half|first half|half 1)\b", text):
+            period = "1H"
+        elif re.search(r"\b(2h|2nd half|second half|half 2)\b", text):
+            period = "2H"
+        else:
+            continue
+        if re.search(r"\b(over|under|total|o/u)\b", text):
+            market = "total"
+        elif re.search(r"\b(moneyline|money line|ml)\b", text):
+            market = "moneyline"
+        else:
+            market = "spread"
+        if re.search(r"\b(halftime|half time)\b", text):
+            phase = "halftime"
+        elif re.search(r"\b(live|in[ -]?play|score)\b", text):
+            phase = "live"
+        else:
+            phase = "pregame"
+        output.append({
+            "captured_at": captured_at,
+            "period": period,
+            "phase": phase,
+            "market": market,
+            "matchup": _field(record, ("match", "event", "game", "description")),
+            "selection": _field(record, ("selection", "team", "pick", "wager")),
+            "line": _field(record, ("spread", "handicap", "total", "line")),
+            "odds": _field(record, ("odds", "price", "american")),
+            "source": record.get("_source"),
+            "raw": {key: value for key, value in record.items() if key != "_source"},
+        })
+    return output
+
+
+def _period_key(row: dict) -> str:
+    return "|".join(str(row.get(key) or "").strip().lower()
+                    for key in ("period", "phase", "market", "matchup", "selection"))
+
+
+def _write_period_lines(private: Path, captured_at: str, rows: list[dict]) -> None:
+    _write_private(private / PERIOD_LINES_FILE,
+                   {"updated_at": captured_at, "source": "WagerHub", "records": rows})
+    history_path = private / PERIOD_LINE_HISTORY_FILE
+    history = []
+    if history_path.is_file():
+        try:
+            history = json.loads(history_path.read_text("utf-8")).get("snapshots", [])
+        except (OSError, ValueError, TypeError):
+            history = []
+    latest = {}
+    for old in history:
+        latest[_period_key(old)] = (old.get("line"), old.get("odds"))
+    for row in rows:
+        value = (row.get("line"), row.get("odds"))
+        if latest.get(_period_key(row)) != value:
+            history.append(row)
+            latest[_period_key(row)] = value
+    _write_private(history_path, {"updated_at": captured_at, "snapshots": history[-5000:]})
 
 
 def _field(record: dict[str, str], names: tuple[str, ...]) -> str | None:
@@ -501,7 +568,7 @@ class WagerHubClient:
             if _looks_history(label + " " + safe) or page_records:
                 records.extend(page_records)
                 headers.extend(page_headers)
-            page_live, live_headers = parse_live_tables(supplied, _display_path(safe))
+            page_live, live_headers = parse_live_tables(supplied, f"{label} {_display_path(safe)}")
             if page_live:
                 live_records.extend(page_live)
                 headers.extend(live_headers)
@@ -550,9 +617,12 @@ class WagerHubClient:
         if live_records:
             _write_private(private / LIVE_FILE,
                            {"updated_at": now, "source": "WagerHub", "records": live_records})
+        period_lines = normalize_period_lines(live_records, now)
+        if period_lines:
+            _write_period_lines(private, now, period_lines)
         return {"summary": summary, "discovery": discovery, "history_path": private / HISTORY_FILE,
                 "discovery_path": private / DISCOVERY_FILE, "live_path": private / LIVE_FILE,
-                "live_records": len(live_records)}
+                "live_records": len(live_records), "period_lines": len(period_lines)}
 
 
 def _summary_line(summary: dict) -> str:
@@ -583,6 +653,7 @@ def setup(root: Path, input_fn: Callable[[str], str] = input,
         return 7
     print(f"Đã đăng nhập và lưu credentials cục bộ: {path.name} (chmod 600, gitignored).")
     print(_summary_line(result["summary"]))
+    print(f"WagerHub 1H/2H: {result['period_lines']} line.")
     if not result["summary"].get("settled"):
         print(f"Đã lưu sơ đồ trang an toàn tại {result['discovery_path']} để hoàn thiện parser.")
     return 0
@@ -598,6 +669,7 @@ def collect(root: Path, client_factory: Callable[[], WagerHubClient] = WagerHubC
         print(f"LỖI WagerHub: {error}")
         return 7
     print(_summary_line(result["summary"]))
+    print(f"WagerHub 1H/2H: {result['period_lines']} line.")
     if result["summary"].get("settled"):
         print(f"Chi tiết riêng tư: {result['history_path']} (không publish).")
     else:

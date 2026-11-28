@@ -88,6 +88,23 @@ def test_live_score_and_odds_tables_are_kept_separately():
                      "Total": "36.5", "_source": "/live"}]
 
 
+def test_first_and_second_half_lines_are_normalized_and_snapshotted(tmp_path):
+    rows = [
+        {"Match": "DEN @ PIT", "Market": "1st Half Spread", "Selection": "DEN", "Line": "-1.5", "Odds": "-110"},
+        {"Match": "LAL @ BOS", "Market": "2H Total", "Selection": "Over", "Total": "112.5", "Odds": "-105",
+         "_source": "halftime /live"},
+    ]
+    normalized = wagerhub.normalize_period_lines(rows, "2026-11-28T00:00:00+00:00")
+    assert [(row["period"], row["phase"], row["market"]) for row in normalized] == [
+        ("1H", "pregame", "spread"), ("2H", "halftime", "total")]
+    private = tmp_path / "data/private"
+    wagerhub._write_period_lines(private, "2026-11-28T00:00:00+00:00", normalized)
+    wagerhub._write_period_lines(private, "2026-11-28T00:05:00+00:00", normalized)
+    history = json.loads((private / wagerhub.PERIOD_LINE_HISTORY_FILE).read_text("utf-8"))
+    assert len(history["snapshots"]) == 2  # unchanged odds are not duplicated on the second scan
+    assert stat.S_IMODE((private / wagerhub.PERIOD_LINES_FILE).stat().st_mode) == 0o600
+
+
 def test_total_payout_is_not_mistaken_for_net_profit():
     rows, _ = wagerhub.parse_history_tables(
         "<table><tr><th>Ticket</th><th>Risk</th><th>Payout</th><th>Status</th></tr>"
