@@ -464,8 +464,9 @@
     }
     meta.append(clockNode);
     const stamp = new Date(game.updated_at);
+    const source = text(game.source) || "ESPN";
     const checked = game.updated_at && Number.isFinite(stamp.getTime())
-      ? "ESPN · " + stamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "ESPN";
+      ? source + " · " + stamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : source;
     meta.append(node("span", "asb-updated", checked));
     card.append(meta);
     const main = node("div", "asb-main");

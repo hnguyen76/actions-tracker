@@ -36,7 +36,7 @@ GAME_HOURS = 72   # picked games that kicked off within this many hours and are 
 BACKFILL_DAYS = 30  # a picked game still ungraded after GAME_HOURS (a missed final) is looked up this long
 LINE_LEAD_H = 36  # picked games starting within this many hours get their lines refreshed
 SCHEMA = ("CREATE TABLE IF NOT EXISTS live_scores(game_id INTEGER PRIMARY KEY, away_score INTEGER, home_score INTEGER, "
-          "state TEXT, detail TEXT, updated_at TEXT)")
+          "state TEXT, detail TEXT, updated_at TEXT, source TEXT)")
 ID_SCHEMA = ("CREATE TABLE IF NOT EXISTS live_game_ids(game_id INTEGER PRIMARY KEY, espn_event_id TEXT NOT NULL)")
 DETAIL_SCHEMA = ("CREATE TABLE IF NOT EXISTS live_details(game_id INTEGER PRIMARY KEY, details_json TEXT)")
 SECOND_HALF_SCHEMA = (
@@ -69,6 +69,13 @@ def _ensure_half_schemas(conn: sqlite3.Connection) -> None:
     for column in ("first_source", "second_source"):
         if column not in columns:
             conn.execute(f"ALTER TABLE second_half_snapshots ADD COLUMN {column} TEXT")
+
+
+def _ensure_live_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(SCHEMA)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(live_scores)")}
+    if "source" not in columns:
+        conn.execute("ALTER TABLE live_scores ADD COLUMN source TEXT")
 
 
 def _has_half_line(lines: dict) -> bool:
@@ -376,7 +383,7 @@ def _picked(conn: sqlite3.Connection, league: str, lo: str, hi: str, ungraded: b
 
 def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.get, lines: bool = True) -> dict:
     """Lines for picked games about to start (unless lines=False), scores for picked games that started."""
-    conn.execute(SCHEMA)
+    _ensure_live_schema(conn)
     conn.execute(ID_SCHEMA)
     conn.execute(DETAIL_SCHEMA)
     _ensure_half_schemas(conn)
@@ -445,12 +452,12 @@ def collect_espn(conn: sqlite3.Connection, league: str, now: str, get=requests.g
             pass
     counts["halftime_saved"] = _store_halftime_snapshots(
         conn, league, scored, {gid for gid, _ in ids}, now, get, mgm_second=mgm_second)
-    rows = [(gid, e["away_score"], e["home_score"], e["state"], e["detail"], now) for gid, e in scored.items()
+    rows = [(gid, e["away_score"], e["home_score"], e["state"], e["detail"], now, "ESPN") for gid, e in scored.items()
             if e["state"] in ("in", "post")]
     conn.executemany(
-        "INSERT INTO live_scores(game_id, away_score, home_score, state, detail, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
+        "INSERT INTO live_scores(game_id, away_score, home_score, state, detail, updated_at, source) VALUES (?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(game_id) DO UPDATE SET away_score=excluded.away_score, home_score=excluded.home_score, "
-        "state=excluded.state, detail=excluded.detail, updated_at=excluded.updated_at", rows)
+        "state=excluded.state, detail=excluded.detail, updated_at=excluded.updated_at, source='ESPN'", rows)
     conn.executemany("INSERT INTO live_details(game_id, details_json) VALUES (?, ?) "
                      "ON CONFLICT(game_id) DO UPDATE SET details_json=excluded.details_json",
                      [(gid, json.dumps(e["situation"], ensure_ascii=False, allow_nan=False))
@@ -491,7 +498,7 @@ def live_games_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
     return pd.DataFrame([dict(r) for r in rows], columns=LIVE_GAME_COLS)
 
 
-SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded", "updated_at", "situation"]
+SCORE_COLS = ["game_id", "away_score", "home_score", "state", "detail", "graded", "updated_at", "situation", "source"]
 
 SECOND_HALF_COLS = ["game_id", "league", "espn_event_id", "captured_at", "away_score_1h", "home_score_1h",
                     "first_spread_away", "first_spread_home", "first_total", "second_spread_away",
@@ -514,14 +521,14 @@ def second_half_table(conn: sqlite3.Connection) -> pd.DataFrame:
 
 def scores_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
     """Score per game of the last days: graded final first, else the live score."""
-    conn.execute(SCHEMA)
+    _ensure_live_schema(conn)
     has_details = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='live_details'").fetchone()
     details_column = "d.details_json" if has_details else "NULL AS details_json"
     details_join = "LEFT JOIN live_details d ON d.game_id = g.id " if has_details else ""
     since = (pd.Timestamp(now) - pd.Timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     rows = []
     for r in conn.execute(
-            "SELECT g.id, g.status, g.away_score, g.home_score, l.away_score AS la, l.home_score AS lh, l.state, l.detail, l.updated_at, "
+            "SELECT g.id, g.status, g.away_score, g.home_score, l.away_score AS la, l.home_score AS lh, l.state, l.detail, l.updated_at, l.source, "
             f"{details_column} FROM games g LEFT JOIN live_scores l ON l.game_id = g.id {details_join}"
             "WHERE g.start_time >= ? AND g.start_time <= ?",
             (since, now)):
@@ -535,9 +542,9 @@ def scores_table(conn: sqlite3.Connection, now: str) -> pd.DataFrame:
         if r["status"] == "complete" and r["away_score"] is not None:
             rows.append({"game_id": r["id"], "away_score": r["away_score"], "home_score": r["home_score"],
                          "state": "final", "detail": "Hết trận", "graded": True, "updated_at": r["updated_at"],
-                         "situation": situation})
+                         "situation": situation, "source": r["source"] or "ESPN"})
         elif r["la"] is not None:
             rows.append({"game_id": r["id"], "away_score": r["la"], "home_score": r["lh"],
                          "state": "final" if r["state"] == "post" else "live", "detail": r["detail"], "graded": False,
-                         "updated_at": r["updated_at"], "situation": situation})
+                         "updated_at": r["updated_at"], "situation": situation, "source": r["source"] or "ESPN"})
     return pd.DataFrame(rows, columns=SCORE_COLS)
