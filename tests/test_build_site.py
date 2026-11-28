@@ -302,6 +302,13 @@ def test_past_tab_leads_with_plain_language_method_results(tmp_path):
     assert "function ratioCluster(target, rows)" in html and 'ratioCluster(`past-cluster-${suffix}`, methodRows)' in html
 
 
+def test_upcoming_has_prime_time_analysis_from_kickoff_window(tmp_path):
+    html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
+    assert 'id="prime-games-card"' in html and "function primeGamesCard()" in html
+    assert "function primeSlot(r)" in html and 'timeZone: "America/New_York"' in html
+    assert "Lịch sử prime cùng tỷ lệ" in html and "Cùng giải · market · tỷ lệ picks" in html
+
+
 def test_rules_tab_leads_with_plain_language_status_cards(tmp_path):
     html = build_site({}, [], tmp_path / "site", None, "t").read_text("utf-8")
     assert "Quy tắc — nhìn nhanh" in html
