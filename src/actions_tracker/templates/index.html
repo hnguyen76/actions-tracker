@@ -254,6 +254,8 @@ section.panel.active { display: block; }
 .today-result-market { padding: 14px 0 4px; border-top: 1px solid var(--border); }
 .today-result-market h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0 0 12px; font-size: 15px; }
 .chart-box { position: relative; height: 340px; }
+.ratio-cluster-scroll { overflow-x: auto; margin: 14px 0 18px; }
+.ratio-cluster-chart { position: relative; height: 290px; min-width: 680px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
 /* tables */
@@ -816,6 +818,8 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <p class="note" id="past-summary-wk"></p>
       <div class="past-recent" id="past-recent-wk"></div>
       <details class="past-detail"><summary>Xem tất cả và biểu đồ</summary>
+        <h3>Thắng–thua theo tỷ lệ expert</h3>
+        <div class="ratio-cluster-scroll"><div class="ratio-cluster-chart"><canvas id="past-cluster-wk" aria-label="Cluster chart thắng thua theo tỷ lệ expert trong tuần"></canvas></div></div>
         <div class="table-scroll" id="past-chart-wk"></div>
         <div class="table-scroll" id="past-table-wk"></div>
       </details>
@@ -825,6 +829,8 @@ tr.hot > td:first-child { box-shadow: inset 4px 0 0 var(--warning); }
       <p class="note" id="past-summary-we"></p>
       <div class="past-recent" id="past-recent-we"></div>
       <details class="past-detail"><summary>Xem tất cả và biểu đồ</summary>
+        <h3>Thắng–thua theo tỷ lệ expert</h3>
+        <div class="ratio-cluster-scroll"><div class="ratio-cluster-chart"><canvas id="past-cluster-we" aria-label="Cluster chart thắng thua theo tỷ lệ expert cuối tuần"></canvas></div></div>
         <div class="table-scroll" id="past-chart-we"></div>
         <div class="table-scroll" id="past-table-we"></div>
       </details>
@@ -2722,6 +2728,48 @@ const DATA = /*__DATA__*/null;
     host.append(svg);
   }
 
+  // Grouped columns keep every exact expert ratio visible (2/2, 2/3, 3/3, 3/4, ...).
+  function ratioCluster(target, rows) {
+    const canvas = document.getElementById(target);
+    if (!canvas || typeof Chart === "undefined") return;
+    if (charts[target]) charts[target].destroy();
+    const groups = new Map();
+    for (const r of rows) {
+      const votes = Number(r.votes), total = Number(r.total_votes);
+      if (!Number.isFinite(votes) || !Number.isFinite(total) || total < 1) continue;
+      const ratio = `${votes}/${total}`;
+      if (!groups.has(ratio)) groups.set(ratio, { ratio, votes, total, win: 0, loss: 0, push: 0 });
+      const result = r.side_result;
+      if (result === "win" || result === "loss" || result === "push") groups.get(ratio)[result] += 1;
+    }
+    const data = [...groups.values()].sort((a, b) => (a.votes / a.total - b.votes / b.total)
+      || (a.total - b.total) || (a.votes - b.votes));
+    canvas.parentElement.style.width = `${Math.max(680, data.length * 76)}px`;
+    charts[target] = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: data.map((r) => r.ratio),
+        datasets: [
+          { label: "Thắng", data: data.map((r) => r.win), backgroundColor: css("--win") },
+          { label: "Thua", data: data.map((r) => r.loss), backgroundColor: css("--loss") },
+          { label: "Hòa", data: data.map((r) => r.push), backgroundColor: css("--muted") },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        scales: {
+          x: { stacked: false, grid: { display: false }, ticks: { color: css("--ink-2"), font: { weight: "600" } } },
+          y: { beginAtZero: true, ticks: { precision: 0, color: css("--muted") }, grid: { color: css("--grid") } },
+        },
+        plugins: {
+          legend: { display: true, labels: { color: css("--ink-2"), usePointStyle: true, boxWidth: 9 } },
+          tooltip: { backgroundColor: css("--raised"), titleColor: css("--ink"), bodyColor: css("--ink"),
+            borderColor: css("--border-strong"), borderWidth: 1, padding: 12 },
+        },
+      },
+    });
+  }
+
   function pastTab() {
     const panel = document.getElementById("tab-past");
     const weekdayCard = document.getElementById("past-weekday-card");
@@ -2784,6 +2832,7 @@ const DATA = /*__DATA__*/null;
       const part = rows.filter((r) => r.day_group === group);
       const displayRows = part.map((r) => ({ ...r, method_result: methodResult(r) }));
       const methodRows = displayRows.map((r) => ({ ...r, side_result: r.method_result }));
+      ratioCluster(`past-cluster-${suffix}`, methodRows);
       lollipop(`past-chart-${suffix}`, methodRows, { label: (r) => `${group === "T7-CN" ? "Ngược" : "Theo"} ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} · ${r.match}`,
         ariaLabel: group === "T7-CN" ? "Kết quả đánh ngược bên đông cuối tuần" : "Kết quả theo bên đông trong tuần" });
       renderTable(`past-table-${suffix}`, displayRows, columns, null, {
