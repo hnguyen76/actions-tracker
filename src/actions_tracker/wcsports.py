@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 
 import requests
 
@@ -25,6 +25,8 @@ ALLOWED_HOSTS = {"wcsports1.com", "www.wcsports1.com"}
 TIMEOUT = 25
 SCOREBOARD_URL = "https://wcsports1.com/player-api/api/scoreboard"
 SPORTS_AVAILABLE_URL = "https://wcsports1.com/player-api/api/wager/sportsavailablebyplayeronleague/false"
+TOKEN_LOGIN_URL = "https://wcsports1.com/player-api/identity/customerLoginFromToken"
+APP_VERSION = "1.3.47"
 READ_API_URLS = {SCOREBOARD_URL.lower(), SPORTS_AVAILABLE_URL.lower()}
 _JWT_RE = re.compile(r"\b(eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b")
 _BLOCKED = ("placebet", "submitbet", "wager", "ticket", "betslip", "bet-slip", "confirm", "cashier", "deposit", "withdraw",
@@ -76,6 +78,25 @@ def _bearer_from_response(response, session: requests.Session) -> str | None:
     sources.extend(str(cookie.value) for cookie in session.cookies)
     for source in sources:
         match = _JWT_RE.search(source or "")
+        if match:
+            return match.group(1)
+    return None
+
+
+def _handoff_token(response) -> str | None:
+    """Extract the short-lived login handoff token from redirects, never persist it."""
+    items = [*getattr(response, "history", []), response]
+    for item in items:
+        candidates = [getattr(item, "url", ""), *getattr(item, "headers", {}).values()]
+        for candidate in candidates:
+            parsed = urlsplit(str(candidate))
+            query = parse_qs(parsed.query)
+            for key in ("token", "tkn"):
+                values = query.get(key) or query.get(key.upper())
+                if values and values[0]:
+                    return values[0]
+        text = getattr(item, "text", "")
+        match = re.search(r'(?i)["\']?(?:token|tkn)["\']?\s*[:=]\s*["\']([^"\']{12,})', text)
         if match:
             return match.group(1)
     return None
@@ -133,6 +154,21 @@ class WCSportsClient:
         if "invalid login" in body or 'name="customerid"' in body or 'name="password"' in body:
             raise WCSportsAuthError("Đăng nhập không thành công; kiểm tra tài khoản trên S21.")
         token = _bearer_from_response(response, self.session)
+        handoff = _handoff_token(response) if not token else None
+        if handoff:
+            try:
+                exchanged = self.session.post(
+                    TOKEN_LOGIN_URL,
+                    json={"token": handoff, "version": APP_VERSION},
+                    headers={"Accept": "application/json, text/plain, */*",
+                             "Referer": "https://wcsports1.com/v2/",
+                             "Origin": "https://wcsports1.com"},
+                    timeout=TIMEOUT,
+                )
+                exchanged.raise_for_status()
+                token = _bearer_from_response(exchanged, self.session)
+            except requests.RequestException as error:
+                raise WCSportsAuthError("Không đổi được phiên đăng nhập WCSports thành API token.") from error
         if token:
             # Memory only: never write or print the bearer token.
             self.session.headers["Authorization"] = f"Bearer {token}"
