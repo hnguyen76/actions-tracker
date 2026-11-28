@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -25,6 +26,7 @@ TIMEOUT = 25
 SCOREBOARD_URL = "https://wcsports1.com/player-api/api/scoreboard"
 SPORTS_AVAILABLE_URL = "https://wcsports1.com/player-api/api/wager/sportsavailablebyplayeronleague/false"
 READ_API_URLS = {SCOREBOARD_URL.lower(), SPORTS_AVAILABLE_URL.lower()}
+_JWT_RE = re.compile(r"\b(eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b")
 _BLOCKED = ("placebet", "submitbet", "wager", "ticket", "betslip", "bet-slip", "confirm", "cashier", "deposit", "withdraw",
             "payout", "transfer", "delete", "cancel")
 _READ_HINTS = ("home", "main", "menu", "sport", "live", "inplay", "in-play", "score", "odds", "football",
@@ -63,6 +65,20 @@ def _json_shape(value, depth: int = 0):
         return {"type": "list", "count": len(value),
                 "item": _json_shape(value[0], depth + 1) if value else None}
     return type(value).__name__
+
+
+def _bearer_from_response(response, session: requests.Session) -> str | None:
+    """Find a JWT returned by login without persisting or printing the secret."""
+    sources = []
+    for item in [*getattr(response, "history", []), response]:
+        sources.extend([getattr(item, "text", ""), getattr(item, "url", "")])
+        sources.extend(str(value) for value in getattr(item, "headers", {}).values())
+    sources.extend(str(cookie.value) for cookie in session.cookies)
+    for source in sources:
+        match = _JWT_RE.search(source or "")
+        if match:
+            return match.group(1)
+    return None
 
 
 def save_credentials(root: Path, username: str, password: str) -> Path:
@@ -116,6 +132,10 @@ class WCSportsClient:
         body = response.text.lower()
         if "invalid login" in body or 'name="customerid"' in body or 'name="password"' in body:
             raise WCSportsAuthError("Đăng nhập không thành công; kiểm tra tài khoản trên S21.")
+        token = _bearer_from_response(response, self.session)
+        if token:
+            # Memory only: never write or print the bearer token.
+            self.session.headers["Authorization"] = f"Bearer {token}"
         self.home_url, self.home_html = safe, response.text
 
     def _get(self, url: str) -> requests.Response:
