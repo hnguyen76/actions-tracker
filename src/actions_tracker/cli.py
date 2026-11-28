@@ -464,6 +464,16 @@ def live_scores(db_path: Path, site_dir: Path, leagues: list[str], now: str, get
             half = f", luu 1H: {c['halftime_saved']}" if c["halftime_saved"] else ""
             print(f"[{league}] diem live: {c['live']} tran dang da, {c['final']} tran vua xong{half}")
         changed += c["live"] + c["final"]
+    # The owner's fresh private WagerHub feed is authoritative only for an exact away@home match.
+    # It runs after ESPN so verified book scores win; ESPN remains the fallback for all other games.
+    try:
+        from actions_tracker.wagerhub_feed import apply_scores
+        wh = apply_scores(conn, Path(db_path).parent.parent, now)
+        if wh["available"]:
+            print(f"[WagerHub] diem: match {wh['matched']}/{wh['available']}, live {wh['live']}, final {wh['final']}")
+        changed += wh["matched"]
+    except Exception as e:  # noqa: BLE001 - private source must never stop ESPN fallback
+        print(f"[WagerHub] diem: loi {type(e).__name__}; giu ESPN.")
     if soccer_get is not None:  # ESPN soccer: scores, finals and the 2H lines locked at halftime
         from actions_tracker import soccer as soccer_mod
         try:

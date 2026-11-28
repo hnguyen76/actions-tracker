@@ -3292,6 +3292,8 @@ const DATA = /*__DATA__*/null;
   const scoreOf = (r) => {
     if (!scoreMap) scoreMap = new Map(T("Scores").map((x) => [Number(x.game_id), x]));
     const stored = scoreMap.get(Number(r.game_id)), fresh = browserLive.scores.get(Number(r.game_id));
+    // A verified private WagerHub snapshot is primary for eight minutes. Browser ESPN polling remains the fallback.
+    if (stored && stored.source === "WagerHub" && Date.now() - Date.parse(stored.updated_at) <= 8 * 60000) return stored;
     if (!fresh || stored && (stored.graded || Date.parse(stored.updated_at) > Date.parse(fresh.updated_at))) return stored;
     return fresh;
   };
