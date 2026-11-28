@@ -2784,7 +2784,7 @@ const DATA = /*__DATA__*/null;
       const part = rows.filter((r) => r.day_group === group);
       const displayRows = part.map((r) => ({ ...r, method_result: methodResult(r) }));
       const methodRows = displayRows.map((r) => ({ ...r, side_result: r.method_result }));
-      lollipop(`past-chart-${suffix}`, methodRows, { label: (r) => `${group === "T7-CN" ? "Ngược" : "Theo"} ${r.pick} · ${r.match}`,
+      lollipop(`past-chart-${suffix}`, methodRows, { label: (r) => `${group === "T7-CN" ? "Ngược" : "Theo"} ${r.pick} · ${num(r.votes)}/${num(r.total_votes)} · ${r.match}`,
         ariaLabel: group === "T7-CN" ? "Kết quả đánh ngược bên đông cuối tuần" : "Kết quả theo bên đông trong tuần" });
       renderTable(`past-table-${suffix}`, displayRows, columns, null, {
         detail: pastSnapshotDetail, collapsibleDetail: true, detailKey: (r) => `${r.game_id}|${r.market}`,
